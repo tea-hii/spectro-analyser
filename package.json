@@ -1,22 +1,25 @@
 {
   "name": "spectrogram-analyzer",
+  "private": true,
   "version": "1.0.0",
-  "description": "Web Audio Spectrogram and Musical Chord Analyzer PWA",
-  "main": "index.html",
+  "type": "module",
+  "description": "Web Audio Spectrogram and Musical Chord Analyzer PWA in React",
   "scripts": {
-    "start": "npx serve -l 3000",
-    "serve": "python -m http.server 3000"
+    "dev": "vite --host 0.0.0.0 --port 3000",
+    "build": "tsc && vite build",
+    "preview": "vite preview --port 3000",
+    "lint": "tsc --noEmit"
   },
-  "keywords": [
-    "spectrogram",
-    "audio",
-    "fft",
-    "cqt",
-    "chromagram",
-    "chords",
-    "pwa",
-    "web-audio"
-  ],
-  "author": "",
-  "license": "MIT"
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7"
+  }
 }
+

@@ -1,0 +1,8 @@
+{
+  "name": "Web SpectroSub - Speech Spectrogram & Musical Chord Analyzer",
+  "description": "Ứng dụng phân tích phổ âm thanh (Speech Spectrogram) và phân tích hợp âm trực quan (Musical Chord Analyzer CQT & Chromagram), 100% Client-Side Web Audio.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
