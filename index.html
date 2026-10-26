@@ -164,23 +164,32 @@
               <option value="1.25">1.25x</option>
               <option value="1.5">1.5x</option>
             </select>
-          </div>
 
-          <!-- Row 2: Visual, Palettes & Presets -->
-          <div class="toolbar-row">
-            <select id="select-view-mode" class="tb-select" title="Chế độ hiển thị">
-              <option value="DUAL" selected>Dual (Phổ + Dạng sóng)</option>
-              <option value="SPECTROGRAM">Chỉ Biểu đồ phổ (Spectrogram)</option>
-              <option value="WAVEFORM">Chỉ Dạng sóng (Waveform)</option>
-            </select>
+            <div style="width: 1px; height: 20px; background: var(--border-color); margin: 0 2px;"></div>
 
-            <select id="select-palette" class="tb-select" title="Bảng màu biểu đồ phổ">
-              <option value="AEGISUB_BLUE" selected>Aegisub Classic</option>
-              <option value="INFERNO">Inferno Heatmap</option>
-              <option value="VIRIDIS">Viridis Bio</option>
-              <option value="CYBERPUNK">Neon Cyber</option>
-              <option value="PHONETIC_GRAY">Phonetic Paper</option>
-            </select>
+            <!-- Eye Icon Button with View Mode Dropdown -->
+            <div class="dropdown-wrapper" id="view-mode-dropdown-wrapper">
+              <button id="btn-view-mode" class="tb-btn icon-only dropdown-trigger" title="Chế độ hiển thị (Dual / Spectrogram / Waveform)" type="button">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+              <div id="view-mode-dropdown-menu" class="dropdown-menu">
+                <button class="dropdown-item view-mode-item active" data-value="DUAL" type="button">
+                  <span class="check-mark">✓</span>
+                  <span>Dual</span>
+                </button>
+                <button class="dropdown-item view-mode-item" data-value="SPECTROGRAM" type="button">
+                  <span class="check-mark"></span>
+                  <span>Spectrogram</span>
+                </button>
+                <button class="dropdown-item view-mode-item" data-value="WAVEFORM" type="button">
+                  <span class="check-mark"></span>
+                  <span>Waveform</span>
+                </button>
+              </div>
+            </div>
           </div>
         </nav>
 

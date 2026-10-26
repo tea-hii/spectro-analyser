@@ -1,8 +1,8 @@
 /**
- * 100% Client-Side Static Web App (PWA)
- * Tab 1: Speech & Audio Spectrogram (16kHz Mono, STFT 512-pt FFT, 60fps Canvas)
+ * Web SpectroSub - Dual-Tab Client-Side SPA & PWA
+ * Tab 1: Speech & Audio Spectrogram (16kHz Mono STFT 60fps)
  * Tab 2: Musical Chord Analyzer (Web Worker CQT & 12-Tone Chromagram)
- * Strictly zero backend, separate AudioContext per tab (Zero-leakage).
+ * 100% Client-Side, Zero-leakage between tabs, AudioContext per tab.
  */
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -14,7 +14,7 @@ function midiToNoteLabel(m) {
 }
 
 // -------------------------------------------------------------
-// 1. Exact Colormaps from Android AudioModel.kt
+// 1. Color Palettes (Look-Up Tables)
 // -------------------------------------------------------------
 const ColorPalettes = {
   AEGISUB_BLUE: 'Aegisub Classic',
@@ -238,6 +238,39 @@ class AudioEngine {
     return { samples16k, durationMs, trackName: name };
   }
 
+  loadSyntheticSpeechBuffer(durationSec = 6.02, name = 'Ví dụ 1') {
+    const ctx = this.getAudioContext();
+    const sr = 16000;
+    const totalSamples = Math.floor(durationSec * sr);
+    const audioBuf = ctx.createBuffer(1, totalSamples, sr);
+    const channelData = audioBuf.getChannelData(0);
+
+    for (let i = 0; i < totalSamples; i++) {
+      const t = i / sr;
+      const syllableEnv = 0.5 + 0.5 * Math.sin(2 * Math.PI * 3.2 * t);
+      const fundamental = Math.sin(2 * Math.PI * 140 * t);
+      const formant1 = 0.6 * Math.sin(2 * Math.PI * 700 * t);
+      const formant2 = 0.4 * Math.sin(2 * Math.PI * 1800 * t);
+      const formant3 = 0.2 * Math.sin(2 * Math.PI * 2600 * t);
+      const noise = (Math.random() - 0.5) * 0.1 * (Math.sin(2 * Math.PI * 6.5 * t) > 0.6 ? 1 : 0);
+      const sig = (fundamental + formant1 + formant2 + formant3) * syllableEnv * 0.35 + noise;
+      channelData[i] = Math.max(-0.95, Math.min(0.95, sig));
+    }
+
+    const { minPeaks, maxPeaks } = this.computeEnvelope(channelData, sr, 5.0);
+    this.audioBuffer = audioBuf;
+    this.samples16k = channelData;
+    this.sampleRate = sr;
+    this.durationMs = Math.round(durationSec * 1000);
+    this.trackName = name;
+    this.minPeaks = minPeaks;
+    this.maxPeaks = maxPeaks;
+    this.loopStartMs = 0;
+    this.loopEndMs = Math.min(this.durationMs, 2100);
+    this.currentPositionMs = 0;
+    return { samples16k: channelData, durationMs: this.durationMs, trackName: name };
+  }
+
   play(offsetMs = null) {
     if (!this.audioBuffer) return;
     const ctx = this.getAudioContext();
@@ -341,7 +374,7 @@ class AudioEngine {
 }
 
 // -------------------------------------------------------------
-// 3. Tab 1: Exact Android FFT Engine & Subtitle Models
+// 3. Tab 1: FFT Engine & Subtitle Models (Speech Spectrogram)
 // -------------------------------------------------------------
 class FFTEngine {
   constructor(fftSize = 512, hopSize = 256, targetBins = 128) {
@@ -436,7 +469,6 @@ class FFTEngine {
           const idx = start + i;
           const cur = (idx >= 0 && idx < totalSamples) ? samples[idx] : 0.0;
           const prev = (i > 0 && idx - 1 >= 0 && idx - 1 < totalSamples) ? samples[idx - 1] : cur;
-          // Pre-emphasis filter: x[n] - 0.92 * x[n-1]
           real[i] = (cur - 0.92 * prev) * this.hannWindow[i];
           imag[i] = 0.0;
         }
@@ -454,7 +486,6 @@ class FFTEngine {
             sum += rawMagnitudes[k];
           }
           const avg = sum * this.binInvCount[b];
-          // 20 * log10(avg + 1e-6), [-90dB .. +37.5dB] -> 0.5dB steps [0 .. 255]
           const db = 20.0 * Math.log10(avg + 1e-6);
           const q = Math.max(0, Math.min(255, Math.floor((db + 90.0) * 2.0)));
           packedMagnitudes[baseIdx + b] = q;
@@ -466,7 +497,6 @@ class FFTEngine {
       await new Promise(r => setTimeout(r, 0));
     }
 
-    // Dynamic range normalization: 65 dB (130 steps) into [0 .. 255]
     const dynamicRangeQ = 130;
     const floorQ = Math.max(minQ, maxQ - dynamicRangeQ);
     const rangeQ = Math.max(1, maxQ - floorQ);
@@ -542,7 +572,7 @@ const TimeFormatter = {
 };
 
 // -------------------------------------------------------------
-// 4. Tab 1: Spectrogram Canvas Renderer (60fps Virtualized)
+// 4. Tab 1: Spectrogram Canvas Renderer
 // -------------------------------------------------------------
 class SpectrogramCanvasRenderer {
   constructor(canvas, audioEngine) {
@@ -610,7 +640,10 @@ class SpectrogramCanvasRenderer {
     ctx.fillStyle = '#080d18';
     ctx.fillRect(0, 0, w, h);
 
-    if (!this.audio || this.audio.durationMs <= 0) {
+    const hasAudio = (this.audio && this.audio.durationMs > 0);
+    const hasCues = (this.cues && this.cues.length > 0);
+
+    if (!hasAudio && !hasCues) {
       ctx.fillStyle = '#64748b';
       ctx.font = '13px sans-serif';
       ctx.textAlign = 'center';
@@ -618,38 +651,66 @@ class SpectrogramCanvasRenderer {
       return;
     }
 
+    if (!hasAudio && hasCues) {
+      const maxEnd = Math.max(...this.cues.map(c => c.endMs || 0));
+      this.audio.durationMs = Math.max(7000, maxEnd + 1000);
+    }
+
     this.clampScroll();
 
     const rulerH = this.rulerHeight;
+    const subH = this.subOverlayHeight;
     const miniH = this.minimapHeight;
-    const mainH = h - rulerH - miniH;
+    const contentY = rulerH + subH;
+    const contentH = Math.max(20, h - contentY - miniH);
+    const contentBottom = h - miniH;
 
-    let specH = 0, waveH = 0, specY = rulerH, waveY = rulerH;
+    let specH = 0, waveH = 0, specY = contentY, waveY = contentY;
     if (this.viewMode === 'DUAL') {
-      specH = Math.floor(mainH * 0.62);
-      waveH = mainH - specH;
-      waveY = specY + specH;
+      // Waveform ON TOP of Spectrogram
+      waveH = Math.floor(contentH * 0.38);
+      waveY = contentY;
+      specH = contentH - waveH;
+      specY = waveY + waveH;
     } else if (this.viewMode === 'SPECTROGRAM') {
-      specH = mainH;
+      specH = contentH;
+      specY = contentY;
     } else {
-      waveH = mainH;
+      waveH = contentH;
+      waveY = contentY;
     }
 
-    if (specH > 0 && this.spectrogram && this.spectrogram.numFrames > 0) {
-      this.drawSpectrogram(ctx, 0, specY, w, specH);
-    }
     if (waveH > 0) {
       this.drawWaveform(ctx, 0, waveY, w, waveH);
     }
+    if (specH > 0 && this.spectrogram && this.spectrogram.numFrames > 0) {
+      this.drawSpectrogram(ctx, 0, specY, w, specH);
+    }
 
-    this.drawSubtitlesOverlay(ctx, 0, rulerH, w);
-    this.drawSelectionWindow(ctx, 0, rulerH, w, mainH);
+    // Subtle divider between Waveform and Spectrogram in Dual mode
+    if (this.viewMode === 'DUAL' && waveH > 0 && specH > 0) {
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, specY);
+      ctx.lineTo(w, specY);
+      ctx.stroke();
+    }
+
+    // Subtitle text script strip right below time ruler (not overlaying spectrogram)
+    this.drawSubtitlesOverlay(ctx, 0, rulerH, w, subH);
+
+    // Selection window across full interactive area
+    const selectionH = h - rulerH - miniH;
+    this.drawSelectionWindow(ctx, 0, rulerH, w, selectionH);
+
+    // Time ruler on top
     this.drawTimeRuler(ctx, 0, 0, w, rulerH);
 
     // Positions for Start, Stop, and Playhead lines
     const startX = this.timeToX(this.selectionStartMs);
     const endX = this.timeToX(this.selectionEndMs);
-    const playheadMs = this.audio.getCurrentPosition();
+    const playheadMs = this.audio ? this.audio.getCurrentPosition() : 0;
     const playheadX = this.timeToX(playheadMs);
 
     // 1) Thin start line on top of time ruler (Green #10b981)
@@ -693,13 +754,14 @@ class SpectrogramCanvasRenderer {
       ctx.fill();
     }
 
-    // Playhead line in main canvas area (Yellow #facc15)
+    // Playhead line in main canvas area (Yellow #facc15) - prominently visible over waveform and spectrogram
     if (playheadX >= -10 && playheadX <= w + 10) {
+      ctx.save();
       ctx.strokeStyle = '#facc15';
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(playheadX, rulerH);
-      ctx.lineTo(playheadX, rulerH + mainH);
+      ctx.lineTo(playheadX, contentBottom);
       ctx.stroke();
 
       ctx.fillStyle = '#facc15';
@@ -709,6 +771,7 @@ class SpectrogramCanvasRenderer {
       ctx.lineTo(playheadX, rulerH + 9);
       ctx.closePath();
       ctx.fill();
+      ctx.restore();
     }
 
     this.drawMinimap(ctx, 0, h - miniH, w, miniH);
@@ -753,17 +816,6 @@ class SpectrogramCanvasRenderer {
     const endX = this.timeToX((fEnd + 1) * spec.timeResolutionMs);
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(this.tileCanvas, 0, 0, renderFrames, numBins, startX, y, endX - startX, height);
-
-    // Subtle Frequency grid lines (Hz)
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-    ctx.lineWidth = 1;
-    for (let khz = 1; khz <= 7; khz++) {
-      const freqY = y + height - (khz / 8.0) * height;
-      ctx.beginPath();
-      ctx.moveTo(0, freqY);
-      ctx.lineTo(width, freqY);
-      ctx.stroke();
-    }
   }
 
   drawWaveform(ctx, x, y, width, height) {
@@ -793,7 +845,18 @@ class SpectrogramCanvasRenderer {
     ctx.fill();
   }
 
-  drawSubtitlesOverlay(ctx, x, y, width) {
+  drawSubtitlesOverlay(ctx, x, y, width, height = this.subOverlayHeight) {
+    // Dedicated subtitle text script strip background right below time ruler
+    ctx.fillStyle = '#0b1120';
+    ctx.fillRect(x, y, width, height);
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, y + height);
+    ctx.lineTo(x + width, y + height);
+    ctx.stroke();
+
     if (!this.cues) return;
     this.cues.forEach(cue => {
       if (cue.clockState === CueClockState.OFF) return;
@@ -802,22 +865,35 @@ class SpectrogramCanvasRenderer {
       const cueW = endX - startX;
       if (endX < 0 || startX > width) return;
 
+      const isActive = this.activeCue && this.activeCue.id === cue.id;
+      const padY = 2;
+      const barH = height - padY * 2;
+
       ctx.save();
       ctx.beginPath();
-      ctx.rect(startX, y + 2, cueW, this.subOverlayHeight - 4);
+      ctx.rect(startX, y + padY, Math.max(8, cueW), barH);
       ctx.clip();
 
-      const isActive = this.activeCue && this.activeCue.id === cue.id;
-      ctx.fillStyle = isActive ? 'rgba(56, 189, 248, 0.25)' : 'rgba(30, 41, 59, 0.7)';
-      ctx.fillRect(startX, y + 2, cueW, this.subOverlayHeight - 4);
-      ctx.strokeStyle = isActive ? '#38bdf8' : '#475569';
-      ctx.strokeRect(startX, y + 2, cueW, this.subOverlayHeight - 4);
+      if (isActive) {
+        // Active cue bar with prominent standout border and glow
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.35)';
+        ctx.fillRect(startX, y + padY, cueW, barH);
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2.5;
+        ctx.strokeRect(startX + 1, y + padY + 1, Math.max(6, cueW - 2), barH - 2);
+      } else {
+        ctx.fillStyle = 'rgba(30, 41, 59, 0.85)';
+        ctx.fillRect(startX, y + padY, cueW, barH);
+        ctx.strokeStyle = '#475569';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(startX, y + padY, Math.max(8, cueW), barH);
+      }
 
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 11px sans-serif';
+      ctx.fillStyle = isActive ? '#ffffff' : '#cbd5e1';
+      ctx.font = (isActive ? 'bold ' : '') + '11px sans-serif';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      ctx.fillText(cue.text, startX + 6, y + this.subOverlayHeight / 2);
+      ctx.fillText(cue.text, startX + 6, y + height / 2);
       ctx.restore();
 
       if (cue.clockState === CueClockState.EDITING_WORDS) {
@@ -936,9 +1012,13 @@ class SpectrogramCanvasRenderer {
         (mouseX >= endX - 18 && mouseX <= endX && mouseY >= this.rulerHeight && mouseY <= this.rulerHeight + 22);
       const isNearYellow = Math.abs(mouseX - playheadX) <= HIT;
 
+      const mouseTime = this.xToTime(mouseX);
+      const isOverSubBar = (mouseY >= this.rulerHeight && mouseY <= this.rulerHeight + this.subOverlayHeight);
+      const isOverCue = isOverSubBar && this.cues && this.cues.some(c => mouseTime >= c.startMs && mouseTime <= c.endMs);
+
       if (isNearStart || isNearEnd || isNearYellow) {
         c.style.cursor = 'ew-resize';
-      } else if (mouseY <= this.rulerHeight) {
+      } else if (mouseY <= this.rulerHeight || isOverCue) {
         c.style.cursor = 'pointer';
       } else {
         c.style.cursor = 'crosshair';
@@ -976,6 +1056,23 @@ class SpectrogramCanvasRenderer {
       } else if (Math.abs(dragStartX - playheadX) <= 12) {
         dragTarget = 'PLAYHEAD';
         c.style.cursor = 'ew-resize';
+      } else if (dragStartY >= this.rulerHeight && dragStartY <= this.rulerHeight + this.subOverlayHeight) {
+        // Clicked directly on the subtitle strip to select that cue!
+        const clickedCue = this.cues ? this.cues.find(c => curTime >= c.startMs && curTime <= c.endMs) : null;
+        if (clickedCue) {
+          if (this.onCueSelect) {
+            this.onCueSelect(clickedCue);
+          } else {
+            this.activeCue = clickedCue;
+            this.selectionStartMs = clickedCue.startMs;
+            this.selectionEndMs = clickedCue.endMs;
+            this.audio.seek(clickedCue.startMs);
+          }
+          this.render();
+          dragTarget = 'SUBTITLE_BAR';
+          return;
+        }
+        dragTarget = 'PAN';
       } else if (dragStartY <= this.rulerHeight) {
         // Clicking directly on time ruler seeks and enables playhead dragging
         this.audio.seek(Math.max(0, Math.min(this.audio.durationMs, curTime)));
@@ -1055,19 +1152,20 @@ class MusicalChordAnalyzer {
     this.chromaCtx = chromaCanvas.getContext('2d', { alpha: false });
     this.audio = audioEngine;
 
-    this.data = null;
+    // Analysis results from Web Worker
+    this.data = null; // { cqtMatrix, chromagramMatrix, detectedChords, numFrames, timeResolutionMs, ... }
     this.paletteKey = 'INFERNO';
-    this.zoomFactor = 35.0;
+    this.zoomFactor = 35.0; // pixels per 100ms
     this.scrollOffsetMs = 0;
 
     // Pitch Range Preset ('AUTO', 'GUITAR_KEYS', 'BASS_MID', 'VOCAL_LEAD', 'FULL')
     this.pitchRangeMode = 'AUTO';
-    this.activeMinMidi = 38; // D2 (~73.4 Hz)
-    this.activeMaxMidi = 64; // E5 (~659.2 Hz)
+    this.activeMinMidi = 36; // C2
+    this.activeMaxMidi = 76; // E5
 
     this.rulerHeight = 24;
     this.minimapHeight = 24;
-    this.leftGutterWidth = 54;
+    this.leftGutterWidth = 54; // Width for Piano Roll / Note labels on the left
 
     this.cqtTileCanvas = document.createElement('canvas');
     this.cqtTileCtx = this.cqtTileCanvas.getContext('2d', { alpha: false });
@@ -1081,6 +1179,7 @@ class MusicalChordAnalyzer {
   resize() {
     const dpr = window.devicePixelRatio || 1;
 
+    // CQT Canvas resize
     const rect1 = this.cqtCanvas.getBoundingClientRect();
     if (rect1.width > 0 && rect1.height > 0) {
       this.cqtCanvas.width = Math.round(rect1.width * dpr);
@@ -1090,6 +1189,7 @@ class MusicalChordAnalyzer {
       this.cqtHeight = rect1.height;
     }
 
+    // Chromagram Canvas resize
     const rect2 = this.chromaCanvas.getBoundingClientRect();
     if (rect2.width > 0 && rect2.height > 0) {
       this.chromaCanvas.width = Math.round(rect2.width * dpr);
@@ -1120,14 +1220,14 @@ class MusicalChordAnalyzer {
       this.activeMinMidi = this.data.autoMinMidi;
       this.activeMaxMidi = this.data.autoMaxMidi;
     } else if (this.pitchRangeMode === 'GUITAR_KEYS') {
-      this.activeMinMidi = 40; // E2
-      this.activeMaxMidi = 88; // E6
+      this.activeMinMidi = 40; // E2 (~82.4Hz)
+      this.activeMaxMidi = 88; // E6 (~1318Hz)
     } else if (this.pitchRangeMode === 'BASS_MID') {
-      this.activeMinMidi = 24; // C1
-      this.activeMaxMidi = 72; // C5
+      this.activeMinMidi = 24; // C1 (~32.7Hz)
+      this.activeMaxMidi = 72; // C5 (~523Hz)
     } else if (this.pitchRangeMode === 'VOCAL_LEAD') {
-      this.activeMinMidi = 45; // A2
-      this.activeMaxMidi = 81; // A5
+      this.activeMinMidi = 45; // A2 (~110Hz)
+      this.activeMaxMidi = 81; // A5 (~880Hz)
     } else { // FULL
       this.activeMinMidi = this.data.minMidi;
       this.activeMaxMidi = this.data.maxMidi;
@@ -1150,12 +1250,14 @@ class MusicalChordAnalyzer {
     this.updateCurrentChordIndicator();
   }
 
+  // Tầng 1: Dynamic CQT Spectrogram (Semitones with Piano Roll labels)
   renderCqtTier() {
     if (!this.cqtCtx || !this.cqtWidth || !this.cqtHeight) return;
     const ctx = this.cqtCtx, w = this.cqtWidth, h = this.cqtHeight;
 
     ctx.fillStyle = '#070b14';
     ctx.fillRect(0, 0, w, h);
+
     if (!this.data) return;
 
     this.updatePitchRangeBounds();
@@ -1163,30 +1265,36 @@ class MusicalChordAnalyzer {
     const rulerH = this.rulerHeight;
     const graphH = h - rulerH;
     const gutterW = this.leftGutterWidth;
+    const plotW = w - gutterW;
 
     const minM = this.activeMinMidi;
     const maxM = this.activeMaxMidi;
     const renderedSemitones = maxM - minM + 1;
     const semitoneH = graphH / renderedSemitones;
 
-    // Piano Roll Notes labels on left
+    // Draw Left Gutter: Piano Roll Note Labels & Key Colors
     for (let m = minM; m <= maxM; m++) {
-      const row = maxM - m;
+      const row = maxM - m; // Invert: lowest note at bottom
       const y = rulerH + row * semitoneH;
       const pc = m % 12;
       const isBlack = (pc === 1 || pc === 3 || pc === 6 || pc === 8 || pc === 10);
 
+      // Piano Key Background
       ctx.fillStyle = isBlack ? '#111827' : '#1e293b';
       ctx.fillRect(0, y, gutterW, semitoneH);
+
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.lineWidth = 1;
       ctx.strokeRect(0, y, gutterW, semitoneH);
 
+      // Note text label (e.g. C3, D#3)
       ctx.fillStyle = (pc === 0) ? '#38bdf8' : (isBlack ? '#94a3b8' : '#f8fafc');
       ctx.font = (pc === 0 ? 'bold ' : '') + '10px "JetBrains Mono", monospace';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
       ctx.fillText(midiToNoteLabel(m), gutterW - 6, y + semitoneH / 2);
 
+      // Light grid lines across the plot area
       ctx.strokeStyle = (pc === 0) ? 'rgba(56, 189, 248, 0.25)' : 'rgba(255, 255, 255, 0.04)';
       ctx.beginPath();
       ctx.moveTo(gutterW, y + semitoneH);
@@ -1194,7 +1302,7 @@ class MusicalChordAnalyzer {
       ctx.stroke();
     }
 
-    // Render CQT Tiles
+    // Render CQT Spectrogram Tile
     const spec = this.data;
     const vStartMs = this.xToTime(gutterW);
     const vEndMs = this.xToTime(w);
@@ -1218,6 +1326,7 @@ class MusicalChordAnalyzer {
       for (let fIdx = 0; fIdx < renderFrames; fIdx++) {
         const frame = fStart + fIdx;
         const frameBase = frame * totalBins;
+
         for (let row = 0; row < renderedSemitones; row++) {
           const m = maxM - row;
           const sIdx = m - globalMinM;
@@ -1234,9 +1343,10 @@ class MusicalChordAnalyzer {
       ctx.drawImage(this.cqtTileCanvas, 0, 0, renderFrames, renderedSemitones, startX, rulerH, endX - startX, graphH);
     }
 
+    // Draw Top Time Ruler
     this.drawTimeRuler(ctx, 0, 0, w, rulerH);
 
-    // Playhead line
+    // Draw Yellow Playhead Line on CQT
     const playheadMs = this.audio.getCurrentPosition();
     const playheadX = this.timeToX(playheadMs);
     if (playheadX >= gutterW && playheadX <= w) {
@@ -1256,7 +1366,7 @@ class MusicalChordAnalyzer {
       ctx.closePath();
       ctx.fill();
 
-      // Main line in CQT tier
+      // Main yellow line in CQT tier
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(playheadX, rulerH);
@@ -1273,12 +1383,14 @@ class MusicalChordAnalyzer {
     }
   }
 
+  // Tầng 2: Chromagram 12 Nốt (Pitch Class Profile with Octave Invariance)
   renderChromaTier() {
     if (!this.chromaCtx || !this.chromaWidth || !this.chromaHeight) return;
     const ctx = this.chromaCtx, w = this.chromaWidth, h = this.chromaHeight;
 
     ctx.fillStyle = '#060a12';
     ctx.fillRect(0, 0, w, h);
+
     if (!this.data) return;
 
     const miniH = this.minimapHeight;
@@ -1286,9 +1398,9 @@ class MusicalChordAnalyzer {
     const gutterW = this.leftGutterWidth;
     const laneH = graphH / 12.0;
 
-    // 12 Semitone Lanes: B down to C
+    // Draw Left Gutter: 12 Pitch Classes (B down to C)
     for (let pcRow = 0; pcRow < 12; pcRow++) {
-      const pc = 11 - pcRow;
+      const pc = 11 - pcRow; // 11 is B down to 0 is C
       const y = pcRow * laneH;
       const isBlack = (pc === 1 || pc === 3 || pc === 6 || pc === 8 || pc === 10);
 
@@ -1303,6 +1415,7 @@ class MusicalChordAnalyzer {
       ctx.textBaseline = 'middle';
       ctx.fillText(NOTE_NAMES[pc], gutterW - 8, y + laneH / 2);
 
+      // Lane divider lines
       ctx.strokeStyle = (pc === 0) ? 'rgba(253, 224, 71, 0.3)' : 'rgba(255, 255, 255, 0.05)';
       ctx.beginPath();
       ctx.moveTo(gutterW, y + laneH);
@@ -1310,7 +1423,7 @@ class MusicalChordAnalyzer {
       ctx.stroke();
     }
 
-    // Chromagram Heatmap Tile
+    // Render 12-Tone Chromagram Heatmap Tile
     const spec = this.data;
     const vStartMs = this.xToTime(gutterW);
     const vEndMs = this.xToTime(w);
@@ -1328,6 +1441,7 @@ class MusicalChordAnalyzer {
       const buf32 = new Uint32Array(imgData.data.buffer);
       const chromaMatrix = new Uint8Array(spec.chromagramMatrix);
 
+      // Electric violet to bright gold LUT for Chromagram
       for (let fIdx = 0; fIdx < renderFrames; fIdx++) {
         const frame = fStart + fIdx;
         const frameBase = frame * 12;
@@ -1336,6 +1450,7 @@ class MusicalChordAnalyzer {
           const q = chromaMatrix[frameBase + pc];
           const t = q / 255.0;
 
+          // Vibrant neon gradient: Dark Navy -> Deep Purple -> Neon Cyan -> Gold
           let r = 0, g = 0, b = 0;
           if (t < 0.2) {
             r = 0.04; g = 0.05; b = 0.15 * (t / 0.2);
@@ -1349,7 +1464,11 @@ class MusicalChordAnalyzer {
             const k = (t - 0.8) / 0.2;
             r = 0.94 + 0.06 * k; g = 0.85 + 0.15 * k; b = 0.4 * k;
           }
-          buf32[row * renderFrames + fIdx] = (255 << 24) | (Math.floor(b * 255) << 16) | (Math.floor(g * 255) << 8) | Math.floor(r * 255);
+
+          const R = Math.floor(r * 255);
+          const G = Math.floor(g * 255);
+          const B = Math.floor(b * 255);
+          buf32[row * renderFrames + fIdx] = (255 << 24) | (B << 16) | (G << 8) | R;
         }
       }
 
@@ -1373,12 +1492,14 @@ class MusicalChordAnalyzer {
       ctx.stroke();
     }
 
+    // Draw Minimap at Bottom of Chromagram Tier
     this.drawMinimap(ctx, 0, h - miniH, w, miniH);
   }
 
   drawTimeRuler(ctx, x, y, width, height) {
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(x, y, width, height);
+
     ctx.strokeStyle = '#334155';
     ctx.beginPath(); ctx.moveTo(x, y + height); ctx.lineTo(x + width, y + height); ctx.stroke();
 
@@ -1421,6 +1542,7 @@ class MusicalChordAnalyzer {
     const gutterW = this.leftGutterWidth;
     const plotW = width - gutterW;
 
+    // Mini waveform representation
     const minP = this.audio.minPeaks, maxP = this.audio.maxPeaks;
     if (minP && minP.length > 0) {
       const centerY = y + height / 2;
@@ -1433,6 +1555,7 @@ class MusicalChordAnalyzer {
       }
     }
 
+    // Highlighted thumb
     const thumbStartMs = Math.max(0, this.scrollOffsetMs);
     const thumbEndMs = Math.min(durMs, this.scrollOffsetMs + plotW * this.msPerPixel);
     const thumbX = gutterW + (thumbStartMs / durMs) * plotW;
@@ -1456,6 +1579,7 @@ class MusicalChordAnalyzer {
   initEvents() {
     const bindCanvasGestures = (canvas) => {
       let isDragging = false, dragStartX = 0, dragStartScrollMs = 0;
+
       const getX = (e) => (e.touches ? e.touches[0].clientX : e.clientX) - canvas.getBoundingClientRect().left;
 
       canvas.addEventListener('mousemove', (e) => {
@@ -1490,7 +1614,9 @@ class MusicalChordAnalyzer {
         if (isDragging) {
           const curX = (e.changedTouches ? e.changedTouches[0].clientX : e.clientX) - canvas.getBoundingClientRect().left;
           if (Math.abs(curX - dragStartX) < 5) {
-            this.audio.seek(this.xToTime(curX));
+            // Tap / Click seek
+            const clickTime = this.xToTime(curX);
+            this.audio.seek(clickTime);
           }
         }
         isDragging = false;
@@ -1524,11 +1650,11 @@ class MusicalChordAnalyzer {
 }
 
 // -------------------------------------------------------------
-// 6. Master Application Controller
+// 6. Master Application Controller (Dual Tab Management)
 // -------------------------------------------------------------
 class SpectroSubApp {
   constructor() {
-    this.currentTab = 'tab1';
+    this.currentTab = 'tab1'; // 'tab1' or 'tab2'
 
     // Tab 1 Audio & Spectrogram
     this.audioTab1 = new AudioEngine('Tab1');
@@ -1553,9 +1679,17 @@ class SpectroSubApp {
   }
 
   initDOM() {
+    // 1. Setup Tab 1 Canvas Renderer
     const canvasTab1 = document.getElementById('spectrogram-canvas');
     this.rendererTab1 = new SpectrogramCanvasRenderer(canvasTab1, this.audioTab1);
+    this.rendererTab1.onCueSelect = (cue) => {
+      this.selectTab1Cue(cue);
+      this.rendererTab1.scrollOffsetMs = cue.startMs - (this.rendererTab1.width * this.rendererTab1.msPerPixel) * 0.15;
+      this.audioTab1.seek(cue.startMs);
+      this.renderTab1CuesList();
+    };
 
+    // Splitter for Tab 1
     const splitter = document.getElementById('pane-splitter');
     const canvasPanel = document.getElementById('canvas-panel');
     let isResizing = false;
@@ -1569,6 +1703,7 @@ class SpectroSubApp {
     });
     window.addEventListener('mouseup', () => { isResizing = false; splitter.classList.remove('dragging'); });
 
+    // 2. Setup Tab 2 Musical Chord Analyzer
     const cqtCanvas = document.getElementById('cqt-canvas');
     const chromaCanvas = document.getElementById('chroma-canvas');
     this.chordAnalyzerTab2 = new MusicalChordAnalyzer(cqtCanvas, chromaCanvas, this.audioTab2);
@@ -1578,7 +1713,7 @@ class SpectroSubApp {
       else this.chordAnalyzerTab2.resize();
     });
 
-    // Tab 1 Toolbar Controls
+    // 3. Bind Tab 1 Toolbar Buttons
     const btnPlay1 = document.getElementById('btn-play');
     btnPlay1.addEventListener('click', () => this.audioTab1.togglePlay());
 
@@ -1640,15 +1775,43 @@ class SpectroSubApp {
       this.audioTab1.setSpeed(parseFloat(e.target.value));
     });
 
-    document.getElementById('select-view-mode').addEventListener('change', (e) => {
-      this.rendererTab1.viewMode = e.target.value;
-      this.rendererTab1.render();
-    });
+    // View mode eye button & dropdown
+    const btnViewMode = document.getElementById('btn-view-mode');
+    const menuViewMode = document.getElementById('view-mode-dropdown-menu');
+    const itemsViewMode = document.querySelectorAll('.view-mode-item');
 
-    document.getElementById('select-palette').addEventListener('change', (e) => {
-      this.rendererTab1.paletteKey = e.target.value;
-      this.rendererTab1.render();
-    });
+    if (btnViewMode && menuViewMode) {
+      btnViewMode.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menuViewMode.classList.toggle('show');
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!menuViewMode.contains(e.target) && !btnViewMode.contains(e.target)) {
+          menuViewMode.classList.remove('show');
+        }
+      });
+
+      itemsViewMode.forEach(item => {
+        item.addEventListener('click', () => {
+          const val = item.getAttribute('data-value');
+          this.rendererTab1.viewMode = val;
+          this.rendererTab1.render();
+
+          itemsViewMode.forEach(it => {
+            const isMatch = it.getAttribute('data-value') === val;
+            it.classList.toggle('active', isMatch);
+            const check = it.querySelector('.check-mark');
+            if (check) check.textContent = isMatch ? '✓' : '';
+          });
+
+          menuViewMode.classList.remove('show');
+        });
+      });
+    }
+
+    // Fixed permanently to Aegisub Classic palette
+    this.rendererTab1.paletteKey = 'AEGISUB_BLUE';
 
     const masterClockBtn = document.getElementById('btn-master-clock');
     if (masterClockBtn) {
@@ -1681,12 +1844,14 @@ class SpectroSubApp {
       const pos = document.getElementById('select-insert-pos').value;
       if (text) {
         this.addTab1CuesFromText(text, pos);
-        ta.value = '';
-        document.getElementById('modal-add-cues').style.display = 'none';
+      } else {
+        this.addTab1CuesFromText('Câu mới', pos);
       }
+      ta.value = '';
+      document.getElementById('modal-add-cues').style.display = 'none';
     });
 
-    // Tab 2 Controls
+    // 4. Bind Tab 2 Controls
     const btnPlay2 = document.getElementById('btn-tab2-play');
     btnPlay2.addEventListener('click', () => this.audioTab2.togglePlay());
 
@@ -1715,6 +1880,7 @@ class SpectroSubApp {
       this.chordAnalyzerTab2.render();
     });
 
+    // File loading for Tab 1 and Tab 2
     this.initFileLoading();
   }
 
@@ -1806,11 +1972,13 @@ class SpectroSubApp {
       });
     }
 
+    // Tab 1 file input
     inputTab1.addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (file) await this.loadTab1AudioFile(file);
     });
 
+    // Tab 2 file input & dropzone
     inputTab2.addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (file) await this.loadTab2AudioFile(file);
@@ -1829,6 +1997,7 @@ class SpectroSubApp {
       if (file) await this.loadTab2AudioFile(file);
     });
 
+    // Close buttons on all modals
     document.querySelectorAll('.modal-close-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const modal = e.target.closest('.modal-overlay');
@@ -1847,7 +2016,9 @@ class SpectroSubApp {
     document.getElementById('loading-overlay').style.display = 'none';
   }
 
-  // Tab 1 Operations
+  // -------------------------------------------------------------
+  // Tab 1 Operations (Speech Spectrogram)
+  // -------------------------------------------------------------
   async loadTab1AudioFile(file) {
     try {
       this.showLoading(`Đang đọc file "${file.name}" vào RAM Tab 1...`, 0.05);
@@ -1906,49 +2077,88 @@ class SpectroSubApp {
   }
 
   async loadTab1Preset(presetId) {
-    try {
-      let fileName = './assets/french_liaisons.mp3';
-      let trackLabel = 'Ví dụ 1';
-      let presetCues = [];
+    let fileName = './assets/french_liaisons.mp3';
+    let trackLabel = 'Ví dụ 1';
+    let presetCues = [];
+    let candidatePaths = [];
 
-      if (presetId === 1) {
-        fileName = './assets/french_liaisons.mp3';
-        trackLabel = 'Ví dụ 1';
-        presetCues = [
-          new SubtitleCue({ startMs: 0, endMs: 2100, text: "C'est une très belle histoire", actor: "Ví dụ 1" }),
-          new SubtitleCue({ startMs: 2100, endMs: 4100, text: "les enfants adorent les oiseaux", actor: "Ví dụ 1" }),
-          new SubtitleCue({ startMs: 4100, endMs: 6020, text: "et nous allons ensemble à Paris", actor: "Ví dụ 1" })
-        ];
-      } else if (presetId === 2) {
-        fileName = './assets/french_conversation.mp3';
-        trackLabel = 'Ví dụ 2';
-        presetCues = [
-          new SubtitleCue({ startMs: 0, endMs: 2600, text: "Je ne sais pas ce que tu penses", actor: "Ví dụ 2" }),
-          new SubtitleCue({ startMs: 2650, endMs: 5560, text: "mais il faut faire attention aux liaisons et aux élisions", actor: "Ví dụ 2" })
-        ];
-      } else {
-        fileName = './assets/french_liaisons.wav';
-        trackLabel = 'Ví dụ 3';
-        presetCues = [];
-        for (let i = 0; i < 28; i++) {
-          const s = i * 7500;
-          presetCues.push(new SubtitleCue({
-            startMs: s,
-            endMs: s + 3200,
-            text: `[#${i + 1}] C'est une belle prononciation française`,
-            actor: 'Français'
-          }));
-        }
+    if (presetId === 1) {
+      fileName = './assets/french_liaisons.mp3';
+      candidatePaths = [
+        './assets/french_liaisons.mp3',
+        './public/assets/french_liaisons.mp3',
+        'assets/french_liaisons.mp3',
+        'french_liaisons.mp3',
+        './assets/french_liaisons.wav'
+      ];
+      trackLabel = 'Ví dụ 1';
+      presetCues = [
+        new SubtitleCue({ startMs: 0, endMs: 2100, text: "C'est une très belle histoire", actor: "Ví dụ 1" }),
+        new SubtitleCue({ startMs: 2100, endMs: 4100, text: "les enfants adorent les oiseaux", actor: "Ví dụ 1" }),
+        new SubtitleCue({ startMs: 4100, endMs: 6020, text: "et nous allons ensemble à Paris", actor: "Ví dụ 1" })
+      ];
+    } else if (presetId === 2) {
+      fileName = './assets/french_conversation.mp3';
+      candidatePaths = [
+        './assets/french_conversation.mp3',
+        './public/assets/french_conversation.mp3',
+        'assets/french_conversation.mp3'
+      ];
+      trackLabel = 'Ví dụ 2';
+      presetCues = [
+        new SubtitleCue({ startMs: 0, endMs: 2600, text: "Je ne sais pas ce que tu penses", actor: "Ví dụ 2" }),
+        new SubtitleCue({ startMs: 2650, endMs: 5560, text: "mais il faut faire attention aux liaisons et aux élisions", actor: "Ví dụ 2" })
+      ];
+    } else {
+      fileName = './assets/french_liaisons.wav';
+      candidatePaths = [
+        './assets/french_liaisons.wav',
+        './public/assets/french_liaisons.wav',
+        './assets/french_liaisons.mp3'
+      ];
+      trackLabel = 'Ví dụ 3';
+      presetCues = [];
+      for (let i = 0; i < 28; i++) {
+        const s = i * 7500;
+        presetCues.push(new SubtitleCue({
+          startMs: s,
+          endMs: s + 3200,
+          text: `[#${i + 1}] C'est une belle prononciation française`,
+          actor: 'Français'
+        }));
+      }
+    }
+
+    // Always immediately populate cues and render the list so it never stays at (0)
+    this.cuesTab1 = presetCues;
+    this.selectTab1Cue(presetCues[0]);
+    this.renderTab1CuesList();
+
+    try {
+      this.showLoading(`Đang tải bài mẫu "${trackLabel}" vào Tab 1...`, 0.1);
+      let arrayBuf = null;
+
+      for (const p of candidatePaths) {
+        try {
+          const res = await fetch(p);
+          if (res.ok) {
+            arrayBuf = await res.arrayBuffer();
+            break;
+          }
+        } catch (_) {}
       }
 
-      this.showLoading(`Đang tải bài mẫu "${trackLabel}" vào Tab 1...`, 0.1);
-      const res = await fetch(fileName);
-      const arrayBuf = await res.arrayBuffer();
-
-      this.showLoading('Đang giải mã & Downsample 16kHz Mono...', 0.35);
-      await this.audioTab1.loadAudioBuffer(arrayBuf, trackLabel, (p) => {
-        this.showLoading('Đang phân tích âm thanh...', p);
-      });
+      if (arrayBuf) {
+        this.showLoading('Đang giải mã & Downsample 16kHz Mono...', 0.35);
+        await this.audioTab1.loadAudioBuffer(arrayBuf, trackLabel, (p) => {
+          this.showLoading('Đang phân tích âm thanh...', p);
+        });
+      } else {
+        // Fallback for file:/// protocol or offline execution
+        this.showLoading('Đang tạo tín hiệu âm thanh mẫu...', 0.35);
+        const durSec = presetCues.length > 0 ? (presetCues[presetCues.length - 1].endMs / 1000.0) : 6.02;
+        this.audioTab1.loadSyntheticSpeechBuffer(durSec, trackLabel);
+      }
 
       this.showLoading('Đang tính ma trận 2D STFT (512-pt Cooley-Tukey FFT)...', 0.5);
       const spec = await this.fftTab1.computeSpectrogramAsync(
@@ -1968,7 +2178,22 @@ class SpectroSubApp {
       this.rendererTab1.resize();
       this.renderTab1CuesList();
     } catch (e) {
-      console.warn('Preset load failed:', e);
+      console.warn('Preset load failed, using synthetic fallback:', e);
+      try {
+        const durSec = presetCues.length > 0 ? (presetCues[presetCues.length - 1].endMs / 1000.0) : 6.02;
+        this.audioTab1.loadSyntheticSpeechBuffer(durSec, trackLabel);
+        const spec = await this.fftTab1.computeSpectrogramAsync(this.audioTab1.samples16k, 16000, () => {});
+        this.rendererTab1.spectrogram = spec;
+        this.cuesTab1 = presetCues;
+        this.selectTab1Cue(presetCues[0]);
+        if (this.currentTab === 'tab1') {
+          this.updateHeaderMeta(trackLabel, this.audioTab1.durationMs);
+        }
+        this.rendererTab1.resize();
+        this.renderTab1CuesList();
+      } catch (err2) {
+        console.error('Synthetic fallback error:', err2);
+      }
       this.hideLoading();
     }
   }
@@ -1998,7 +2223,9 @@ class SpectroSubApp {
       clockState: CueClockState.SHOW_LOCKED
     }));
 
-    if (position === 'START_OF_LIST') {
+    if (!this.cuesTab1 || this.cuesTab1.length === 0) {
+      this.cuesTab1 = newCues;
+    } else if (position === 'START_OF_LIST') {
       this.cuesTab1.unshift(...newCues);
     } else if (position === 'END_OF_LIST' || !this.activeCueTab1) {
       this.cuesTab1.push(...newCues);
@@ -2006,6 +2233,12 @@ class SpectroSubApp {
       const idx = this.cuesTab1.indexOf(this.activeCueTab1);
       this.cuesTab1.splice(position === 'BEFORE_SELECTED' ? idx : idx + 1, 0, ...newCues);
     }
+
+    const maxEnd = Math.max(...this.cuesTab1.map(c => c.endMs || 0));
+    if (!this.audioTab1.durationMs || this.audioTab1.durationMs < maxEnd) {
+      this.audioTab1.durationMs = Math.max(7000, maxEnd + 1000);
+    }
+
     this.selectTab1Cue(newCues[0]);
     this.renderTab1CuesList();
     this.rendererTab1.render();
@@ -2019,14 +2252,20 @@ class SpectroSubApp {
     this.cuesTab1.forEach((cue) => {
       const card = document.createElement('div');
       card.className = `cue-card ${this.activeCueTab1 && this.activeCueTab1.id === cue.id ? 'active' : ''}`;
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.nudge-btn') || e.target.closest('.cue-clock-btn') || e.target.tagName === 'INPUT') return;
+        this.selectTab1Cue(cue);
+        this.rendererTab1.scrollOffsetMs = cue.startMs - (this.rendererTab1.width * this.rendererTab1.msPerPixel) * 0.15;
+        this.audioTab1.seek(cue.startMs);
+        this.renderTab1CuesList();
+        this.rendererTab1.render();
+      });
 
       const row1 = document.createElement('div');
       row1.className = 'cue-card-row1';
 
       const left = document.createElement('div');
-      left.style.display = 'flex';
-      left.style.alignItems = 'center';
-      left.style.gap = '6px';
+      left.className = 'cue-meta-left';
 
       const timeBadge = document.createElement('span');
       timeBadge.className = 'cue-time-badge mono-font';
@@ -2093,7 +2332,9 @@ class SpectroSubApp {
     });
   }
 
-  // Tab 2 Operations (Web Worker CQT & Chromagram)
+  // -------------------------------------------------------------
+  // Tab 2 Operations (Musical Chord Analyzer with Web Worker)
+  // -------------------------------------------------------------
   async loadTab2AudioFile(file) {
     try {
       this.showLoading(`Đang đọc bài nhạc "${file.name}" vào RAM Tab 2...`, 0.05);
@@ -2106,11 +2347,12 @@ class SpectroSubApp {
 
       this.showLoading('Khởi tạo Web Worker phân tích Constant-Q Transform & Chromagram...', 0.35);
 
+      // Terminate previous worker if running
       if (this.chordWorker) {
         this.chordWorker.terminate();
       }
 
-      this.chordWorker = new Worker('./worker.js');
+      this.chordWorker = new Worker('./chord-worker.js');
 
       this.chordWorker.onmessage = (e) => {
         const msg = e.data;
@@ -2120,6 +2362,7 @@ class SpectroSubApp {
           this.chordAnalyzerTab2.data = msg;
           this.hideLoading();
 
+          // Hide empty dropzone overlay on Tab 2
           document.getElementById('tab2-empty-overlay').style.display = 'none';
 
           if (this.currentTab === 'tab2') {
@@ -2146,7 +2389,11 @@ class SpectroSubApp {
     }
   }
 
+  // -------------------------------------------------------------
+  // Playback Loop & Keyboard Shortcuts
+  // -------------------------------------------------------------
   initAudioPlaybackLoop() {
+    // Play/Pause button visual state synchronization
     const playBtn1 = document.getElementById('btn-play');
     this.audioTab1.onPlayStateChange = (playing) => {
       playBtn1.classList.toggle('playing', playing);
@@ -2163,6 +2410,7 @@ class SpectroSubApp {
         : '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>';
     };
 
+    // 60fps Animation Loop
     const tick = () => {
       if (this.currentTab === 'tab1') {
         if (this.audioTab1.isPlaying) {
@@ -2237,12 +2485,14 @@ class SpectroSubApp {
   }
 }
 
-// Initialization
+// -------------------------------------------------------------
+// 7. Initialization
+// -------------------------------------------------------------
 window.addEventListener('DOMContentLoaded', () => {
   window.app = new SpectroSubApp();
 
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./service-worker.js')
+    navigator.serviceWorker.register('./sw.js')
       .then(reg => console.log('[PWA] Service Worker registered:', reg.scope))
       .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
   }

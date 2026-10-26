@@ -224,6 +224,40 @@ input, textarea, button, select {
   flex-shrink: 0;
 }
 
+.view-mode-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #f1f5f9;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.view-mode-item:hover {
+  background: #334155;
+  color: var(--accent-cyan);
+}
+
+.view-mode-item.active {
+  color: var(--accent-cyan);
+  font-weight: 600;
+}
+
+.view-mode-item .check-mark {
+  width: 14px;
+  display: inline-block;
+  font-weight: bold;
+  color: var(--accent-cyan);
+}
+
 /* Disabled export button */
 .tb-btn.disabled {
   opacity: 0.35 !important;
@@ -695,6 +729,7 @@ input, textarea, button, select {
   gap: 6px;
   transition: all 0.15s ease;
   position: relative;
+  cursor: pointer;
 }
 
 .cue-card:hover {
@@ -703,9 +738,10 @@ input, textarea, button, select {
 }
 
 .cue-card.active {
-  border-color: var(--accent-cyan);
+  border-color: #38bdf8;
+  border-width: 2px;
   background: #132238;
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.15);
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.35);
 }
 
 .cue-card.selected {
