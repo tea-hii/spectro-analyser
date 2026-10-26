@@ -165,7 +165,9 @@ export class AudioEngine {
     return { samples16k: channelData, durationMs: this.durationMs, trackName: name };
   }
 
-  play(offsetMs: number | null = null): void {
+  playRangeEndMs: number | null = null;
+
+  play(offsetMs: number | null = null, endMs: number | null = null): void {
     if (!this.audioBuffer) return;
     const ctx = this.getAudioContext();
     if (this.isPlaying) this.stop();
@@ -174,11 +176,24 @@ export class AudioEngine {
     const clampedPos = Math.max(0, Math.min(this.durationMs, pos));
     const offsetSec = clampedPos / 1000.0;
 
+    let durationSec: number | undefined = undefined;
+    if (endMs !== null && endMs > clampedPos) {
+      this.playRangeEndMs = endMs;
+      durationSec = (endMs - clampedPos) / 1000.0;
+    } else {
+      this.playRangeEndMs = null;
+    }
+
     const source = ctx.createBufferSource();
     source.buffer = this.audioBuffer;
     source.playbackRate.value = this.playbackSpeed;
     source.connect(ctx.destination);
-    source.start(0, offsetSec);
+
+    if (durationSec !== undefined) {
+      source.start(0, offsetSec, Math.max(0.01, durationSec));
+    } else {
+      source.start(0, offsetSec);
+    }
 
     this.activeSourceNode = source;
     this.startContextTime = ctx.currentTime;
@@ -191,10 +206,16 @@ export class AudioEngine {
       if (this.activeSourceNode === source) {
         if (this.isLooping && this.durationMs > 0) {
           const nextStart = (this.loopEndMs > this.loopStartMs) ? this.loopStartMs : 0;
-          this.play(nextStart);
+          const nextEnd = (this.loopEndMs > this.loopStartMs) ? this.loopEndMs : null;
+          this.play(nextStart, nextEnd);
         } else {
           this.isPlaying = false;
           this.activeSourceNode = null;
+          if (this.playRangeEndMs !== null) {
+            this.currentPositionMs = this.playRangeEndMs;
+            this.onPositionUpdate(this.playRangeEndMs);
+          }
+          this.playRangeEndMs = null;
           this.onPlayStateChange(false);
         }
       }
@@ -209,6 +230,7 @@ export class AudioEngine {
       } catch (_) {}
       this.activeSourceNode = null;
     }
+    this.playRangeEndMs = null;
     this.isPlaying = false;
     this.onPlayStateChange(false);
   }
@@ -228,7 +250,7 @@ export class AudioEngine {
     const clamped = Math.max(0, Math.min(this.durationMs, Math.round(ms)));
     this.currentPositionMs = clamped;
     if (this.isPlaying) {
-      this.play(clamped);
+      this.play(clamped, this.playRangeEndMs);
     } else {
       this.onPositionUpdate(clamped);
     }
@@ -252,8 +274,20 @@ export class AudioEngine {
     const currentMs = this.startOffsetMs + elapsedSec * 1000.0 * this.playbackSpeed;
 
     if (this.isLooping && this.loopEndMs > this.loopStartMs && currentMs >= this.loopEndMs) {
-      this.play(this.loopStartMs);
+      this.play(this.loopStartMs, this.loopEndMs);
       return this.loopStartMs;
+    }
+
+    if (this.playRangeEndMs !== null && currentMs >= this.playRangeEndMs) {
+      if (this.isLooping && this.loopEndMs > this.loopStartMs) {
+        this.play(this.loopStartMs, this.loopEndMs);
+        return this.loopStartMs;
+      } else {
+        this.stop();
+        this.currentPositionMs = this.playRangeEndMs;
+        this.onPositionUpdate(this.playRangeEndMs);
+        return this.currentPositionMs;
+      }
     }
 
     if (currentMs >= this.durationMs) {
@@ -266,3 +300,4 @@ export class AudioEngine {
     return this.currentPositionMs;
   }
 }
+

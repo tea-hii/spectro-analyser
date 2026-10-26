@@ -52,7 +52,8 @@ export class SubtitleCue {
   resolvedWordTimings(): WordTiming[] {
     const rawWords = this.text.split(/\s+/).filter(w => w.length > 0);
     if (rawWords.length === 0) return [];
-    const dur = Math.max(rawWords.length * 30, this.endMs - this.startMs);
+    const minGap = 5;
+    const dur = Math.max(rawWords.length * minGap * 2, this.endMs - this.startMs);
     const safeEnd = this.startMs + dur;
     let prevMinStart = this.startMs;
 
@@ -61,11 +62,22 @@ export class SubtitleCue {
       const candStart = (this.wordTimings[idx] && typeof this.wordTimings[idx].startMs === 'number')
         ? this.wordTimings[idx].startMs : defaultStart;
       const remainingWords = Math.max(0, rawWords.length - 1 - idx);
-      const maxAllowed = Math.max(prevMinStart, safeEnd - remainingWords * 25 - 20);
+      const maxAllowed = Math.max(prevMinStart, safeEnd - remainingWords * minGap - minGap);
       const clamped = Math.max(prevMinStart, Math.min(maxAllowed, candStart));
-      prevMinStart = Math.min(safeEnd, clamped + 20);
+      prevMinStart = Math.min(safeEnd, clamped + minGap);
       return { word: w, startMs: clamped };
     });
+  }
+
+  setWordStartMs(wordIdx: number, targetMs: number): void {
+    const resolved = this.resolvedWordTimings();
+    if (wordIdx < 0 || wordIdx >= resolved.length) return;
+    const minGap = 5;
+    const minAllowed = wordIdx === 0 ? this.startMs : resolved[wordIdx - 1].startMs + minGap;
+    const maxAllowed = wordIdx < resolved.length - 1 ? resolved[wordIdx + 1].startMs - minGap : this.endMs - minGap;
+    const clamped = Math.max(minAllowed, Math.min(maxAllowed, Math.round(targetMs)));
+    resolved[wordIdx] = { ...resolved[wordIdx], startMs: clamped };
+    this.wordTimings = resolved;
   }
 }
 

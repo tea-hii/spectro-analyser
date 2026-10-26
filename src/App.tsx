@@ -303,6 +303,12 @@ export const App: React.FC = () => {
       if (e.code === 'Space') {
         e.preventDefault();
         activeAudio.togglePlay();
+      } else if (e.code === 'KeyW' && currentTab === 'tab1') {
+        e.preventDefault();
+        document.getElementById('btn-play-word')?.click();
+      } else if (e.code === 'KeyS' && currentTab === 'tab1') {
+        e.preventDefault();
+        document.getElementById('btn-play-line')?.click();
       } else if (e.code === 'KeyL') {
         e.preventDefault();
         activeAudio.isLooping = !activeAudio.isLooping;

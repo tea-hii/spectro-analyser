@@ -689,10 +689,10 @@ input, textarea, button, select {
 }
 
 .master-clock-btn[data-state="SHOW_LOCKED"] {
-  background: rgba(16, 185, 129, 0.22);
-  border-color: #10b981;
-  color: #34d399;
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.35);
+  background: rgba(56, 189, 248, 0.22);
+  border-color: #38bdf8;
+  color: #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.35);
 }
 
 .master-clock-btn[data-state="EDITING_TIME"] {
@@ -707,6 +707,31 @@ input, textarea, button, select {
   border-color: #a855f7;
   color: #d8b4fe;
   box-shadow: 0 0 8px rgba(168, 85, 247, 0.4);
+}
+
+.cue-move-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: #1e293b;
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cue-move-btn:hover:not(:disabled) {
+  background: #334155;
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+
+.cue-move-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .cues-list-container {
@@ -725,11 +750,35 @@ input, textarea, button, select {
   border-radius: 8px;
   padding: 8px 10px;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
   transition: all 0.15s ease;
   position: relative;
   cursor: pointer;
+}
+
+.cue-card-left-select {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 3px;
+}
+
+.cue-select-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: #38bdf8;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.cue-card-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
 .cue-card:hover {
@@ -745,7 +794,8 @@ input, textarea, button, select {
 }
 
 .cue-card.selected {
-  border-left: 4px solid var(--accent-purple);
+  border-left: 4px solid #38bdf8;
+  background: rgba(56, 189, 248, 0.08);
 }
 
 .cue-card-row1 {
@@ -800,10 +850,10 @@ input, textarea, button, select {
 }
 
 .cue-clock-btn[data-state="SHOW_LOCKED"] {
-  background: rgba(16, 185, 129, 0.22);
-  color: #34d399;
-  border-color: #10b981;
-  box-shadow: 0 0 6px rgba(16, 185, 129, 0.3);
+  background: rgba(56, 189, 248, 0.22);
+  color: #38bdf8;
+  border-color: #38bdf8;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.3);
 }
 
 .cue-clock-btn[data-state="EDITING_TIME"] {

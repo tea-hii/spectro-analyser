@@ -260,13 +260,6 @@ export const Tab2Chords: React.FC<Tab2ChordsProps> = ({
       ctx.moveTo(playheadX, rulerH);
       ctx.lineTo(playheadX, h);
       ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(playheadX - 5, rulerH);
-      ctx.lineTo(playheadX + 5, rulerH);
-      ctx.lineTo(playheadX, rulerH + 8);
-      ctx.closePath();
-      ctx.fill();
     }
 
     ctx.restore();
