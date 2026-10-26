@@ -1,0 +1,22 @@
+{
+  "name": "spectrogram-analyzer",
+  "version": "1.0.0",
+  "description": "Web Audio Spectrogram and Musical Chord Analyzer PWA",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve -l 3000",
+    "serve": "python -m http.server 3000"
+  },
+  "keywords": [
+    "spectrogram",
+    "audio",
+    "fft",
+    "cqt",
+    "chromagram",
+    "chords",
+    "pwa",
+    "web-audio"
+  ],
+  "author": "",
+  "license": "MIT"
+}

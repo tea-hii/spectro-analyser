@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>SpectroSub - Speech Spectrogram & Musical Chord Analyzer (PWA)</title>
+
+  <!-- PWA & Mobile Web Meta -->
+  <meta name="description" content="100% Client-Side Static Web App (PWA): Phân tích phổ âm thanh giọng nói và nhận diện hợp âm trực quan (CQT & Chromagram 12 nốt).">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SpectroSub">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/svg+xml" href="./icon.svg">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+  <div id="app-root">
+    <!-- Top Header Bar -->
+    <header class="app-header">
+      <div class="header-left">
+        <!-- 3-Lines Hamburger Menu Button -->
+        <button id="btn-hamburger" class="hamburger-btn" title="Mở danh mục chuyển đổi Tab">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+
+        <div class="app-brand" onclick="location.reload()">
+          <img src="./icon.svg" alt="SpectroSub Logo" class="app-logo-icon">
+          <h1 class="app-title">Web SpectroSub</h1>
+        </div>
+
+        <span id="header-active-tab-badge" class="active-tab-badge">Tab 1: Speech Spectrogram</span>
+      </div>
+
+      <!-- Active Track Meta Chip -->
+      <div class="track-meta-chip">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        <span id="track-title" class="track-name-text">Đang tải bài mẫu...</span>
+        <span id="track-duration" class="mono-font" style="color: #38bdf8; font-weight: 600;">00:00</span>
+      </div>
+
+      <!-- Header Actions -->
+      <div class="header-actions">
+        <button id="btn-upload-file-header" class="tb-btn" title="Tải file âm thanh hoặc video cho Tab hiện tại">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span class="btn-text">Tải File</span>
+        </button>
+
+        <!-- Disabled / Inactive Export Button per Clean UI specification -->
+        <button id="btn-open-export" class="tb-btn disabled" title="Tính năng lưu / xuất kịch bản bị tắt theo yêu cầu giao diện tối giản">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          <span class="btn-text">Xuất Script (Đã tắt)</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Sidebar Drawer (Tab Switcher Menu) -->
+    <div id="tab-drawer-overlay" class="drawer-overlay">
+      <aside class="tab-drawer">
+        <div class="drawer-header">
+          <div class="drawer-title">
+            <img src="./icon.svg" width="22" height="22" alt="">
+            <span>Chuyển Đổi Không Gian</span>
+          </div>
+          <button id="btn-close-drawer" class="tb-btn icon-only" style="background: transparent; border: none; font-size: 16px;">✕</button>
+        </div>
+
+        <nav class="drawer-nav">
+          <button id="nav-tab-1" class="drawer-tab-item active">
+            <span class="tab-icon">🗣️</span>
+            <div class="tab-info">
+              <span class="tab-name">Tab 1: Speech Spectrogram</span>
+              <span class="tab-desc">Phân tích ngữ âm, giọng nói tiếng Pháp & biểu đồ phổ STFT 16kHz (60fps Canvas)</span>
+            </div>
+          </button>
+
+          <button id="nav-tab-2" class="drawer-tab-item">
+            <span class="tab-icon">🎹</span>
+            <div class="tab-info">
+              <span class="tab-name">Tab 2: Musical Chord Analyzer</span>
+              <span class="tab-desc">Phân tích hợp âm trực quan từ stem nhạc cụ, Dynamic CQT Semitones & Chromagram 12 nốt</span>
+            </div>
+          </button>
+        </nav>
+
+        <div style="padding: 14px; border-top: 1px solid var(--border-color); font-size: 11px; color: var(--text-muted); line-height: 1.5;">
+          🔒 <strong>Zero-leakage:</strong> Mỗi tab sử dụng AudioContext và vùng nhớ RAM hoàn toàn riêng biệt. Không chia sẻ file giữa 2 tab.
+        </div>
+      </aside>
+    </div>
+
+    <!-- Main Content Area: 2 Independent Tabs -->
+    <main class="tab-content-area">
+      <!-- ========================================================
+           TAB 1: SPEECH & AUDIO SPECTROGRAM
+           ======================================================== -->
+      <section id="tab-pane-1" class="tab-pane active">
+        <!-- Toolbar for Tab 1 -->
+        <nav class="aegisub-toolbar">
+          <div class="toolbar-row">
+            <button id="btn-play" class="tb-btn play-main icon-only" title="Phát / Dừng (Phím Space)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+            </button>
+
+            <button id="btn-play-line" class="tb-btn play-selection icon-only" title="Phát câu đang chọn (Phím S)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+            </button>
+
+            <button id="btn-play-word" class="tb-btn play-word icon-only" title="Phát từ tại con trỏ (Phím W)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16"/></svg>
+            </button>
+
+            <button id="btn-loop" class="tb-btn icon-only" title="Bật/Tắt Lặp đoạn (Phím L)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+            </button>
+
+            <button id="btn-set-start" class="tb-btn set-start" title="Gán điểm Bắt đầu câu tại con trỏ (Phím [)">
+              [ Start
+            </button>
+
+            <button id="btn-set-end" class="tb-btn set-end" title="Gán điểm Kết thúc câu tại con trỏ (Phím ])">
+              End ]
+            </button>
+
+            <div style="width: 1px; height: 20px; background: var(--border-color); margin: 0 2px;"></div>
+
+            <button id="btn-zoom-out" class="tb-btn icon-only" title="Thu nhỏ thời gian (Phím -)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+            <button id="btn-zoom-in" class="tb-btn icon-only" title="Phóng to thời gian (Phím +)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+
+            <select id="select-speed" class="tb-select mono-font" title="Tốc độ phát Tab 1">
+              <option value="0.5">0.5x (Ngữ âm chậm)</option>
+              <option value="0.75">0.75x (Ngữ âm)</option>
+              <option value="1.0" selected>1.0x Chuẩn</option>
+              <option value="1.25">1.25x</option>
+              <option value="1.5">1.5x</option>
+            </select>
+          </div>
+
+          <div class="toolbar-row">
+            <select id="select-view-mode" class="tb-select" title="Chế độ hiển thị">
+              <option value="DUAL" selected>Dual (Phổ + Dạng sóng)</option>
+              <option value="SPECTROGRAM">Chỉ Biểu đồ phổ (Spectrogram)</option>
+              <option value="WAVEFORM">Chỉ Dạng sóng (Waveform)</option>
+            </select>
+
+            <select id="select-palette" class="tb-select" title="Bảng màu biểu đồ phổ">
+              <option value="AEGISUB_BLUE" selected>Aegisub Classic</option>
+              <option value="INFERNO">Inferno Heatmap</option>
+              <option value="VIRIDIS">Viridis Bio</option>
+              <option value="CYBERPUNK">Neon Cyber</option>
+              <option value="PHONETIC_GRAY">Phonetic Paper</option>
+            </select>
+
+            <div style="width: 1px; height: 20px; background: var(--border-color); margin: 0 2px;"></div>
+
+            <button id="btn-preset-1" class="tb-btn" title="Mẫu Tiếng Pháp 1 (Liaisons [t], [z])">
+              Mẫu 1: Liaisons
+            </button>
+            <button id="btn-preset-2" class="tb-btn" title="Mẫu Tiếng Pháp 2 (Hội thoại hằng ngày)">
+              Mẫu 2: Hội thoại
+            </button>
+            <button id="btn-preset-3" class="tb-btn" title="Mẫu Bài học dài 3.5 phút">
+              Mẫu 3: 3.5 Phút
+            </button>
+          </div>
+        </nav>
+
+        <!-- Split Pane Workspace -->
+        <div class="workspace-split">
+          <section id="canvas-panel" class="canvas-panel" style="height: 52%;">
+            <canvas id="spectrogram-canvas"></canvas>
+
+            <button id="btn-freq-legend" class="freq-legend-btn" title="Xem chú giải dải tần số ngữ âm (Formants & Liaisons)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            </button>
+
+            <div id="cursor-time-badge" class="cursor-time-badge mono-font">00:00.000</div>
+          </section>
+
+          <div id="pane-splitter" class="pane-splitter">
+            <div class="splitter-handle"></div>
+          </div>
+
+          <section class="subtitle-panel">
+            <div class="sub-header">
+              <div class="sub-header-left">
+                <span id="cues-count-label" class="sub-title">Danh sách câu (0)</span>
+                <button id="btn-master-clock" class="master-clock-btn" data-state="SHOW_LOCKED" title="Đồng bộ chế độ đồng hồ tất cả các câu">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </button>
+              </div>
+
+              <button id="btn-open-add-cues" class="tb-btn" style="background: #1e1b4b; border-color: #6366f1; color: #c7d2fe;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>+ Thêm câu</span>
+              </button>
+            </div>
+
+            <div id="cues-list-container" class="cues-list-container"></div>
+          </section>
+        </div>
+      </section>
+
+      <!-- ========================================================
+           TAB 2: MUSICAL CHORD ANALYZER (STACKED CQT & CHROMAGRAM)
+           ======================================================== -->
+      <section id="tab-pane-2" class="tab-pane">
+        <div class="chord-analyzer-container">
+          <!-- Tab 2 Control Bar -->
+          <div class="chord-toolbar">
+            <div class="chord-toolbar-group">
+              <button id="btn-tab2-play" class="tb-btn play-main icon-only" title="Phát / Dừng Tab 2 (Phím Space)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+              </button>
+
+              <button id="btn-tab2-loop" class="tb-btn icon-only" title="Bật/Tắt Lặp đoạn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+              </button>
+
+              <div id="tab2-time-badge" class="mono-font" style="font-size: 13px; font-weight: 700; color: #38bdf8; padding: 0 4px;">
+                00:00.000
+              </div>
+
+              <div style="width: 1px; height: 20px; background: var(--border-color); margin: 0 2px;"></div>
+
+              <button id="btn-tab2-zoom-out" class="tb-btn icon-only" title="Thu nhỏ thời gian">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+              <button id="btn-tab2-zoom-in" class="tb-btn icon-only" title="Phóng to thời gian">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+
+              <!-- Pitch Range Preset Selector (Auto-crop) -->
+              <select id="select-tab2-pitch-range" class="tb-select" title="Phạm vi nốt trục tung CQT">
+                <option value="AUTO" selected>✨ Tự động Auto-Crop (D2 – E5)</option>
+                <option value="GUITAR_KEYS">Guitar & Keys (E2 – E6)</option>
+                <option value="BASS_MID">Bass & Mid (C1 – C5)</option>
+                <option value="VOCAL_LEAD">Vocal & Lead (A2 – A5)</option>
+                <option value="FULL">Toàn dải (A0 – C7)</option>
+              </select>
+
+              <select id="select-tab2-palette" class="tb-select" title="Bảng màu CQT">
+                <option value="INFERNO" selected>Inferno Heatmap</option>
+                <option value="CYBERPUNK">Neon Cyberpunk</option>
+                <option value="AEGISUB_BLUE">Aegisub Blue</option>
+                <option value="VIRIDIS">Viridis Bio</option>
+              </select>
+            </div>
+
+            <!-- Detected Chord Hero Display -->
+            <div class="chord-toolbar-group">
+              <div class="detected-chord-badge">
+                <span class="chord-label-sub">Hợp Âm Hiện Tại:</span>
+                <span id="tab2-detected-chord" class="chord-name-val mono-font">--</span>
+              </div>
+
+              <button id="btn-tab2-choose-file" class="tb-btn" style="background: #1e1b4b; border-color: #8b5cf6; color: #ede9fe;" title="Nạp file nhạc / stem riêng cho Tab 2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                <span>Nạp Bài Nhạc</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Stacked 2-Tier Graph Viewports -->
+          <div class="chord-stacked-viewports">
+            <!-- Empty State Dropzone Overlay for Tab 2 -->
+            <div id="tab2-empty-overlay" class="tab2-empty-placeholder">
+              <div id="tab2-dropzone" class="dropzone-box">
+                <div style="font-size: 40px;">🎹</div>
+                <h3 style="font-size: 17px; font-weight: 700; color: #ffffff;">Musical Chord Analyzer (Tab 2)</h3>
+                <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">
+                  Bộ phân tích hợp âm trực quan qua <strong>Constant-Q Transform</strong> &amp; <strong>Chromagram 12 nốt</strong> triệt tiêu bồi âm. Giúp bạn nhìn rõ nốt cấu thành hợp âm để vẽ lại MIDI trong DAW.
+                </p>
+                <button id="btn-tab2-select-file" class="tb-btn play-main" style="padding: 10px 20px; height: auto; font-size: 13px; font-weight: 700;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <span>Chọn File Audio / Video Nhạc Cụ</span>
+                </button>
+                <span style="font-size: 11px; color: var(--text-muted);">Hoặc kéo thả file trực tiếp vào khung này (Hỗ trợ MP3, WAV, AAC, M4A, FLAC, OGG, MP4)</span>
+              </div>
+            </div>
+
+            <!-- Tier 1: Dynamic CQT Spectrogram (Semitones) -->
+            <div class="cqt-tier-container">
+              <canvas id="cqt-canvas" style="display: block; width: 100%; height: 100%;"></canvas>
+              <div class="tier-label-overlay">Dynamic CQT Spectrogram (Bám theo cao độ nửa cung)</div>
+            </div>
+
+            <!-- Tier 2: 12-Tone Chromagram (Pitch Class Profile with Octave Invariance) -->
+            <div class="chroma-tier-container">
+              <canvas id="chroma-canvas" style="display: block; width: 100%; height: 100%;"></canvas>
+              <div class="tier-label-overlay">Chromagram 12 Nốt (Triệt tiêu bồi âm - Octave Invariance)</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Separate Hidden File Inputs (Zero-leakage) -->
+  <input type="file" id="input-audio-tab1" accept="audio/*,video/*" style="display: none;">
+  <input type="file" id="input-audio-tab2" accept="audio/*,video/*" style="display: none;">
+
+  <!-- Modal: Add Cues (Tab 1) -->
+  <div id="modal-add-cues" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Thêm câu hoặc đoạn văn bản</h3>
+        <button class="tb-btn icon-only modal-close-btn" style="border: none; background: transparent;">✕</button>
+      </div>
+      <div class="modal-body">
+        <label style="font-size: 12px; color: var(--text-secondary);">Vị trí chèn câu:</label>
+        <select id="select-insert-pos" class="tb-select" style="width: 100%;">
+          <option value="AFTER_SELECTED" selected>Sau câu đang chọn</option>
+          <option value="BEFORE_SELECTED">Trước câu đang chọn</option>
+          <option value="START_OF_LIST">Đầu danh sách</option>
+          <option value="END_OF_LIST">Cuối danh sách</option>
+        </select>
+
+        <label style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Nội dung (mỗi dòng sẽ tạo một câu riêng):</label>
+        <textarea id="textarea-add-cues" rows="6" class="cue-text-input" placeholder="Dán văn bản hoặc các câu tiếng Pháp vào đây..." style="resize: vertical;"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="tb-btn modal-close-btn">Hủy</button>
+        <button id="btn-confirm-add-cues" class="tb-btn play-selection">Xác nhận Thêm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Frequency Legend Popover (Tab 1) -->
+  <div id="modal-freq-legend" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Chú Giải Dải Tần Số Ngữ Âm (Speech Spectrogram)</h3>
+        <button class="tb-btn icon-only modal-close-btn" style="border: none; background: transparent;">✕</button>
+      </div>
+      <div class="modal-body" style="font-size: 13px; line-height: 1.6;">
+        <div style="border-left: 3px solid #38bdf8; padding-left: 8px;">
+          <strong style="color: #38bdf8;">0 – 300 Hz (Pitch / F0):</strong>
+          <div>Tần số cơ bản của thanh quản, phản ánh cao độ giọng nói (nam ~100-150Hz, nữ ~200-250Hz).</div>
+        </div>
+        <div style="border-left: 3px solid #10b981; padding-left: 8px;">
+          <strong style="color: #10b981;">300 – 1.000 Hz (Formant F1):</strong>
+          <div>Độ mở của miệng / nguyên âm (Vowel Height). F1 cao với nguyên âm mở [a], thấp với nguyên âm khép [i], [u].</div>
+        </div>
+        <div style="border-left: 3px solid #eab308; padding-left: 8px;">
+          <strong style="color: #eab308;">1.000 – 2.500 Hz (Formant F2):</strong>
+          <div>Độ tiến/lùi của lưỡi (Vowel Frontness). F2 rất cao ở các nguyên âm trước của tiếng Pháp [i], [e], [y].</div>
+        </div>
+        <div style="border-left: 3px solid #a855f7; padding-left: 8px;">
+          <strong style="color: #a855f7;">2.500 – 4.500 Hz (Formant F3 &amp; Nasal Antiformants):</strong>
+          <div>Âm sắc cá nhân, vần mũi tiếng Pháp (voyelles nasales [õ], [ã], [ɛ̃]) và âm tắc bật hơi [p, t, k].</div>
+        </div>
+        <div style="border-left: 3px solid #ef4444; padding-left: 8px;">
+          <strong style="color: #ef4444;">4.500 – 8.000 Hz (Liaisons, Fricatives [s, z, ʃ, ʒ]):</strong>
+          <div>Vùng năng lượng ma sát của phụ âm xát và hiện tượng nối âm Liaison ([z], [t]). Hiển thị rõ rệt trên biểu đồ phổ!</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="tb-btn modal-close-btn">Đã hiểu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading Overlay with Animated Progress Bar -->
+  <div id="loading-overlay" class="loading-overlay" style="display: none;">
+    <div class="loading-box">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" style="animation: spin 1s linear infinite;"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>
+        <span style="font-weight: 700; font-size: 15px;">Đang xử lý âm thanh...</span>
+      </div>
+      <p id="loading-msg" style="font-size: 12px; color: var(--text-secondary);">Đang nạp file vào RAM...</p>
+      <div class="progress-bar-track">
+        <div id="loading-bar" class="progress-bar-fill"></div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+  </style>
+
+  <script src="./app.js"></script>
+</body>
+</html>
