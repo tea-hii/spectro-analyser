@@ -44,16 +44,29 @@
       <!-- Active Track Meta Chip -->
       <div class="track-meta-chip">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-        <span id="track-title" class="track-name-text">Đang tải bài mẫu...</span>
+        <span id="track-title" class="track-name-text">Đang tải Ví dụ 1...</span>
         <span id="track-duration" class="mono-font" style="color: #38bdf8; font-weight: 600;">00:00</span>
       </div>
 
       <!-- Header Actions -->
       <div class="header-actions">
-        <button id="btn-upload-file-header" class="tb-btn" title="Tải file âm thanh hoặc video cho Tab hiện tại">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          <span class="btn-text">Tải File</span>
-        </button>
+        <div class="dropdown-wrapper" id="upload-dropdown-wrapper">
+          <button id="btn-upload-file-header" class="tb-btn dropdown-trigger" title="Tải file từ máy hoặc chọn Ví dụ mẫu">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span class="btn-text">Tải File</span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-left: 2px;"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div id="upload-dropdown-menu" class="dropdown-menu">
+            <button id="btn-dropdown-upload-file" class="dropdown-item" type="button">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span>Tải file từ máy</span>
+            </button>
+            <button id="btn-dropdown-load-sample1" class="dropdown-item" type="button">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21"/></svg>
+              <span>Ví dụ 1</span>
+            </button>
+          </div>
+        </div>
 
         <!-- Disabled / Inactive Export Button per Clean UI specification -->
         <button id="btn-open-export" class="tb-btn disabled" title="Tính năng lưu / xuất kịch bản bị tắt theo yêu cầu giao diện tối giản">
@@ -127,8 +140,8 @@
               [ Start
             </button>
 
-            <button id="btn-set-end" class="tb-btn set-end" title="Gán điểm Kết thúc câu tại con trỏ (Phím ])">
-              End ]
+            <button id="btn-set-end" class="tb-btn set-end" title="Gán điểm Kết thúc (Stop) câu tại con trỏ (Phím ])">
+              Stop ]
             </button>
 
             <div style="width: 1px; height: 20px; background: var(--border-color); margin: 0 2px;"></div>
@@ -163,18 +176,6 @@
               <option value="CYBERPUNK">Neon Cyber</option>
               <option value="PHONETIC_GRAY">Phonetic Paper</option>
             </select>
-
-            <div style="width: 1px; height: 20px; background: var(--border-color); margin: 0 2px;"></div>
-
-            <button id="btn-preset-1" class="tb-btn" title="Mẫu Tiếng Pháp 1 (Liaisons [t], [z])">
-              Mẫu 1: Liaisons
-            </button>
-            <button id="btn-preset-2" class="tb-btn" title="Mẫu Tiếng Pháp 2 (Hội thoại hằng ngày)">
-              Mẫu 2: Hội thoại
-            </button>
-            <button id="btn-preset-3" class="tb-btn" title="Mẫu Bài học dài 3.5 phút">
-              Mẫu 3: 3.5 Phút
-            </button>
           </div>
         </nav>
 

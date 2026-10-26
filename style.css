@@ -159,6 +159,71 @@ input, textarea, button, select {
   gap: 6px;
 }
 
+/* Dropdown Menu for Upload File & Sample */
+.dropdown-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: #1e293b;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55), 0 4px 10px rgba(0, 0, 0, 0.4);
+  padding: 6px;
+  min-width: 175px;
+  z-index: 1000;
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dropdown-menu.show {
+  display: flex;
+  animation: dropdownIn 0.15s ease-out;
+}
+
+@keyframes dropdownIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #f1f5f9;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.dropdown-item:hover {
+  background: #334155;
+  border-color: rgba(56, 189, 248, 0.3);
+  color: var(--accent-cyan);
+}
+
+.dropdown-item svg {
+  flex-shrink: 0;
+}
+
 /* Disabled export button */
 .tb-btn.disabled {
   opacity: 0.35 !important;
@@ -400,27 +465,27 @@ input, textarea, button, select {
 }
 
 .tb-btn.set-start {
-  background: rgba(239, 68, 68, 0.2);
-  border-color: var(--accent-red);
-  color: #fca5a5;
+  background: rgba(16, 185, 129, 0.2);
+  border-color: #10b981;
+  color: #6ee7b7;
   font-weight: 600;
 }
 .tb-btn.set-start.unlocked {
-  background: var(--accent-red);
+  background: #10b981;
   color: #ffffff;
-  box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.45);
 }
 
 .tb-btn.set-end {
-  background: rgba(37, 99, 235, 0.2);
-  border-color: #3b82f6;
-  color: #93c5fd;
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #ef4444;
+  color: #fca5a5;
   font-weight: 600;
 }
 .tb-btn.set-end.unlocked {
-  background: #2563eb;
+  background: #ef4444;
   color: #ffffff;
-  box-shadow: 0 0 10px rgba(37, 99, 235, 0.4);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.45);
 }
 
 .tb-select {
@@ -580,23 +645,34 @@ input, textarea, button, select {
 
 .master-clock-btn[data-state="OFF"] {
   background: #1e293b;
-  border-color: #334155;
+  border-color: #475569;
   color: #64748b;
+  opacity: 0.65;
 }
+.master-clock-btn[data-state="OFF"]:hover {
+  opacity: 1;
+  color: #94a3b8;
+}
+
 .master-clock-btn[data-state="SHOW_LOCKED"] {
-  background: #064e3b;
+  background: rgba(16, 185, 129, 0.22);
   border-color: #10b981;
   color: #34d399;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.35);
 }
+
 .master-clock-btn[data-state="EDITING_TIME"] {
-  background: #78350f;
+  background: rgba(245, 158, 11, 0.25);
   border-color: #f59e0b;
-  color: #fde047;
+  color: #fbbf24;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
 }
+
 .master-clock-btn[data-state="EDITING_WORDS"] {
-  background: #581c87;
+  background: rgba(168, 85, 247, 0.25);
   border-color: #a855f7;
   color: #d8b4fe;
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.4);
 }
 
 .cues-list-container {
@@ -673,28 +749,39 @@ input, textarea, button, select {
   justify-content: center;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: all 0.15s;
+  transition: all 0.15s ease;
 }
 
 .cue-clock-btn[data-state="OFF"] {
   background: #1e293b;
   color: #64748b;
   border-color: #334155;
+  opacity: 0.65;
 }
+.cue-clock-btn[data-state="OFF"]:hover {
+  opacity: 1;
+  color: #94a3b8;
+}
+
 .cue-clock-btn[data-state="SHOW_LOCKED"] {
-  background: rgba(16, 185, 129, 0.2);
+  background: rgba(16, 185, 129, 0.22);
   color: #34d399;
   border-color: #10b981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.3);
 }
+
 .cue-clock-btn[data-state="EDITING_TIME"] {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(245, 158, 11, 0.25);
   color: #fbbf24;
   border-color: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.35);
 }
+
 .cue-clock-btn[data-state="EDITING_WORDS"] {
-  background: rgba(168, 85, 247, 0.2);
+  background: rgba(168, 85, 247, 0.25);
   color: #c084fc;
   border-color: #a855f7;
+  box-shadow: 0 0 6px rgba(168, 85, 247, 0.35);
 }
 
 .cue-text-input {

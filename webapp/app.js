@@ -614,7 +614,7 @@ class SpectrogramCanvasRenderer {
       ctx.fillStyle = '#64748b';
       ctx.font = '13px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('Chưa tải file âm thanh Tab 1. Bấm "Tải File" hoặc chọn Bài Mẫu để bắt đầu.', w / 2, h / 2);
+      ctx.fillText('Chưa tải file âm thanh Tab 1. Bấm "Tải File" để nạp file từ máy hoặc Ví dụ 1.', w / 2, h / 2);
       return;
     }
 
@@ -646,9 +646,54 @@ class SpectrogramCanvasRenderer {
     this.drawSelectionWindow(ctx, 0, rulerH, w, mainH);
     this.drawTimeRuler(ctx, 0, 0, w, rulerH);
 
-    // Playhead line
+    // Positions for Start, Stop, and Playhead lines
+    const startX = this.timeToX(this.selectionStartMs);
+    const endX = this.timeToX(this.selectionEndMs);
     const playheadMs = this.audio.getCurrentPosition();
     const playheadX = this.timeToX(playheadMs);
+
+    // 1) Thin start line on top of time ruler (Green #10b981)
+    if (startX >= -10 && startX <= w + 10) {
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(startX, 0);
+      ctx.lineTo(startX, rulerH);
+      ctx.stroke();
+      ctx.fillStyle = '#10b981';
+      ctx.fillRect(startX - 2, 0, 4, 3);
+    }
+
+    // 2) Thin stop line on top of time ruler (Red #ef4444)
+    if (endX >= -10 && endX <= w + 10) {
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(endX, 0);
+      ctx.lineTo(endX, rulerH);
+      ctx.stroke();
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(endX - 2, 0, 4, 3);
+    }
+
+    // 3) Thin playhead line on top of time ruler (Yellow #facc15)
+    if (playheadX >= -10 && playheadX <= w + 10) {
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(playheadX, 0);
+      ctx.lineTo(playheadX, rulerH);
+      ctx.stroke();
+      ctx.fillStyle = '#facc15';
+      ctx.beginPath();
+      ctx.moveTo(playheadX - 6, 0);
+      ctx.lineTo(playheadX + 6, 0);
+      ctx.lineTo(playheadX, 7);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Playhead line in main canvas area (Yellow #facc15)
     if (playheadX >= -10 && playheadX <= w + 10) {
       ctx.strokeStyle = '#facc15';
       ctx.lineWidth = 2;
@@ -794,25 +839,27 @@ class SpectrogramCanvasRenderer {
   drawSelectionWindow(ctx, x, y, width, height) {
     const startX = this.timeToX(this.selectionStartMs);
     const endX = this.timeToX(this.selectionEndMs);
-    ctx.fillStyle = 'rgba(56, 189, 248, 0.08)';
+    ctx.fillStyle = 'rgba(16, 185, 129, 0.08)';
     ctx.fillRect(Math.max(0, startX), y, Math.min(width, endX - startX), height);
 
+    // START LINE: GREEN (#10b981)
     if (startX >= -10 && startX <= width + 10) {
-      ctx.strokeStyle = '#ef4444';
+      ctx.strokeStyle = '#10b981';
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(startX, y + height); ctx.stroke();
-      ctx.fillStyle = '#ef4444';
+      ctx.fillStyle = '#10b981';
       ctx.fillRect(startX, y, 16, 18);
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 11px sans-serif';
       ctx.fillText('[', startX + 4, y + 13);
     }
 
+    // STOP LINE: RED (#ef4444)
     if (endX >= -10 && endX <= width + 10) {
-      ctx.strokeStyle = '#3b82f6';
+      ctx.strokeStyle = '#ef4444';
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(endX, y); ctx.lineTo(endX, y + height); ctx.stroke();
-      ctx.fillStyle = '#3b82f6';
+      ctx.fillStyle = '#ef4444';
       ctx.fillRect(endX - 16, y, 16, 18);
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 11px sans-serif';
@@ -871,16 +918,70 @@ class SpectrogramCanvasRenderer {
     let isDragging = false, dragTarget = 'PAN', dragStartX = 0, dragStartScrollMs = 0;
 
     const getX = (e) => (e.touches ? e.touches[0].clientX : e.clientX) - c.getBoundingClientRect().left;
+    const getY = (e) => (e.touches ? e.touches[0].clientY : e.clientY) - c.getBoundingClientRect().top;
+
+    const updateCursor = (mouseX, mouseY) => {
+      if (isDragging) {
+        c.style.cursor = 'ew-resize';
+        return;
+      }
+      const startX = this.timeToX(this.selectionStartMs);
+      const endX = this.timeToX(this.selectionEndMs);
+      const playheadX = this.timeToX(this.audio.getCurrentPosition());
+      const HIT = 8;
+
+      const isNearStart = Math.abs(mouseX - startX) <= HIT ||
+        (mouseX >= startX && mouseX <= startX + 18 && mouseY >= this.rulerHeight && mouseY <= this.rulerHeight + 22);
+      const isNearEnd = Math.abs(mouseX - endX) <= HIT ||
+        (mouseX >= endX - 18 && mouseX <= endX && mouseY >= this.rulerHeight && mouseY <= this.rulerHeight + 22);
+      const isNearYellow = Math.abs(mouseX - playheadX) <= HIT;
+
+      if (isNearStart || isNearEnd || isNearYellow) {
+        c.style.cursor = 'ew-resize';
+      } else if (mouseY <= this.rulerHeight) {
+        c.style.cursor = 'pointer';
+      } else {
+        c.style.cursor = 'crosshair';
+      }
+    };
+
+    c.addEventListener('mousemove', (e) => {
+      const mouseX = getX(e);
+      const mouseY = getY(e);
+      updateCursor(mouseX, mouseY);
+    });
+
+    c.addEventListener('mouseleave', () => {
+      if (!isDragging) {
+        c.style.cursor = 'crosshair';
+      }
+    });
 
     const onStart = (e) => {
       isDragging = true;
       dragStartX = getX(e);
+      const dragStartY = getY(e);
       dragStartScrollMs = this.scrollOffsetMs;
+      const curTime = this.xToTime(dragStartX);
+      const startX = this.timeToX(this.selectionStartMs);
+      const endX = this.timeToX(this.selectionEndMs);
+      const playheadX = this.timeToX(this.audio.getCurrentPosition());
 
-      if (Math.abs(dragStartX - this.timeToX(this.selectionStartMs)) <= 14) {
+      if (Math.abs(dragStartX - startX) <= 12 || (dragStartX >= startX && dragStartX <= startX + 18 && dragStartY >= this.rulerHeight && dragStartY <= this.rulerHeight + 22)) {
         dragTarget = 'START';
-      } else if (Math.abs(dragStartX - this.timeToX(this.selectionEndMs)) <= 14) {
+        c.style.cursor = 'ew-resize';
+      } else if (Math.abs(dragStartX - endX) <= 12 || (dragStartX >= endX - 18 && dragStartX <= endX && dragStartY >= this.rulerHeight && dragStartY <= this.rulerHeight + 22)) {
         dragTarget = 'END';
+        c.style.cursor = 'ew-resize';
+      } else if (Math.abs(dragStartX - playheadX) <= 12) {
+        dragTarget = 'PLAYHEAD';
+        c.style.cursor = 'ew-resize';
+      } else if (dragStartY <= this.rulerHeight) {
+        // Clicking directly on time ruler seeks and enables playhead dragging
+        this.audio.seek(Math.max(0, Math.min(this.audio.durationMs, curTime)));
+        dragTarget = 'PLAYHEAD';
+        c.style.cursor = 'ew-resize';
+        this.render();
       } else {
         dragTarget = 'PAN';
       }
@@ -894,9 +995,15 @@ class SpectrogramCanvasRenderer {
       if (dragTarget === 'START') {
         this.selectionStartMs = Math.max(0, Math.min(this.selectionEndMs - 50, Math.round(curTime)));
         if (this.activeCue) this.activeCue.startMs = this.selectionStartMs;
+        c.style.cursor = 'ew-resize';
       } else if (dragTarget === 'END') {
         this.selectionEndMs = Math.max(this.selectionStartMs + 50, Math.min(this.audio.durationMs, Math.round(curTime)));
         if (this.activeCue) this.activeCue.endMs = this.selectionEndMs;
+        c.style.cursor = 'ew-resize';
+      } else if (dragTarget === 'PLAYHEAD') {
+        const seekTime = Math.max(0, Math.min(this.audio.durationMs, curTime));
+        this.audio.seek(seekTime);
+        c.style.cursor = 'ew-resize';
       } else {
         this.scrollOffsetMs = dragStartScrollMs - (curX - dragStartX) * this.msPerPixel;
       }
@@ -911,6 +1018,7 @@ class SpectrogramCanvasRenderer {
         }
       }
       isDragging = false;
+      dragTarget = null;
       this.render();
     };
 
@@ -1132,7 +1240,23 @@ class MusicalChordAnalyzer {
     const playheadMs = this.audio.getCurrentPosition();
     const playheadX = this.timeToX(playheadMs);
     if (playheadX >= gutterW && playheadX <= w) {
+      // Thin line across time ruler
       ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(playheadX, 0);
+      ctx.lineTo(playheadX, rulerH);
+      ctx.stroke();
+
+      ctx.fillStyle = '#facc15';
+      ctx.beginPath();
+      ctx.moveTo(playheadX - 5, 0);
+      ctx.lineTo(playheadX + 5, 0);
+      ctx.lineTo(playheadX, 6);
+      ctx.closePath();
+      ctx.fill();
+
+      // Main line in CQT tier
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(playheadX, rulerH);
@@ -1334,6 +1458,21 @@ class MusicalChordAnalyzer {
       let isDragging = false, dragStartX = 0, dragStartScrollMs = 0;
       const getX = (e) => (e.touches ? e.touches[0].clientX : e.clientX) - canvas.getBoundingClientRect().left;
 
+      canvas.addEventListener('mousemove', (e) => {
+        if (isDragging) return;
+        const curX = getX(e);
+        const playheadX = this.timeToX(this.audio.getCurrentPosition());
+        if (Math.abs(curX - playheadX) <= 8) {
+          canvas.style.cursor = 'ew-resize';
+        } else {
+          canvas.style.cursor = 'default';
+        }
+      });
+
+      canvas.addEventListener('mouseleave', () => {
+        if (!isDragging) canvas.style.cursor = 'default';
+      });
+
       const onStart = (e) => {
         isDragging = true;
         dragStartX = getX(e);
@@ -1511,21 +1650,22 @@ class SpectroSubApp {
       this.rendererTab1.render();
     });
 
-    document.getElementById('btn-preset-1').addEventListener('click', () => this.loadTab1Preset(1));
-    document.getElementById('btn-preset-2').addEventListener('click', () => this.loadTab1Preset(2));
-    document.getElementById('btn-preset-3').addEventListener('click', () => this.loadTab1Preset(3));
-
-    document.getElementById('btn-master-clock').addEventListener('click', () => {
-      const states = [CueClockState.OFF, CueClockState.SHOW_LOCKED, CueClockState.EDITING_TIME, CueClockState.EDITING_WORDS];
-      const curIdx = states.indexOf(this.globalClockStateTab1);
-      const nextState = states[(curIdx + 1) % states.length];
-      this.globalClockStateTab1 = nextState;
-      this.cuesTab1.forEach(c => c.clockState = nextState);
-      document.getElementById('btn-master-clock').setAttribute('data-state', nextState);
-      this.rendererTab1.isTimeEditUnlocked = (nextState === CueClockState.EDITING_TIME);
-      this.rendererTab1.render();
-      this.renderTab1CuesList();
-    });
+    const masterClockBtn = document.getElementById('btn-master-clock');
+    if (masterClockBtn) {
+      masterClockBtn.title = 'Đồng bộ đồng hồ: ' + this.getClockStateTooltip(this.globalClockStateTab1);
+      masterClockBtn.addEventListener('click', () => {
+        const states = [CueClockState.OFF, CueClockState.SHOW_LOCKED, CueClockState.EDITING_TIME, CueClockState.EDITING_WORDS];
+        const curIdx = states.indexOf(this.globalClockStateTab1);
+        const nextState = states[(curIdx + 1) % states.length];
+        this.globalClockStateTab1 = nextState;
+        this.cuesTab1.forEach(c => c.clockState = nextState);
+        masterClockBtn.setAttribute('data-state', nextState);
+        masterClockBtn.title = 'Đồng bộ đồng hồ: ' + this.getClockStateTooltip(nextState);
+        this.rendererTab1.isTimeEditUnlocked = (nextState === CueClockState.EDITING_TIME);
+        this.rendererTab1.render();
+        this.renderTab1CuesList();
+      });
+    }
 
     document.getElementById('btn-freq-legend').addEventListener('click', () => {
       document.getElementById('modal-freq-legend').style.display = 'flex';
@@ -1632,10 +1772,39 @@ class SpectroSubApp {
     const inputTab1 = document.getElementById('input-audio-tab1');
     const inputTab2 = document.getElementById('input-audio-tab2');
 
-    document.getElementById('btn-upload-file-header').addEventListener('click', () => {
-      if (this.currentTab === 'tab1') inputTab1.click();
-      else inputTab2.click();
-    });
+    // Header upload button & Dropdown menu
+    const uploadBtn = document.getElementById('btn-upload-file-header');
+    const uploadDropdown = document.getElementById('upload-dropdown-menu');
+    const btnFromDevice = document.getElementById('btn-dropdown-upload-file');
+    const btnLoadSample1 = document.getElementById('btn-dropdown-load-sample1');
+
+    if (uploadBtn && uploadDropdown) {
+      uploadBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        uploadDropdown.classList.toggle('show');
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!uploadDropdown.contains(e.target) && !uploadBtn.contains(e.target)) {
+          uploadDropdown.classList.remove('show');
+        }
+      });
+    }
+
+    if (btnFromDevice) {
+      btnFromDevice.addEventListener('click', () => {
+        if (uploadDropdown) uploadDropdown.classList.remove('show');
+        if (this.currentTab === 'tab1') inputTab1.click();
+        else inputTab2.click();
+      });
+    }
+
+    if (btnLoadSample1) {
+      btnLoadSample1.addEventListener('click', () => {
+        if (uploadDropdown) uploadDropdown.classList.remove('show');
+        this.loadTab1Preset(1);
+      });
+    }
 
     inputTab1.addEventListener('change', async (e) => {
       const file = e.target.files[0];
@@ -1721,30 +1890,45 @@ class SpectroSubApp {
     }
   }
 
+  getClockStateTooltip(state) {
+    switch (state) {
+      case CueClockState.OFF:
+        return 'Chế độ [TẮT] (Màu Xám) - Ẩn phụ đề trên biểu đồ';
+      case CueClockState.SHOW_LOCKED:
+        return 'Chế độ [KHÓA HIỂN THỊ] (Màu Xanh Lá) - Khóa mốc thời gian';
+      case CueClockState.EDITING_TIME:
+        return 'Chế độ [SỬA THỜI GIAN] (Màu Vàng Cam) - Kéo chỉnh mốc Start/Stop';
+      case CueClockState.EDITING_WORDS:
+        return 'Chế độ [SỬA TỪNG TỪ] (Màu Tím) - Tách mốc từng từ';
+      default:
+        return 'Chế độ đồng hồ';
+    }
+  }
+
   async loadTab1Preset(presetId) {
     try {
       let fileName = './assets/french_liaisons.mp3';
-      let trackLabel = 'Tiếng Pháp 1: Liaison & Enchaînement';
+      let trackLabel = 'Ví dụ 1';
       let presetCues = [];
 
       if (presetId === 1) {
         fileName = './assets/french_liaisons.mp3';
-        trackLabel = 'Tiếng Pháp 1: Liaison & Enchaînement';
+        trackLabel = 'Ví dụ 1';
         presetCues = [
-          new SubtitleCue({ startMs: 0, endMs: 2100, text: "C'est une très belle histoire", actor: "Français (Liaison [t])" }),
-          new SubtitleCue({ startMs: 2100, endMs: 4100, text: "les enfants adorent les oiseaux", actor: "Français (Liaisons [z])" }),
-          new SubtitleCue({ startMs: 4100, endMs: 6020, text: "et nous allons ensemble à Paris", actor: "Français (Liaison [z])" })
+          new SubtitleCue({ startMs: 0, endMs: 2100, text: "C'est une très belle histoire", actor: "Ví dụ 1" }),
+          new SubtitleCue({ startMs: 2100, endMs: 4100, text: "les enfants adorent les oiseaux", actor: "Ví dụ 1" }),
+          new SubtitleCue({ startMs: 4100, endMs: 6020, text: "et nous allons ensemble à Paris", actor: "Ví dụ 1" })
         ];
       } else if (presetId === 2) {
         fileName = './assets/french_conversation.mp3';
-        trackLabel = 'Tiếng Pháp 2: Hội thoại hằng ngày';
+        trackLabel = 'Ví dụ 2';
         presetCues = [
-          new SubtitleCue({ startMs: 0, endMs: 2600, text: "Je ne sais pas ce que tu penses", actor: "Français (Élision)" }),
-          new SubtitleCue({ startMs: 2650, endMs: 5560, text: "mais il faut faire attention aux liaisons et aux élisions", actor: "Français (Liaisons & Élisions)" })
+          new SubtitleCue({ startMs: 0, endMs: 2600, text: "Je ne sais pas ce que tu penses", actor: "Ví dụ 2" }),
+          new SubtitleCue({ startMs: 2650, endMs: 5560, text: "mais il faut faire attention aux liaisons et aux élisions", actor: "Ví dụ 2" })
         ];
       } else {
         fileName = './assets/french_liaisons.wav';
-        trackLabel = 'Bài học dài (3.5 phút): French Phonetic Masterclass';
+        trackLabel = 'Ví dụ 3';
         presetCues = [];
         for (let i = 0; i < 28; i++) {
           const s = i * 7500;
@@ -1857,11 +2041,14 @@ class SpectroSubApp {
       const clockBtn = document.createElement('button');
       clockBtn.className = 'cue-clock-btn';
       clockBtn.setAttribute('data-state', cue.clockState);
+      clockBtn.title = this.getClockStateTooltip(cue.clockState);
       clockBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
       clockBtn.addEventListener('click', () => {
         const states = [CueClockState.OFF, CueClockState.SHOW_LOCKED, CueClockState.EDITING_TIME, CueClockState.EDITING_WORDS];
         const curIdx = states.indexOf(cue.clockState);
         cue.clockState = states[(curIdx + 1) % states.length];
+        clockBtn.setAttribute('data-state', cue.clockState);
+        clockBtn.title = this.getClockStateTooltip(cue.clockState);
         this.selectTab1Cue(cue);
         this.renderTab1CuesList();
         this.rendererTab1.render();
