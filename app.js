@@ -1331,7 +1331,7 @@ class SpectrogramCanvasRenderer {
   }
 
   get msPerPixel() {
-    return Math.max(0.5, 100.0 / Math.max(5.0, this.zoomFactor));
+    return Math.max(0.5, 100.0 / Math.max(0.08, this.zoomFactor));
   }
 
   timeToX(ms) {
@@ -1941,7 +1941,12 @@ class SpectrogramCanvasRenderer {
     if (msPerPx < 1.0) stepMs = 200;
     else if (msPerPx < 2.5) stepMs = 500;
     else if (msPerPx < 6.0) stepMs = 1000;
-    else stepMs = 2000;
+    else if (msPerPx < 15.0) stepMs = 2000;
+    else if (msPerPx < 35.0) stepMs = 5000;
+    else if (msPerPx < 80.0) stepMs = 10000;
+    else if (msPerPx < 180.0) stepMs = 20000;
+    else if (msPerPx < 350.0) stepMs = 30000;
+    else stepMs = 60000;
 
     const vStartMs = this.xToTime(0);
     const vEndMs = this.xToTime(width);
@@ -2807,6 +2812,9 @@ class MusicalChordAnalyzer {
 
     const beatMs = 60000.0 / this.bpm;
     const barMs = beatMs * 4.0; // 4/4 meter
+    const msPerPx = this.msPerPixel;
+    const pixelsPerBar = barMs / msPerPx;
+    if (pixelsPerBar < 6) return; // Song is zoomed out to bird's-eye view, skip bar grid to avoid visual clutter
     let gridStepMs = barMs;
     if (this.barGridMode === 'HALF_BAR') gridStepMs = barMs / 2.0;
     else if (this.barGridMode === 'QUARTER_BAR') gridStepMs = barMs / 4.0;
@@ -3089,7 +3097,7 @@ class MusicalChordAnalyzer {
           } else {
             // Zoom theo chiều ngang (Trục thời gian)
             const scaleX = pinchStartDistX > 0 ? curDistX / pinchStartDistX : 1.0;
-            const newZoom = Math.max(5, Math.min(250, pinchStartZoom * scaleX));
+            const newZoom = Math.max(0.08, Math.min(250, pinchStartZoom * scaleX));
             if (newZoom !== this.zoomFactor) {
               this.zoomFactor = newZoom;
               this.scrollOffsetMs = pinchCenterTime - (midX - this.leftGutterWidth) * this.msPerPixel;
@@ -3231,8 +3239,8 @@ class MusicalChordAnalyzer {
         } else {
           // --- ZOOM THEO CHIỀU NGANG (Trục thời gian X), tâm tại con trỏ mouseX ---
           const timeAtMouse = this.xToTime(mouseX);
-          const deltaX = e.deltaY < 0 ? 8 : -8;
-          const newZoom = Math.max(5, Math.min(250, this.zoomFactor + deltaX));
+          const factor = e.deltaY < 0 ? 1.15 : (1.0 / 1.15);
+          const newZoom = Math.max(0.08, Math.min(250, this.zoomFactor * factor));
           if (newZoom !== this.zoomFactor) {
             this.zoomFactor = newZoom;
             this.scrollOffsetMs = timeAtMouse - (mouseX - this.leftGutterWidth) * this.msPerPixel;
@@ -5675,7 +5683,8 @@ class SpectroSubApp {
           this.rendererTab1.zoomFactor = Math.min(200, this.rendererTab1.zoomFactor + 10);
           this.rendererTab1.render();
         } else {
-          this.chordAnalyzerTab2.zoomFactor = Math.min(200, this.chordAnalyzerTab2.zoomFactor + 8);
+          this.chordAnalyzerTab2.zoomFactor = Math.min(250, Math.max(this.chordAnalyzerTab2.zoomFactor + 1, this.chordAnalyzerTab2.zoomFactor * 1.18));
+          this.chordAnalyzerTab2.clampScroll();
           this.chordAnalyzerTab2.render();
         }
       } else if (e.key === '-' || e.key === '_') {
@@ -5683,7 +5692,8 @@ class SpectroSubApp {
           this.rendererTab1.zoomFactor = Math.max(5, this.rendererTab1.zoomFactor - 10);
           this.rendererTab1.render();
         } else {
-          this.chordAnalyzerTab2.zoomFactor = Math.max(5, this.chordAnalyzerTab2.zoomFactor - 8);
+          this.chordAnalyzerTab2.zoomFactor = Math.max(0.08, this.chordAnalyzerTab2.zoomFactor * 0.85);
+          this.chordAnalyzerTab2.clampScroll();
           this.chordAnalyzerTab2.render();
         }
       }
