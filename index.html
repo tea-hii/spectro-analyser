@@ -41,7 +41,7 @@
     } catch (_) {}
   </script>
 
-  <link rel="stylesheet" href="./style.css?v=20261027_31">
+  <link rel="stylesheet" href="./style.css?v=20261027_32">
 </head>
 
 <body>
@@ -494,7 +494,7 @@
               <canvas id="cqt-canvas" style="display: block; width: 100%; height: 100%;"></canvas>
               <div class="tier-label-overlay" style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
                 <span>Dynamic CQT Spectrogram</span>
-                <button id="btn-tab2-cqt-info" class="tab2-info-btn" title="Tìm hiểu về Constant-Q Transform (CQT) &amp; Khuyến nghị loại audio phù hợp" type="button">
+                <button id="btn-tab2-cqt-info" class="tab2-info-btn" title="Hướng dẫn cách hoạt động của ứng dụng: Phân tích 2-Gram &amp; Tạo, Sửa, Xuất MIDI" type="button">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
                     <line x1="12" y1="10" x2="12" y2="19"/>
                     <line x1="9.5" y1="10" x2="12" y2="10"/>
@@ -696,52 +696,65 @@
 
   <!-- Modal: Tab 2 CQT & Solo Instrument Guide -->
   <div id="modal-tab2-cqt-info" class="modal-overlay" style="display: none;">
-    <div class="modal-card" style="max-width: 580px;">
+    <div class="modal-card" style="max-width: 620px;">
       <div class="modal-header">
-        <h3 class="modal-title">Constant-Q Transform (CQT) &amp; Khuyến Nghị Audio</h3>
+        <h3 class="modal-title">Hướng Dẫn Hoạt Động &amp; Quy Trình Tạo / Sửa MIDI</h3>
         <button class="tb-btn icon-only modal-close-btn" style="border: none; background: transparent;">✕</button>
       </div>
-      <div class="modal-body" style="font-size: 13px; line-height: 1.6; display: flex; flex-direction: column; gap: 14px; max-height: 72vh; overflow-y: auto;">
-        <!-- Phần 1: Tác dụng của ứng dụng -->
-        <div style="border-left: 3px solid #38bdf8; padding-left: 10px;">
-          <strong style="color: #38bdf8; font-size: 14px;">1. Tác dụng của Tab 2 (CQT &amp; Nhận diện hợp âm)</strong>
-          <p style="margin-top: 4px; color: var(--text-secondary);">
-            Khác với biểu đồ FFT thông thường (bị nén chặt ở âm trầm và giãn cách vô ích ở âm bổng), <strong>Constant-Q Transform (CQT)</strong> căn chỉnh trục tung chuẩn xác theo từng <strong>nửa cung (Semitone)</strong> tương ứng trực tiếp với các phím đàn Piano.
-          </p>
-          <ul style="margin: 6px 0 0 16px; color: #cbd5e1; list-style-type: disc;">
-            <li><strong>Nhận diện hợp âm (Chord Recognition):</strong> Thuật toán Chromagram triệt tiêu bồi âm tự nhiên, giúp nhận biết chính xác hợp âm gốc và các nốt cấu thành.</li>
-            <li><strong>Dựng dải MIDI Piano Roll (AMT):</strong> Bóc tách cao độ thực tế đang phát ra theo thời gian thực và cho phép xuất file <code>.mid</code> chuẩn về DAW.</li>
-          </ul>
-        </div>
-
-        <!-- Phần 2: Giải đáp câu hỏi về Audio đơn nhạc cụ -->
-        <div style="border-left: 3px solid #10b981; padding-left: 10px;">
-          <strong style="color: #10b981; font-size: 14px;">2. Ứng dụng thích hợp nhất với loại âm thanh nào?</strong>
-          <p style="margin-top: 4px; color: #f1f5f9;">
-            <strong style="color: #34d399;">CHÍNH XÁC:</strong> Ứng dụng hoạt động <strong>tối ưu và chuẩn xác nhất với Audio ĐƠN NHẠC CỤ (Solo Instrument)</strong> hoặc các track nhạc cụ đã được tách riêng (Stems).
-          </p>
-          <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 6px; padding: 8px 12px; margin-top: 6px;">
-            <div style="font-weight: 600; color: #a7f3d0; margin-bottom: 4px;">Các nguồn âm thanh khuyên dùng:</div>
-            <ul style="margin: 0 0 0 16px; color: #cbd5e1; list-style-type: disc;">
-              <li><strong>Piano độc tấu:</strong> Grand Piano, Upright Piano, Rhodes / Wurlitzer EP.</li>
-              <li><strong>Guitar solo / fingerstyle:</strong> Guitar acoustic, guitar cổ điển rải hợp âm.</li>
-              <li><strong>Nhạc cụ dây / mộc solo:</strong> Solo Cello, Violin, Harp, Đàn tranh, Marimba...</li>
-              <li><strong>Track Stem tách riêng:</strong> Track Piano hoặc Guitar đã được tách riêng bằng AI (Demucs, Spleeter, RipX...) từ bài hát gốc.</li>
-            </ul>
+      <div class="modal-body" style="font-size: 13px; line-height: 1.6; display: flex; flex-direction: column; gap: 14px; max-height: 74vh; overflow-y: auto;">
+        
+        <!-- CẢNH BÁO QUAN TRỌNG: ĐẶT LÊN ĐẦU TIÊN -->
+        <div style="background: rgba(239, 68, 68, 0.12); border: 1.5px solid #ef4444; border-radius: 8px; padding: 10px 14px;">
+          <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: #f87171; font-size: 13.5px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            LƯU Ý QUAN TRỌNG: CHỈ NÊN DÙNG AUDIO ĐƠN NHẠC CỤ (SOLO / STEMS)
           </div>
-        </div>
-
-        <!-- Phần 3: Vì sao không thích hợp với Full Mix / Band? -->
-        <div style="border-left: 3px solid #f59e0b; padding-left: 10px;">
-          <strong style="color: #f59e0b; font-size: 14px;">3. Vì sao không thích hợp với bài hát Full Mix (Có Trống &amp; Hát)?</strong>
-          <p style="margin-top: 4px; color: var(--text-secondary);">
-            Khi bài hát có đầy đủ ban nhạc (Drums, Bass, Vocal, Guitar, Synth cùng phát):
+          <p style="margin: 6px 0 0 0; color: #fecaca; font-size: 12.5px;">
+            Ứng dụng được thiết kế tối ưu và chính xác nhất cho âm thanh <strong>đơn nhạc cụ (Solo Instrument)</strong> hoặc các track <strong>Stems</strong> đã được tách riêng:
           </p>
-          <ul style="margin: 6px 0 0 16px; color: #cbd5e1; list-style-type: disc;">
-            <li><strong>Bộ gõ &amp; Trống (Drums/Percussion):</strong> Tiếng Kick, Snare, Hi-hat, Cymbal tạo ra sóng xung kích băng rộng (transient noise) làm trắng đục toàn bộ dải tần, sinh ra nhiều nốt rác.</li>
-            <li><strong>Chồng chéo họa âm (Harmonic Collision):</strong> Họa âm tự nhiên của giọng hát và nhiều nhạc cụ cùng đè lên nhau khiến thuật toán không thể phân biệt nốt nào thuộc nhạc cụ hòa âm.</li>
+          <ul style="margin: 6px 0 0 16px; color: #fca5a5; font-size: 12.5px; list-style-type: disc;">
+            <li><strong>Rất thích hợp:</strong> Piano độc tấu (Grand Piano, Electric Piano), Guitar solo / Fingerstyle, Solo Cello / Violin / Đàn tranh, hoặc track nhạc cụ đã bóc tách bằng AI (Demucs, Spleeter, RipX...).</li>
+            <li><strong>Không thích hợp với bài hát Full Mix (Có Trống &amp; Hát):</strong> Tiếng trống (Kick, Snare, Hi-hat) tạo xung kích băng rộng làm trắng đục dải tần; giọng hát và nhiều nhạc cụ cùng đè lên nhau sẽ sinh ra nhiều nốt rác và làm sai lệch hợp âm.</li>
           </ul>
         </div>
+
+        <!-- Phần 1: Phân tích hợp âm bằng 2 Gram -->
+        <div style="border-left: 3px solid #38bdf8; padding-left: 10px;">
+          <strong style="color: #38bdf8; font-size: 13.5px;">1. Cơ chế phân tích âm thanh bằng 2 Gram</strong>
+          <p style="margin-top: 4px; color: var(--text-secondary);">
+            Ứng dụng vận hành với 2 biểu đồ quang phổ song hành để nhận diện hòa âm chính xác:
+          </p>
+          <ul style="margin: 6px 0 0 16px; color: #cbd5e1; list-style-type: disc;">
+            <li><strong>Dynamic CQT Spectrogram (Trục trên):</strong> Sử dụng thuật toán <em>Constant-Q Transform (CQT)</em> căn chỉnh trục tung chuẩn xác theo từng <strong>nửa cung (Semitone)</strong> từ trầm lên bổng tương ứng với các phím đàn Piano. Màu sắc vệt sáng phản ánh năng lượng và lực đánh (Velocity).</li>
+            <li><strong>Chromagram (12 Pitch Classes - Trục dưới):</strong> Gom các quãng tám về 12 nốt gốc (C, C#, D...), triệt tiêu bồi âm tự nhiên để tự động phân tích và hiển thị <strong>hợp âm chuẩn xác</strong> ở thanh nhịp trên cùng.</li>
+          </ul>
+        </div>
+
+        <!-- Phần 2: Tạo MIDI, Chỉnh sửa & Lưu file .mid -->
+        <div style="border-left: 3px solid #10b981; padding-left: 10px;">
+          <strong style="color: #10b981; font-size: 13.5px;">2. Tạo, Chỉnh sửa &amp; Xuất file MIDI (.mid)</strong>
+          <p style="margin-top: 4px; color: var(--text-secondary);">
+            Quy trình bóc tách và biên tập MIDI (Automatic Music Transcription):
+          </p>
+          <ul style="margin: 6px 0 0 16px; color: #cbd5e1; list-style-type: disc;">
+            <li><strong>Tạo MIDI thông minh:</strong> Nhấn nút biểu tượng nốt nhạc trên thanh công cụ. Thuật toán kết hợp năng lượng sáng từ CQT với nhãn hợp âm đã xác nhận từ Chromagram làm mặt nạ lọc để loại bỏ nốt rò rỉ, dựng chính xác các nốt đang chơi lên dải <strong>MIDI Piano Roll</strong>. Bấm lại nút này để ẩn/hiện mà không làm mất dữ liệu.</li>
+            <li><strong>Nghe thử nhạc cụ General MIDI:</strong> Chọn nhạc cụ phát thử (Grand Piano, Electric Piano, Guitar, Strings, v.v.) và nhấn nút <strong>Play MIDI</strong> để nghe trực tiếp bản ghi MIDI trên trình duyệt.</li>
+            <li><strong>Chỉnh sửa MIDI linh hoạt (Nút Edit):</strong>
+              <div style="margin-top: 4px; display: flex; flex-direction: column; gap: 3px;">
+                <span>✏️ <strong>Bút chì:</strong> Kéo rê chuột để vẽ nốt mới với <em>vệt mờ xem trước</em> (ghost note) tự động snap theo lưới nhịp (1, 1/2, 1/4, 1/8 bar).</span>
+                <span>🧹 <strong>Tẩy:</strong> Click hoặc quét qua nốt để xóa nhanh nốt thừa.</span>
+                <span>✥ <strong>Di chuyển &amp; Co giãn:</strong> Kéo thân nốt để dời cao độ / thời gian; rê chuột vào mép trái/phải hiển thị mũi tên <code>&lt;-&gt;</code> để co giãn trường độ nốt.</span>
+              </div>
+            </li>
+            <li><strong>Lưu file .mid:</strong> Nhấn nút <strong>Tải MIDI</strong> để xuất file <code>.mid</code> chuẩn (bao gồm mọi thay đổi sau khi sửa) để nhập vào bất kỳ phần mềm DAW chuyên nghiệp nào (FL Studio, Ableton Live, Logic Pro, Cubase...).</li>
+            <li><strong>Thùng rác (Xóa bộ nhớ MIDI):</strong> Nút thùng rác ở góc dưới dải MIDI giúp xóa toàn bộ nốt đã tạo để bấm tạo lại từ đầu nếu muốn.</li>
+          </ul>
+        </div>
+
       </div>
       <div class="modal-footer">
         <button class="tb-btn modal-close-btn" style="background: var(--accent-cyan); color: #021424; font-weight: 700; border-color: var(--accent-cyan);">Đã hiểu</button>
@@ -855,6 +868,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261027_31"></script>
+  <script src="./app.js?v=20261027_32"></script>
 </body>
 </html>
