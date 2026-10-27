@@ -92,6 +92,20 @@ const I18N_LOCALES = {
     modal_freq_f3: 'Âm sắc cá nhân, âm mũi (voyelles nasales [õ], [ã], [ɛ̃]) và âm tắc bật hơi [p, t, k].',
     modal_freq_liaisons: 'Vùng năng lượng ma sát của phụ âm xát và hiện tượng nối âm Liaison ([z], [t]).',
     btn_understood: 'Đã hiểu',
+    cues_guide_btn_title: 'Hướng dẫn sử dụng & Mẹo thao tác',
+    modal_guide_title: 'Hướng Dẫn Sử Dụng & Mẹo Thao Tác',
+    guide_tip_longpress_title: 'Ấn & Giữ nút bấm (Gợi ý):',
+    guide_tip_longpress_desc: 'Trên điện thoại, chạm và giữ (~0.4s) vào bất kỳ nút bấm nào để xem giải thích công dụng mà không bị ấn nhầm. Trên máy tính, chỉ cần rê chuột qua nút.',
+    guide_tip_clock_title: 'Nút Đồng hồ (3 Chế độ):',
+    guide_tip_clock_desc: 'Bấm nút đồng hồ cạnh tiêu đề câu để chuyển đổi đồng loạt: Xem câu (Khóa mốc) ➔ Sửa thời gian câu (Start/End) ➔ Sửa mốc từ (vạch tím).',
+    guide_tip_folder_title: 'Nạp bài & Phụ đề (Menu Thư mục):',
+    guide_tip_folder_desc: 'Bấm biểu tượng Thư mục ở góc trên để load bài mẫu, mở file audio/video từ máy, hoặc nạp file phụ đề có sẵn (.ass, .srt, .json).',
+    guide_tip_save_title: 'Lưu / Xuất Kịch bản (Nút Lưu):',
+    guide_tip_save_desc: 'Xuất kịch bản phụ đề ra định dạng .ass (kèm căn chỉnh từng từ karaoke {\\k}), .srt (chuẩn phổ biến), .json (dự án) hoặc .txt.',
+    guide_tip_playback_title: 'Phát âm thanh linh hoạt:',
+    guide_tip_playback_desc: 'Có 3 chế độ phát: Phát toàn bộ audio (Play), phát riêng câu đang chọn (Play Line), hoặc phát đúng từ tại con trỏ vàng (Play Word).',
+    guide_tip_loop_title: 'Luyện nghe & Lặp đoạn (A-B Repeat):',
+    guide_tip_loop_desc: 'Bạn có thể tận dụng chia câu/từ rồi bật chế độ Lặp (Loop) để nghe đi nghe lại một phân đoạn âm thanh cần luyện nghe/nói, ngay cả khi không có nhu cầu làm phụ đề.',
     modal_export_title: 'Lưu / Xuất Kịch Bản Phụ Đề',
     choose_format_label: 'Chọn định dạng xuất:',
     export_desc_ass: 'Bao gồm mốc thời gian căn chỉnh từng từ (karaoke {\\k}) nếu có cài đặt vạch tím.',
@@ -176,6 +190,20 @@ const I18N_LOCALES = {
     modal_freq_f3: 'Speaker timbre, nasalization (voyelles nasales [õ], [ã], [ɛ̃]) and burst release [p, t, k].',
     modal_freq_liaisons: 'Fricative consonant energy and liaison transitions ([z], [t]).',
     btn_understood: 'Understood',
+    cues_guide_btn_title: 'User Guide & Quick Tips',
+    modal_guide_title: 'User Guide & Quick Tips',
+    guide_tip_longpress_title: 'Long-Press for Tooltips:',
+    guide_tip_longpress_desc: 'On mobile devices, touch and hold (~0.4s) any button to view its tooltip without accidentally triggering the action. On desktop, simply hover your mouse.',
+    guide_tip_clock_title: 'Master Clock (3 Modes):',
+    guide_tip_clock_desc: 'Click the clock icon next to the list to toggle across all cues: View Only (Locked) ➔ Edit Cue Timing (Start/End) ➔ Edit Word Timing (purple markers).',
+    guide_tip_folder_title: 'Load Media & Scripts (Folder Menu):',
+    guide_tip_folder_desc: 'Click the Folder menu icon at the top to load built-in samples, open local audio/video files, or import existing subtitles (.ass, .srt, .json).',
+    guide_tip_save_title: 'Save / Export Script:',
+    guide_tip_save_desc: 'Export your subtitle script as .ass (with word-level karaoke {\\k}), .srt (universal format), .json (full project backup), or plain .txt.',
+    guide_tip_playback_title: 'Triple Playback Controls:',
+    guide_tip_playback_desc: 'Supports 3 playback modes: Play whole audio track, play current selected line (Play Line), or play the individual word at the yellow cursor (Play Word).',
+    guide_tip_loop_title: 'A-B Repeat & Listening Practice:',
+    guide_tip_loop_desc: 'Easily create sentences or word segments and enable Loop to shadow pronunciation and practice listening on repeat, even if you do not need to make subtitles.',
     modal_export_title: 'Export / Save Subtitle Script',
     choose_format_label: 'Select Export Format:',
     export_desc_ass: 'Includes word-level karaoke timing ({\\k}) when purple word handles are aligned.',
@@ -3537,6 +3565,43 @@ class SpectroSubApp {
     const btnModalFreqClose = document.querySelector('#modal-freq-legend .modal-footer .modal-close-btn');
     if (btnModalFreqClose) btnModalFreqClose.textContent = t('btn_understood');
 
+    // Modal: Cues & User Guide
+    const btnCuesGuide = document.getElementById('btn-cues-guide');
+    if (btnCuesGuide) btnCuesGuide.title = t('cues_guide_btn_title');
+
+    const modalGuideTitle = document.querySelector('#modal-cues-guide .modal-title');
+    if (modalGuideTitle) modalGuideTitle.textContent = t('modal_guide_title');
+
+    const guideTitleLongpress = document.getElementById('guide-title-longpress');
+    if (guideTitleLongpress) guideTitleLongpress.textContent = t('guide_tip_longpress_title');
+    const guideDescLongpress = document.getElementById('guide-desc-longpress');
+    if (guideDescLongpress) guideDescLongpress.textContent = t('guide_tip_longpress_desc');
+
+    const guideTitleClock = document.getElementById('guide-title-clock');
+    if (guideTitleClock) guideTitleClock.textContent = t('guide_tip_clock_title');
+    const guideDescClock = document.getElementById('guide-desc-clock');
+    if (guideDescClock) guideDescClock.textContent = t('guide_tip_clock_desc');
+
+    const guideTitleFolder = document.getElementById('guide-title-folder');
+    if (guideTitleFolder) guideTitleFolder.textContent = t('guide_tip_folder_title');
+    const guideDescFolder = document.getElementById('guide-desc-folder');
+    if (guideDescFolder) guideDescFolder.textContent = t('guide_tip_folder_desc');
+
+    const guideTitleSave = document.getElementById('guide-title-save');
+    if (guideTitleSave) guideTitleSave.textContent = t('guide_tip_save_title');
+    const guideDescSave = document.getElementById('guide-desc-save');
+    if (guideDescSave) guideDescSave.textContent = t('guide_tip_save_desc');
+
+    const guideTitlePlayback = document.getElementById('guide-title-playback');
+    if (guideTitlePlayback) guideTitlePlayback.textContent = t('guide_tip_playback_title');
+    const guideDescPlayback = document.getElementById('guide-desc-playback');
+    if (guideDescPlayback) guideDescPlayback.textContent = t('guide_tip_playback_desc');
+
+    const guideTitleLoop = document.getElementById('guide-title-loop');
+    if (guideTitleLoop) guideTitleLoop.textContent = t('guide_tip_loop_title');
+    const guideDescLoop = document.getElementById('guide-desc-loop');
+    if (guideDescLoop) guideDescLoop.textContent = t('guide_tip_loop_desc');
+
     // Modal: Export descriptions
     const descExportAss = document.getElementById('desc-export-ass');
     if (descExportAss) descExportAss.textContent = t('export_desc_ass');
@@ -4447,6 +4512,13 @@ class SpectroSubApp {
       btnFreqLegend.addEventListener('click', () => { modalFreq.style.display = 'flex'; });
     }
 
+    // Cues / User Guide modal
+    const btnCuesGuide = document.getElementById('btn-cues-guide');
+    const modalCuesGuide = document.getElementById('modal-cues-guide');
+    if (btnCuesGuide && modalCuesGuide) {
+      btnCuesGuide.addEventListener('click', () => { modalCuesGuide.style.display = 'flex'; });
+    }
+
     // Add Cues modal
     const btnOpenAddCues = document.getElementById('btn-open-add-cues');
     const modalAddCues = document.getElementById('modal-add-cues');
@@ -4467,11 +4539,16 @@ class SpectroSubApp {
       });
     }
 
-    // Modal close buttons
+    // Modal close buttons & backdrop click
     document.querySelectorAll('.modal-close-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const m = e.target.closest('.modal-overlay');
         if (m) m.style.display = 'none';
+      });
+    });
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.style.display = 'none';
       });
     });
 
