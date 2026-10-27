@@ -41,7 +41,7 @@
     } catch (_) {}
   </script>
 
-  <link rel="stylesheet" href="./style.css?v=20261027_20">
+  <link rel="stylesheet" href="./style.css?v=20261027_21">
 </head>
 
 <body>
@@ -443,6 +443,16 @@
                 <span id="tab2-detected-chord" class="chord-name-val mono-font">--</span>
               </div>
 
+              <!-- Button to Generate / Toggle MIDI Piano Roll -->
+              <button id="btn-tab2-midi" class="tb-btn midi-toggle-btn" title="Tạo &amp; Hiện/Ẩn dải Piano Roll MIDI giữa 2 gram (AMT)" type="button">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 18V5l12-2v13"/>
+                  <circle cx="6" cy="18" r="3"/>
+                  <circle cx="18" cy="16" r="3"/>
+                </svg>
+                <span>MIDI</span>
+              </button>
+
               <!-- Unified Load Dropdown for Tab 2 -->
               <div class="dropdown-wrapper" id="tab2-load-dropdown-wrapper" style="position: relative;">
                 <button id="btn-tab2-load" class="tb-btn icon-only" style="background: #1e1b4b; border-color: #8b5cf6; color: #ede9fe;" title="Load bài nhạc (File cục bộ hoặc Ví dụ 1)" type="button">
@@ -485,8 +495,25 @@
               <div class="tier-label-overlay">Dynamic CQT Spectrogram (Bám theo cao độ nửa cung)</div>
             </div>
 
-            <!-- Draggable Horizontal Splitter between CQT & Chromagram -->
+            <!-- Draggable Horizontal Splitter between CQT & MIDI -->
             <div id="tab2-pane-splitter" class="pane-splitter">
+              <div class="splitter-handle"></div>
+            </div>
+
+            <!-- Tier MIDI: Piano Roll / Transcribed Notes (Between CQT & Chromagram) -->
+            <div id="tab2-midi-container" class="midi-tier-container" style="display: none; height: 28%; min-height: 80px; position: relative;">
+              <canvas id="midi-canvas" style="display: block; width: 100%; height: 100%; touch-action: none !important;"></canvas>
+              <div class="tier-label-overlay" style="display: flex; align-items: center; gap: 8px;">
+                <span id="tab2-midi-badge-text">MIDI Piano Roll (AMT)</span>
+                <button id="btn-tab2-export-midi" class="midi-export-btn" title="Tải file .mid về máy (Standard MIDI File)" type="button">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  <span>Xuất .mid</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Draggable Horizontal Splitter between MIDI & Chromagram (when MIDI active) -->
+            <div id="tab2-midi-splitter" class="pane-splitter" style="display: none;">
               <div class="splitter-handle"></div>
             </div>
 
@@ -676,6 +703,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261027_20"></script>
+  <script src="./app.js?v=20261027_21"></script>
 </body>
 </html>

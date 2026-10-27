@@ -75,6 +75,10 @@ const I18N_LOCALES = {
     load_sample_tab2: 'Ví dụ 1 (Piano mẫu)',
     load_local_tab2: 'Chọn file từ máy (Local)...',
     tab2_rewind_title: 'Về điểm đầu (Đưa thanh màu vàng về 0:00)',
+    tab2_midi_btn_title: 'Tạo & Hiện/Ẩn dải Piano Roll MIDI giữa 2 gram (AMT)',
+    tab2_midi_export_title: 'Tải file .mid về máy (Standard MIDI File)',
+    tab2_midi_badge: 'MIDI Piano Roll (AMT)',
+    tab2_midi_no_audio: 'Vui lòng chọn hoặc nạp bài nhạc trước khi tạo MIDI!',
     tab2_play_title: 'Phát / Dừng Tab 2 (Phím Space)',
     tab2_empty_desc: 'Bộ phân tích hợp âm trực quan qua <strong>Constant-Q Transform</strong> &amp; <strong>Chromagram 12 nốt</strong> triệt tiêu bồi âm. Giúp bạn nhìn rõ nốt cấu thành hợp âm để vẽ lại MIDI trong DAW.',
     tab2_choose_file_btn: 'Chọn File Audio / Video Nhạc Cụ',
@@ -176,6 +180,10 @@ const I18N_LOCALES = {
     load_sample_tab2: 'Example 1 (Piano Chords)',
     load_local_tab2: 'Select Local Audio File...',
     tab2_rewind_title: 'Return to start (Move yellow playhead to 0:00)',
+    tab2_midi_btn_title: 'Generate & Toggle MIDI Piano Roll between spectrograms (AMT)',
+    tab2_midi_export_title: 'Download .mid file (Standard MIDI File)',
+    tab2_midi_badge: 'MIDI Piano Roll (AMT)',
+    tab2_midi_no_audio: 'Please select or load an audio track before generating MIDI!',
     tab2_play_title: 'Play / Pause Tab 2 (Space)',
     tab2_empty_desc: 'Visual chord analyzer powered by <strong>Constant-Q Transform</strong> &amp; harmonic-suppressed <strong>12-Tone Chromagram</strong>. Inspect constituent notes to reconstruct MIDI in your DAW.',
     tab2_choose_file_btn: 'Choose Audio / Video File',
@@ -1012,8 +1020,93 @@ const TimeFormatter = {
   }
 };
 
+function createMidiFileBlob(notes, bpm = 120) {
+  const ticksPerBeat = 480;
+  const msPerBeat = 60000.0 / Math.max(20, bpm);
+  const msToTicks = (ms) => Math.max(0, Math.round((ms / msPerBeat) * ticksPerBeat));
+
+  const events = [];
+  for (const n of notes) {
+    events.push({
+      tick: msToTicks(n.startMs),
+      type: 0x90,
+      pitch: Math.max(0, Math.min(127, n.pitch)),
+      vel: Math.min(127, Math.max(1, Math.round(n.velocity || 80)))
+    });
+    events.push({
+      tick: msToTicks(n.endMs),
+      type: 0x80,
+      pitch: Math.max(0, Math.min(127, n.pitch)),
+      vel: 64
+    });
+  }
+
+  // Sort events chronologically, note_offs before note_ons if at exact same tick
+  events.sort((a, b) => (a.tick - b.tick) || (a.type - b.type));
+
+  const trackBytes = [];
+  function pushBytes(...b) { for (const byte of b) trackBytes.push(byte & 0xFF); }
+  function pushVarLen(v) {
+    let buf = v & 0x7F;
+    while ((v >>= 7)) {
+      buf <<= 8;
+      buf |= ((v & 0x7F) | 0x80);
+    }
+    while (true) {
+      trackBytes.push(buf & 0xFF);
+      if (buf & 0x80) buf >>= 8;
+      else break;
+    }
+  }
+
+  // Track name meta event
+  pushVarLen(0); pushBytes(0xFF, 0x03, 0x09);
+  for (const c of 'CQT-CHORD') pushBytes(c.charCodeAt(0));
+
+  // Tempo meta event
+  const mpqn = Math.round(60000000 / Math.max(20, bpm));
+  pushVarLen(0); pushBytes(0xFF, 0x51, 0x03, (mpqn >> 16) & 0xFF, (mpqn >> 8) & 0xFF, mpqn & 0xFF);
+
+  // Time Signature (4/4)
+  pushVarLen(0); pushBytes(0xFF, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08);
+
+  // Program change (Acoustic Grand Piano, Ch 0)
+  pushVarLen(0); pushBytes(0xC0, 0x00);
+
+  let lastTick = 0;
+  for (const ev of events) {
+    const delta = Math.max(0, ev.tick - lastTick);
+    pushVarLen(delta);
+    pushBytes(ev.type, ev.pitch, ev.vel);
+    lastTick = ev.tick;
+  }
+
+  // End of track meta event
+  pushVarLen(0); pushBytes(0xFF, 0x2F, 0x00);
+
+  // Build full SMF
+  const out = [];
+  function pushOut(...b) { for (const byte of b) out.push(byte & 0xFF); }
+  function push32(val) { pushOut((val >> 24) & 0xFF, (val >> 16) & 0xFF, (val >> 8) & 0xFF, val & 0xFF); }
+  function push16(val) { pushOut((val >> 8) & 0xFF, val & 0xFF); }
+
+  // MThd chunk
+  pushOut(0x4D, 0x54, 0x68, 0x64);
+  push32(6);
+  push16(0);
+  push16(1);
+  push16(ticksPerBeat);
+
+  // MTrk chunk
+  pushOut(0x4D, 0x54, 0x72, 0x6B);
+  push32(trackBytes.length);
+  out.push(...trackBytes);
+
+  return new Blob([new Uint8Array(out)], { type: 'audio/midi' });
+}
+
 function downloadBlob(content, filename, mimeType) {
-  const blob = new Blob([content], { type: mimeType });
+  const blob = (content instanceof Blob) ? content : new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -1568,6 +1661,368 @@ class SpectrogramCanvasRenderer {
     }
 
     this.drawMinimap(ctx, 0, h - miniH, w, miniH);
+  }
+  renderMidiTier() {
+    if (!this.midiCanvas || !this.midiCtx || !this.midiWidth || !this.midiHeight) return;
+    const ctx = this.midiCtx, w = this.midiWidth, h = this.midiHeight;
+
+    // Background
+    ctx.fillStyle = '#141416';
+    ctx.fillRect(0, 0, w, h);
+
+    const gutterW = this.leftGutterWidth;
+    const minM = this.activeMinMidi;
+    const maxM = this.activeMaxMidi;
+    const renderedSemitones = Math.max(1, maxM - minM + 1);
+    const semitoneH = h / renderedSemitones;
+
+    // Gutter piano roll labels
+    const blackKeyW = Math.round(gutterW * 0.62);
+    for (let m = minM; m <= maxM; m++) {
+      const row = maxM - m;
+      const y = row * semitoneH;
+      const pc = m % 12;
+      const isBlack = (pc === 1 || pc === 3 || pc === 6 || pc === 8 || pc === 10);
+
+      if (!isBlack) {
+        ctx.fillStyle = '#222634';
+        ctx.fillRect(0, y, gutterW, semitoneH);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0, y, gutterW, semitoneH);
+
+        const octave = Math.floor(m / 12) - 1;
+        ctx.fillStyle = (pc === 0) ? '#fde047' : '#94a3b8';
+        ctx.font = (pc === 0) ? 'bold 10px "JetBrains Mono", monospace' : '9px "JetBrains Mono", monospace';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${NOTE_NAMES[pc]}${octave}`, gutterW - 6, y + semitoneH / 2);
+      }
+    }
+
+    for (let m = minM; m <= maxM; m++) {
+      const row = maxM - m;
+      const y = row * semitoneH;
+      const pc = m % 12;
+      const isBlack = (pc === 1 || pc === 3 || pc === 6 || pc === 8 || pc === 10);
+
+      if (isBlack) {
+        ctx.fillStyle = '#11131a';
+        ctx.fillRect(0, y, blackKeyW, semitoneH);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0, y, blackKeyW, semitoneH);
+      }
+
+      // Horizontal grid lines across timeline
+      ctx.strokeStyle = (pc === 0) ? 'rgba(250, 204, 21, 0.22)' : 'rgba(255, 255, 255, 0.04)';
+      ctx.beginPath();
+      ctx.moveTo(gutterW, y + semitoneH);
+      ctx.lineTo(w, y + semitoneH);
+      ctx.stroke();
+    }
+
+    // BPM & Bar / Beat Grid lines across MIDI Piano Roll
+    this.drawBpmGrid(ctx, gutterW, 0, w, h, false);
+
+    // Render transcribed MIDI notes
+    if (this.midiNotes && this.midiNotes.length > 0) {
+      const vStartMs = this.xToTime(gutterW);
+      const vEndMs = this.xToTime(w);
+
+      for (const note of this.midiNotes) {
+        if (note.endMs < vStartMs || note.startMs > vEndMs) continue;
+        if (note.pitch < minM || note.pitch > maxM) continue;
+
+        const row = maxM - note.pitch;
+        const noteY = row * semitoneH;
+        const x1 = Math.max(gutterW, this.timeToX(note.startMs));
+        const x2 = Math.min(w, this.timeToX(note.endMs));
+        const noteW = Math.max(3.5, x2 - x1);
+        const noteH = Math.max(3, semitoneH - 1.5);
+
+        // Color coding:
+        // Root tone -> Gold/Amber
+        // Chord constituent (3rd, 5th) -> Emerald/Cyan
+        // Melody / non-chord -> Purple/Violet
+        let gradTop = '#10b981', gradBottom = '#059669', strokeCol = '#34d399';
+        if (note.isRoot) {
+          gradTop = '#f59e0b'; gradBottom = '#d97706'; strokeCol = '#fde68a';
+        } else if (note.isChordTone) {
+          gradTop = '#06b6d4'; gradBottom = '#0284c7'; strokeCol = '#67e8f9';
+        } else {
+          gradTop = '#a855f7'; gradBottom = '#7c3aed'; strokeCol = '#d8b4fe';
+        }
+
+        const grad = ctx.createLinearGradient(x1, noteY, x1, noteY + noteH);
+        grad.addColorStop(0, gradTop);
+        grad.addColorStop(1, gradBottom);
+
+        ctx.fillStyle = grad;
+        const cornerR = Math.min(3, noteW / 3, noteH / 3);
+        if (typeof ctx.roundRect === 'function') {
+          ctx.beginPath();
+          ctx.roundRect(x1, noteY + 0.75, noteW, noteH, cornerR);
+          ctx.fill();
+          ctx.strokeStyle = strokeCol;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        } else {
+          ctx.fillRect(x1, noteY + 0.75, noteW, noteH);
+          ctx.strokeStyle = strokeCol;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x1, noteY + 0.75, noteW, noteH);
+        }
+
+        // Note label inside bar if wide enough
+        if (noteW >= 24 && noteH >= 9) {
+          const octave = Math.floor(note.pitch / 12) - 1;
+          const noteText = `${NOTE_NAMES[note.pitch % 12]}${octave}`;
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 9px "JetBrains Mono", monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(noteText, x1 + noteW / 2, noteY + noteH / 2 + 0.5);
+        }
+      }
+    } else {
+      // Empty hint when no notes transcribed yet
+      ctx.fillStyle = '#71717a';
+      ctx.font = '12px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Đang chuẩn bị dữ liệu MIDI từ CQT & Hợp âm...', (gutterW + w) / 2, h / 2);
+    }
+
+    // Yellow Playhead
+    const playheadMs = this.audio.getCurrentPosition();
+    const playheadX = this.timeToX(playheadMs);
+    if (playheadX >= gutterW && playheadX <= w) {
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(playheadX, 0);
+      ctx.lineTo(playheadX, h);
+      ctx.stroke();
+    }
+  }
+
+  transcribeMidiFromCqt() {
+    if (!this.data) return [];
+    const spec = this.data;
+    const numFrames = spec.numFrames;
+    const totalBins = spec.numSemitones;
+    const globalMinM = spec.minMidi;
+    const timeResMs = spec.timeResolutionMs || 20.0;
+    const detectedChords = spec.detectedChords || [];
+
+    if (!spec.cqtMatrix || numFrames <= 0 || totalBins <= 0) return [];
+    const cqtMatrix = new Uint8Array(spec.cqtMatrix);
+
+    const CHORD_NOTES_MAP = {
+      'C': [0, 4, 7], 'C#': [1, 5, 8], 'Db': [1, 5, 8],
+      'D': [2, 6, 9], 'D#': [3, 7, 10], 'Eb': [3, 7, 10],
+      'E': [4, 8, 11],
+      'F': [5, 9, 0], 'F#': [6, 10, 1], 'Gb': [6, 10, 1],
+      'G': [7, 11, 2], 'G#': [8, 0, 3], 'Ab': [8, 0, 3],
+      'A': [9, 1, 4], 'A#': [10, 2, 5], 'Bb': [10, 2, 5],
+      'B': [11, 3, 6],
+      'Cm': [0, 3, 7], 'C#m': [1, 4, 8], 'Dbm': [1, 4, 8],
+      'Dm': [2, 5, 9], 'D#m': [3, 6, 10], 'Ebm': [3, 6, 10],
+      'Em': [4, 7, 11],
+      'Fm': [5, 8, 0], 'F#m': [6, 9, 1], 'Gbm': [6, 9, 1],
+      'Gm': [7, 10, 2], 'G#m': [8, 11, 3], 'Abm': [8, 11, 3],
+      'Am': [9, 0, 4], 'A#m': [10, 1, 5], 'Bbm': [10, 1, 5],
+      'Bm': [11, 2, 6]
+    };
+
+    const notes = [];
+    const activeTracks = new Map(); // pitch -> { startFrame, lastFrame, maxVal, sumVal, count, chord }
+
+    for (let f = 0; f < numFrames; f++) {
+      const frameBase = f * totalBins;
+      const chord = detectedChords[f] || '';
+      const chordPcs = CHORD_NOTES_MAP[chord] || null;
+      const rootPc = chordPcs ? chordPcs[0] : null;
+
+      const currentFramePeaks = new Map();
+
+      // Find local peaks along semitone dimension
+      for (let s = 1; s < totalBins - 1; s++) {
+        const val = cqtMatrix[frameBase + s];
+        if (val < 36) continue;
+
+        const valPrev = cqtMatrix[frameBase + s - 1];
+        const valNext = cqtMatrix[frameBase + s + 1];
+        if (val < valPrev || val < valNext) continue;
+
+        const m = globalMinM + s;
+        const pc = m % 12;
+
+        let isChordTone = false;
+        let isRoot = false;
+        let effectiveVal = val;
+
+        if (chordPcs) {
+          isChordTone = chordPcs.includes(pc);
+          isRoot = (pc === rootPc);
+
+          if (isChordTone) {
+            // Chord tone: reward & prioritize
+            effectiveVal = Math.min(255, val * (isRoot ? 1.25 : 1.12));
+          } else {
+            // Non-chord tone:
+            // 1. Spectral leakage check: if neighbor is chord tone and active, suppress leakage
+            const prevPc = (m - 1) % 12;
+            const nextPc = (m + 1) % 12;
+            const neighborIsChord = (chordPcs.includes(prevPc) && valPrev >= val * 0.72) ||
+                                    (chordPcs.includes(nextPc) && valNext >= val * 0.72);
+            if (neighborIsChord) {
+              continue; // Spectral leakage filtered!
+            }
+
+            // 2. Harmonic overtone check: if lower root is present (octave or fifth), penalize
+            let isOvertone = false;
+            for (let lowerS = 0; lowerS < s; lowerS++) {
+              const lowerM = globalMinM + lowerS;
+              const lowerDiff = m - lowerM;
+              if (lowerDiff === 12 || lowerDiff === 19 || lowerDiff === 24 || lowerDiff === 28) {
+                if (cqtMatrix[frameBase + lowerS] > 70) {
+                  isOvertone = true;
+                  break;
+                }
+              }
+            }
+            if (isOvertone) {
+              effectiveVal *= 0.55;
+            }
+
+            // High threshold for passing / melody non-chord tones
+            if (effectiveVal < 95) continue;
+          }
+        } else {
+          // No chord recognized: accept strong peaks
+          if (val < 50) continue;
+        }
+
+        currentFramePeaks.set(m, {
+          val: effectiveVal,
+          isChordTone,
+          isRoot,
+          chord
+        });
+      }
+
+      // Update active tracks
+      for (const [m, peakData] of currentFramePeaks) {
+        if (activeTracks.has(m)) {
+          const track = activeTracks.get(m);
+          // Onset detection: sudden spike in energy -> re-trigger new note
+          if (peakData.val > track.lastVal + 40 && (f - track.startFrame) >= 4) {
+            // Finalize previous note
+            const durFrames = track.lastFrame - track.startFrame + 1;
+            if (durFrames >= 3) {
+              notes.push({
+                pitch: m,
+                startMs: Math.round(track.startFrame * timeResMs),
+                endMs: Math.round((track.lastFrame + 1) * timeResMs),
+                velocity: Math.min(127, Math.max(45, Math.round(38 + (track.maxVal / 255) * 85))),
+                isChordTone: track.isChordTone,
+                isRoot: track.isRoot,
+                chordName: track.chord
+              });
+            }
+            // Start new note
+            activeTracks.set(m, {
+              startFrame: f,
+              lastFrame: f,
+              lastVal: peakData.val,
+              maxVal: peakData.val,
+              sumVal: peakData.val,
+              count: 1,
+              isChordTone: peakData.isChordTone,
+              isRoot: peakData.isRoot,
+              chord: peakData.chord
+            });
+          } else {
+            track.lastFrame = f;
+            track.lastVal = peakData.val;
+            track.maxVal = Math.max(track.maxVal, peakData.val);
+            track.sumVal += peakData.val;
+            track.count++;
+          }
+        } else {
+          activeTracks.set(m, {
+            startFrame: f,
+            lastFrame: f,
+            lastVal: peakData.val,
+            maxVal: peakData.val,
+            sumVal: peakData.val,
+            count: 1,
+            isChordTone: peakData.isChordTone,
+            isRoot: peakData.isRoot,
+            chord: peakData.chord
+          });
+        }
+      }
+
+      // Flush ended tracks that were not seen in current frame
+      for (const [m, track] of activeTracks.entries()) {
+        if (!currentFramePeaks.has(m)) {
+          if (f - track.lastFrame > 1) {
+            const durFrames = track.lastFrame - track.startFrame + 1;
+            if (durFrames >= 3 && track.maxVal >= 42) {
+              notes.push({
+                pitch: m,
+                startMs: Math.round(track.startFrame * timeResMs),
+                endMs: Math.round((track.lastFrame + 1) * timeResMs),
+                velocity: Math.min(127, Math.max(45, Math.round(38 + (track.maxVal / 255) * 85))),
+                isChordTone: track.isChordTone,
+                isRoot: track.isRoot,
+                chordName: track.chord
+              });
+            }
+            activeTracks.delete(m);
+          }
+        }
+      }
+    }
+
+    // Flush remaining tracks at end of audio
+    for (const [m, track] of activeTracks.entries()) {
+      const durFrames = track.lastFrame - track.startFrame + 1;
+      if (durFrames >= 3 && track.maxVal >= 42) {
+        notes.push({
+          pitch: m,
+          startMs: Math.round(track.startFrame * timeResMs),
+          endMs: Math.round((track.lastFrame + 1) * timeResMs),
+          velocity: Math.min(127, Math.max(45, Math.round(38 + (track.maxVal / 255) * 85))),
+          isChordTone: track.isChordTone,
+          isRoot: track.isRoot,
+          chordName: track.chord
+        });
+      }
+    }
+
+    // Sort notes chronologically by startMs, then pitch
+    notes.sort((a, b) => (a.startMs - b.startMs) || (a.pitch - b.pitch));
+
+    // Merge adjacent notes of the same pitch if gap <= 60ms
+    const merged = [];
+    for (const note of notes) {
+      if (merged.length > 0) {
+        const prev = merged[merged.length - 1];
+        if (prev.pitch === note.pitch && (note.startMs - prev.endMs) <= 60 && prev.chordName === note.chordName) {
+          prev.endMs = Math.max(prev.endMs, note.endMs);
+          prev.velocity = Math.round((prev.velocity + note.velocity) / 2);
+          continue;
+        }
+      }
+      merged.push(note);
+    }
+
+    this.midiNotes = merged;
+    return merged;
   }
 
   drawSpectrogram(ctx, x, y, width, height) {
@@ -2375,12 +2830,20 @@ class SpectrogramCanvasRenderer {
 // 5. Tab 2: Musical Chord Analyzer (Stacked CQT & Chromagram)
 // -------------------------------------------------------------
 class MusicalChordAnalyzer {
-  constructor(cqtCanvas, chromaCanvas, audioEngine) {
+  constructor(cqtCanvas, chromaCanvas, audioEngine, midiCanvas = null) {
     this.cqtCanvas = cqtCanvas;
     this.chromaCanvas = chromaCanvas;
+    this.midiCanvas = midiCanvas || document.getElementById('midi-canvas');
     this.cqtCtx = cqtCanvas ? cqtCanvas.getContext('2d', { alpha: false }) : null;
     this.chromaCtx = chromaCanvas ? chromaCanvas.getContext('2d', { alpha: false }) : null;
+    this.midiCtx = this.midiCanvas ? this.midiCanvas.getContext('2d') : null;
     this.audio = audioEngine;
+
+    // MIDI Transcription state
+    this.isMidiVisible = false;
+    this.midiNotes = null;
+    this.midiWidth = 0;
+    this.midiHeight = 0;
 
     this.data = null;
     this.paletteKey = 'INFERNO';
@@ -2433,6 +2896,19 @@ class MusicalChordAnalyzer {
       this.chromaCtx.scale(dpr, dpr);
       this.chromaWidth = r2.width;
       this.chromaHeight = r2.height;
+    }
+
+    if (this.midiCanvas && this.isMidiVisible) {
+      const rMidi = this.midiCanvas.getBoundingClientRect();
+      if (rMidi.width > 0 && rMidi.height > 0) {
+        this.midiCanvas.width = Math.round(rMidi.width * dpr);
+        this.midiCanvas.height = Math.round(rMidi.height * dpr);
+        if (this.midiCtx) {
+          this.midiCtx.scale(dpr, dpr);
+        }
+        this.midiWidth = rMidi.width;
+        this.midiHeight = rMidi.height;
+      }
     }
 
     this.render();
@@ -2557,6 +3033,9 @@ class MusicalChordAnalyzer {
     if (!this.cqtCanvas || this.cqtCanvas.offsetParent === null) return;
     this.clampScroll();
     this.renderCqtTier();
+    if (this.isMidiVisible) {
+      this.renderMidiTier();
+    }
     this.renderChromaTier();
     this.updateCurrentChordIndicator();
   }
@@ -3274,6 +3753,9 @@ class MusicalChordAnalyzer {
 
     bindCanvasGestures(this.cqtCanvas);
     bindCanvasGestures(this.chromaCanvas);
+    if (this.midiCanvas) {
+      bindCanvasGestures(this.midiCanvas);
+    }
   }
 }
 
@@ -3301,7 +3783,8 @@ class SpectroSubApp {
     // Tab 2 DSP & Canvases
     const cqtCanvas = document.getElementById('cqt-canvas');
     const chromaCanvas = document.getElementById('chroma-canvas');
-    this.chordAnalyzerTab2 = new MusicalChordAnalyzer(cqtCanvas, chromaCanvas, this.audioTab2);
+    const midiCanvas = document.getElementById('midi-canvas');
+    this.chordAnalyzerTab2 = new MusicalChordAnalyzer(cqtCanvas, chromaCanvas, this.audioTab2, midiCanvas);
     this.chordWorker = null;
 
     // Undo / Redo history stacks for Tab 1 (Max 5 steps)
@@ -3560,6 +4043,11 @@ class SpectroSubApp {
 
     const btnTab2Play = document.getElementById('btn-tab2-play');
     if (btnTab2Play) btnTab2Play.title = t('tab2_play_title');
+    const btnTab2MidiEl = document.getElementById('btn-tab2-midi');
+    if (btnTab2MidiEl) btnTab2MidiEl.title = t('tab2_midi_btn_title');
+
+    const btnTab2ExportMidiEl = document.getElementById('btn-tab2-export-midi');
+    if (btnTab2ExportMidiEl) btnTab2ExportMidiEl.title = t('tab2_midi_export_title');
 
     const btnTab2Loop = document.getElementById('btn-tab2-loop');
     if (btnTab2Loop) btnTab2Loop.title = t('loop_tab2_title');
@@ -4734,6 +5222,57 @@ class SpectroSubApp {
       window.addEventListener('touchcancel', onTab2SplitterEnd);
     }
 
+    // Tab 2 Horizontal Splitter between MIDI and Chromagram
+    const tab2MidiSplitter = document.getElementById('tab2-midi-splitter');
+    const tab2MidiContainer = document.getElementById('tab2-midi-container');
+
+    if (tab2MidiSplitter && tab2MidiContainer && stackedViewports) {
+      let isDraggingMidiSplitter = false, midiStartY = 0, midiStartHeight = 0;
+
+      const onMidiSplitterStart = (clientY) => {
+        isDraggingMidiSplitter = true;
+        midiStartY = clientY;
+        midiStartHeight = tab2MidiContainer.getBoundingClientRect().height;
+        tab2MidiSplitter.classList.add('dragging');
+        document.body.style.cursor = 'row-resize';
+      };
+
+      const onMidiSplitterMove = (clientY) => {
+        if (!isDraggingMidiSplitter) return;
+        const delta = clientY - midiStartY;
+        const totalH = stackedViewports.getBoundingClientRect().height || 500;
+        const newPct = Math.max(12, Math.min(55, ((midiStartHeight + delta) / totalH) * 100));
+        tab2MidiContainer.style.height = `${newPct}%`;
+        this.chordAnalyzerTab2.resize();
+      };
+
+      const onMidiSplitterEnd = () => {
+        if (isDraggingMidiSplitter) {
+          isDraggingMidiSplitter = false;
+          tab2MidiSplitter.classList.remove('dragging');
+          document.body.style.cursor = '';
+          this.chordAnalyzerTab2.resize();
+        }
+      };
+
+      tab2MidiSplitter.addEventListener('mousedown', (e) => onMidiSplitterStart(e.clientY));
+      window.addEventListener('mousemove', (e) => onMidiSplitterMove(e.clientY));
+      window.addEventListener('mouseup', onMidiSplitterEnd);
+
+      tab2MidiSplitter.addEventListener('touchstart', (e) => {
+        if (e.touches && e.touches.length > 0) onMidiSplitterStart(e.touches[0].clientY);
+      }, { passive: true });
+
+      window.addEventListener('touchmove', (e) => {
+        if (!isDraggingMidiSplitter) return;
+        if (e.cancelable) e.preventDefault();
+        if (e.touches && e.touches.length > 0) onMidiSplitterMove(e.touches[0].clientY);
+      }, { passive: false });
+
+      window.addEventListener('touchend', onMidiSplitterEnd);
+      window.addEventListener('touchcancel', onMidiSplitterEnd);
+    }
+
     // Drag and Drop on Spectrogram Canvas Panel (Audio or Subtitle)
     if (canvasPanel) {
       canvasPanel.addEventListener('dragover', (e) => {
@@ -4852,6 +5391,77 @@ class SpectroSubApp {
       btnTab2Loop.addEventListener('click', () => {
         this.audioTab2.isLooping = !this.audioTab2.isLooping;
         btnTab2Loop.classList.toggle('loop-active', this.audioTab2.isLooping);
+      });
+    }
+
+    // Tab 2 MIDI Button (Toggle & Transcribe)
+    const btnTab2Midi = document.getElementById('btn-tab2-midi');
+    const tab2MidiPanel = document.getElementById('tab2-midi-container');
+    const tab2MidiSpl = document.getElementById('tab2-midi-splitter');
+    const tab2CqtBox = document.getElementById('tab2-cqt-container');
+    const btnTab2ExportMidi = document.getElementById('btn-tab2-export-midi');
+
+    if (btnTab2Midi) {
+      btnTab2Midi.addEventListener('click', () => {
+        if (!this.chordAnalyzerTab2.data) {
+          alert(I18N_LOCALES[this.currentLang]?.tab2_midi_no_audio || 'Vui lòng chọn hoặc nạp bài nhạc trước khi tạo MIDI!');
+          return;
+        }
+
+        const nextVisible = !this.chordAnalyzerTab2.isMidiVisible;
+        this.chordAnalyzerTab2.isMidiVisible = nextVisible;
+
+        if (nextVisible) {
+          // If notes not generated yet, transcribe now
+          if (!this.chordAnalyzerTab2.midiNotes) {
+            this.chordAnalyzerTab2.transcribeMidiFromCqt();
+          }
+
+          if (tab2MidiPanel) {
+            tab2MidiPanel.style.display = 'flex';
+            tab2MidiPanel.style.height = '28%';
+          }
+          if (tab2MidiSpl) {
+            tab2MidiSpl.style.display = 'block';
+          }
+          if (tab2CqtBox) {
+            tab2CqtBox.style.height = '42%';
+          }
+          btnTab2Midi.classList.add('active');
+
+          const badgeText = document.getElementById('tab2-midi-badge-text');
+          if (badgeText && this.chordAnalyzerTab2.midiNotes) {
+            badgeText.textContent = `MIDI Piano Roll (${this.chordAnalyzerTab2.midiNotes.length} nốt)`;
+          }
+        } else {
+          // Hide MIDI tier, but retain midiNotes in memory!
+          if (tab2MidiPanel) {
+            tab2MidiPanel.style.display = 'none';
+          }
+          if (tab2MidiSpl) {
+            tab2MidiSpl.style.display = 'none';
+          }
+          if (tab2CqtBox) {
+            tab2CqtBox.style.height = '58%';
+          }
+          btnTab2Midi.classList.remove('active');
+        }
+
+        this.chordAnalyzerTab2.resize();
+      });
+    }
+
+    if (btnTab2ExportMidi) {
+      btnTab2ExportMidi.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!this.chordAnalyzerTab2.midiNotes || this.chordAnalyzerTab2.midiNotes.length === 0) {
+          alert('Chưa có dữ liệu MIDI để xuất file!');
+          return;
+        }
+        const blob = createMidiFileBlob(this.chordAnalyzerTab2.midiNotes, this.chordAnalyzerTab2.bpm || 120);
+        const rawName = document.getElementById('header-track-name')?.textContent || 'piano_sample';
+        const baseName = rawName.replace(/\.[^/.]+$/, '').trim() || 'cqt_transcription';
+        downloadBlob(blob, `${baseName}.mid`, 'audio/midi');
       });
     }
 
@@ -5544,6 +6154,14 @@ class SpectroSubApp {
           this.chordAnalyzerTab2.resetPitchRangeToAuto();
           this.chordAnalyzerTab2.offscreenValid = false;
           this.chordAnalyzerTab2.buildOffscreenCanvases();
+          this.chordAnalyzerTab2.midiNotes = null;
+          if (this.chordAnalyzerTab2.isMidiVisible) {
+            this.chordAnalyzerTab2.transcribeMidiFromCqt();
+            const badgeText = document.getElementById('tab2-midi-badge-text');
+            if (badgeText && this.chordAnalyzerTab2.midiNotes) {
+              badgeText.textContent = `MIDI Piano Roll (${this.chordAnalyzerTab2.midiNotes.length} nốt)`;
+            }
+          }
           if (this.currentTab === 'tab2') {
             this.updateHeaderMeta(trackLabel, this.audioTab2.durationMs);
           }
@@ -5590,6 +6208,14 @@ class SpectroSubApp {
           this.chordAnalyzerTab2.resetPitchRangeToAuto();
           this.chordAnalyzerTab2.offscreenValid = false;
           this.chordAnalyzerTab2.buildOffscreenCanvases();
+          this.chordAnalyzerTab2.midiNotes = null;
+          if (this.chordAnalyzerTab2.isMidiVisible) {
+            this.chordAnalyzerTab2.transcribeMidiFromCqt();
+            const badgeText = document.getElementById('tab2-midi-badge-text');
+            if (badgeText && this.chordAnalyzerTab2.midiNotes) {
+              badgeText.textContent = `MIDI Piano Roll (${this.chordAnalyzerTab2.midiNotes.length} nốt)`;
+            }
+          }
           this.hideLoading();
 
           const emptyOverlay = document.getElementById('tab2-empty-overlay');
