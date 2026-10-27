@@ -41,7 +41,7 @@
     } catch (_) {}
   </script>
 
-  <link rel="stylesheet" href="./style.css?v=20261027_25">
+  <link rel="stylesheet" href="./style.css?v=20261027_26">
 </head>
 
 <body>
@@ -444,13 +444,12 @@
               </div>
 
               <!-- Button to Generate / Toggle MIDI Piano Roll -->
-              <button id="btn-tab2-midi" class="tb-btn midi-toggle-btn" title="Tạo &amp; Hiện/Ẩn dải Piano Roll MIDI giữa 2 gram (AMT)" type="button">
+              <button id="btn-tab2-midi" class="tb-btn icon-only midi-toggle-btn" title="Tạo &amp; Hiện/Ẩn dải Piano Roll MIDI giữa 2 gram (AMT)" type="button">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M9 18V5l12-2v13"/>
                   <circle cx="6" cy="18" r="3"/>
                   <circle cx="18" cy="16" r="3"/>
                 </svg>
-                <span>MIDI</span>
               </button>
 
               <!-- Unified Load Dropdown for Tab 2 -->
@@ -492,7 +491,7 @@
             <!-- Tier 1: Dynamic CQT Spectrogram (Semitones) -->
             <div id="tab2-cqt-container" class="cqt-tier-container" style="height: 58%; min-height: 80px; position: relative;">
               <canvas id="cqt-canvas" style="display: block; width: 100%; height: 100%;"></canvas>
-              <div class="tier-label-overlay">Dynamic CQT Spectrogram (Bám theo cao độ nửa cung)</div>
+              <div class="tier-label-overlay">Dynamic CQT Spectrogram</div>
             </div>
 
             <!-- Draggable Horizontal Splitter between CQT & MIDI -->
@@ -503,33 +502,52 @@
             <!-- Tier MIDI: Piano Roll / Transcribed Notes (Between CQT & Chromagram) -->
             <div id="tab2-midi-container" class="midi-tier-container" style="display: none; height: 28%; min-height: 80px; position: relative;">
               <canvas id="midi-canvas" style="display: block; width: 100%; height: 100%; touch-action: none !important;"></canvas>
-              <div class="tier-label-overlay" style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px; padding: 4px 8px;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <span id="tab2-midi-badge-text">MIDI Piano Roll (AMT)</span>
-                  <button id="btn-tab2-export-midi" class="midi-export-btn" title="Tải file .mid về máy (Standard MIDI File)" type="button">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    <span>Xuất .mid</span>
-                  </button>
-                </div>
+              <div class="tier-label-overlay" style="display: flex; align-items: center; gap: 8px; padding: 3px 8px;">
+                <span id="tab2-midi-badge-text">MIDI Piano Roll</span>
                 <div style="display: flex; align-items: center; gap: 5px;">
-                  <button id="btn-tab2-play-midi" class="midi-play-btn" title="Phát thử nốt MIDI theo nhạc cụ (Tương tác vạch vàng)" type="button">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
-                    <span>Play MIDI</span>
+                  <button id="btn-tab2-play-midi" class="midi-play-btn icon-only" title="Phát thử nốt MIDI theo nhạc cụ (Tương tác vạch vàng)" type="button">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
                   </button>
-                  <select id="select-tab2-midi-inst" class="midi-inst-select" title="Chọn nhạc cụ General MIDI phát thử">
-                    <option value="PIANO" selected>🎹 Grand Piano</option>
-                    <option value="EP">🎹 Rhodes EP</option>
-                    <option value="GUITAR">🎸 Guitar</option>
-                    <option value="STRINGS">🎻 Strings</option>
-                    <option value="SYNTH">🎛️ Synth</option>
-                    <option value="MARIMBA">🪵 Marimba</option>
-                  </select>
-                  <select id="select-tab2-midi-threshold" class="midi-inst-select" title="Ngưỡng lọc độ sáng nốt MIDI: Lọc sạch nốt mờ/tối do dội âm trầm">
-                    <option value="85">Lọc: Rất cao (Chỉ nốt chói sáng)</option>
-                    <option value="70" selected>Lọc: Chuẩn (Chỉ nốt sáng rõ)</option>
-                    <option value="55">Lọc: Vừa phải</option>
-                    <option value="40">Lọc: Thấp (Bắt nốt nhỏ)</option>
-                  </select>
+                  <button id="btn-tab2-export-midi" class="midi-export-btn icon-only" title="Tải file .mid về máy (Standard MIDI File)" type="button">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  </button>
+                  <div class="dropdown-wrapper" id="tab2-midi-inst-wrapper" style="position: relative; pointer-events: auto;">
+                    <button id="btn-tab2-midi-inst" class="midi-inst-btn" title="Chọn nhạc cụ General MIDI phát thử" type="button">
+                      <span id="tab2-midi-inst-icon">🎹</span>
+                    </button>
+                    <div id="tab2-midi-inst-menu" class="dropdown-menu midi-inst-dropdown-menu" style="display: none;">
+                      <button class="dropdown-item midi-inst-item active" data-inst="PIANO" data-icon="🎹" type="button">
+                        <span class="inst-icon">🎹</span>
+                        <span class="inst-name">Grand Piano</span>
+                        <span class="inst-check">✓</span>
+                      </button>
+                      <button class="dropdown-item midi-inst-item" data-inst="EP" data-icon="🎹" type="button">
+                        <span class="inst-icon">🎹</span>
+                        <span class="inst-name">Rhodes EP</span>
+                        <span class="inst-check">✓</span>
+                      </button>
+                      <button class="dropdown-item midi-inst-item" data-inst="GUITAR" data-icon="🎸" type="button">
+                        <span class="inst-icon">🎸</span>
+                        <span class="inst-name">Guitar</span>
+                        <span class="inst-check">✓</span>
+                      </button>
+                      <button class="dropdown-item midi-inst-item" data-inst="STRINGS" data-icon="🎻" type="button">
+                        <span class="inst-icon">🎻</span>
+                        <span class="inst-name">Strings</span>
+                        <span class="inst-check">✓</span>
+                      </button>
+                      <button class="dropdown-item midi-inst-item" data-inst="SYNTH" data-icon="🎛️" type="button">
+                        <span class="inst-icon">🎛️</span>
+                        <span class="inst-name">Synth</span>
+                        <span class="inst-check">✓</span>
+                      </button>
+                      <button class="dropdown-item midi-inst-item" data-inst="MARIMBA" data-icon="🪵" type="button">
+                        <span class="inst-icon">🪵</span>
+                        <span class="inst-name">Marimba</span>
+                        <span class="inst-check">✓</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -542,7 +560,7 @@
             <!-- Tier 2: 12-Tone Chromagram -->
             <div id="tab2-chroma-container" class="chroma-tier-container" style="flex: 1; min-height: 80px; position: relative;">
               <canvas id="chroma-canvas" style="display: block; width: 100%; height: 100%;"></canvas>
-              <div class="tier-label-overlay">Chromagram 12 Nốt (Triệt tiêu bồi âm - Octave Invariance)</div>
+              <div class="tier-label-overlay">Chromagram</div>
             </div>
           </div>
         </div>
@@ -725,6 +743,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261027_25"></script>
+  <script src="./app.js?v=20261027_26"></script>
 </body>
 </html>

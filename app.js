@@ -77,7 +77,7 @@ const I18N_LOCALES = {
     tab2_rewind_title: 'Về điểm đầu (Đưa thanh màu vàng về 0:00)',
     tab2_midi_btn_title: 'Tạo & Hiện/Ẩn dải Piano Roll MIDI giữa 2 gram (AMT)',
     tab2_midi_export_title: 'Tải file .mid về máy (Standard MIDI File)',
-    tab2_midi_badge: 'MIDI Piano Roll (AMT)',
+    tab2_midi_badge: 'MIDI Piano Roll',
     tab2_midi_no_audio: 'Vui lòng chọn hoặc nạp bài nhạc trước khi tạo MIDI!',
     tab2_play_title: 'Phát / Dừng Tab 2 (Phím Space)',
     tab2_empty_desc: 'Bộ phân tích hợp âm trực quan qua <strong>Constant-Q Transform</strong> &amp; <strong>Chromagram 12 nốt</strong> triệt tiêu bồi âm. Giúp bạn nhìn rõ nốt cấu thành hợp âm để vẽ lại MIDI trong DAW.',
@@ -182,7 +182,7 @@ const I18N_LOCALES = {
     tab2_rewind_title: 'Return to start (Move yellow playhead to 0:00)',
     tab2_midi_btn_title: 'Generate & Toggle MIDI Piano Roll between spectrograms (AMT)',
     tab2_midi_export_title: 'Download .mid file (Standard MIDI File)',
-    tab2_midi_badge: 'MIDI Piano Roll (AMT)',
+    tab2_midi_badge: 'MIDI Piano Roll',
     tab2_midi_no_audio: 'Please select or load an audio track before generating MIDI!',
     tab2_play_title: 'Play / Pause Tab 2 (Space)',
     tab2_empty_desc: 'Visual chord analyzer powered by <strong>Constant-Q Transform</strong> &amp; harmonic-suppressed <strong>12-Tone Chromagram</strong>. Inspect constituent notes to reconstruct MIDI in your DAW.',
@@ -4498,7 +4498,7 @@ class SpectroSubApp {
     if (drawer) drawer.style.display = 'none';
 
     // Close all open dropdown menus when switching tabs
-    ['tab-dropdown-menu', 'tab2-tab-dropdown-menu', 'file-dropdown-menu', 'tab2-load-dropdown-menu'].forEach(id => {
+    ['tab-dropdown-menu', 'tab2-tab-dropdown-menu', 'file-dropdown-menu', 'tab2-load-dropdown-menu', 'tab2-midi-inst-menu'].forEach(id => {
       const el = document.getElementById(id);
       if (el) {
         el.classList.remove('show');
@@ -4675,7 +4675,7 @@ class SpectroSubApp {
 
     // Helpers for responsive, unclipped dropdown positioning
     const closeAllDropdowns = () => {
-      ['tab-dropdown-menu', 'tab2-tab-dropdown-menu', 'file-dropdown-menu', 'tab2-load-dropdown-menu'].forEach(id => {
+      ['tab-dropdown-menu', 'tab2-tab-dropdown-menu', 'file-dropdown-menu', 'tab2-load-dropdown-menu', 'tab2-midi-inst-menu'].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
           el.classList.remove('show');
@@ -5598,31 +5598,44 @@ class SpectroSubApp {
     const tab2CqtBox = document.getElementById('tab2-cqt-container');
     const btnTab2ExportMidi = document.getElementById('btn-tab2-export-midi');
     const btnTab2PlayMidi = document.getElementById('btn-tab2-play-midi');
-    const selectTab2MidiInst = document.getElementById('select-tab2-midi-inst');
+    const btnTab2MidiInst = document.getElementById('btn-tab2-midi-inst');
+    const tab2MidiInstMenu = document.getElementById('tab2-midi-inst-menu');
+    const tab2MidiInstIcon = document.getElementById('tab2-midi-inst-icon');
+    const instItems = document.querySelectorAll('.midi-inst-item');
 
-    if (selectTab2MidiInst) {
-      selectTab2MidiInst.addEventListener('change', (e) => {
-        if (this.midiPreviewer) {
-          this.midiPreviewer.currentInstrument = e.target.value;
+    if (btnTab2MidiInst && tab2MidiInstMenu) {
+      btnTab2MidiInst.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = tab2MidiInstMenu.classList.contains('show');
+        if (isOpen) {
+          closeDropdown(tab2MidiInstMenu);
+        } else {
+          openDropdown(tab2MidiInstMenu, btnTab2MidiInst, 'right');
+          tab2MidiInstMenu.classList.add('show');
+          tab2MidiInstMenu.style.display = 'flex';
         }
       });
-    }
 
-    const selectTab2MidiThreshold = document.getElementById('select-tab2-midi-threshold');
-    if (selectTab2MidiThreshold) {
-      selectTab2MidiThreshold.addEventListener('change', (e) => {
-        const val = parseInt(e.target.value, 10);
-        if (!isNaN(val)) {
-          this.chordAnalyzerTab2.midiThreshold = val;
-          if (this.chordAnalyzerTab2.data) {
-            this.chordAnalyzerTab2.transcribeMidiFromCqt();
-            const badgeText = document.getElementById('tab2-midi-badge-text');
-            if (badgeText && this.chordAnalyzerTab2.midiNotes) {
-              badgeText.textContent = `MIDI Piano Roll (${this.chordAnalyzerTab2.midiNotes.length} nốt)`;
-            }
-            this.chordAnalyzerTab2.render();
-          }
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('#tab2-midi-inst-wrapper') && !e.target.closest('#tab2-midi-inst-menu')) {
+          closeDropdown(tab2MidiInstMenu);
         }
+      });
+
+      instItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const inst = item.dataset.inst;
+          const icon = item.dataset.icon;
+          if (this.midiPreviewer && inst) {
+            this.midiPreviewer.currentInstrument = inst;
+          }
+          if (tab2MidiInstIcon && icon) {
+            tab2MidiInstIcon.textContent = icon;
+          }
+          instItems.forEach(it => it.classList.toggle('active', it === item));
+          closeDropdown(tab2MidiInstMenu);
+        });
       });
     }
 
@@ -5630,8 +5643,8 @@ class SpectroSubApp {
       this.midiPreviewer.onStateChange = (playing) => {
         btnTab2PlayMidi.classList.toggle('playing', playing);
         btnTab2PlayMidi.innerHTML = playing
-          ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg><span>Stop MIDI</span>'
-          : '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg><span>Play MIDI</span>';
+          ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>'
+          : '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>';
       };
 
       this.midiPreviewer.onProgress = (ms) => {
@@ -5709,7 +5722,7 @@ class SpectroSubApp {
 
           const badgeText = document.getElementById('tab2-midi-badge-text');
           if (badgeText && this.chordAnalyzerTab2.midiNotes) {
-            badgeText.textContent = `MIDI Piano Roll (${this.chordAnalyzerTab2.midiNotes.length} nốt)`;
+            badgeText.textContent = 'MIDI Piano Roll';
           }
         } else {
           // Hide MIDI tier, but retain midiNotes in memory!
@@ -6441,7 +6454,7 @@ class SpectroSubApp {
             this.chordAnalyzerTab2.transcribeMidiFromCqt();
             const badgeText = document.getElementById('tab2-midi-badge-text');
             if (badgeText && this.chordAnalyzerTab2.midiNotes) {
-              badgeText.textContent = `MIDI Piano Roll (${this.chordAnalyzerTab2.midiNotes.length} nốt)`;
+              badgeText.textContent = 'MIDI Piano Roll';
             }
           }
           if (this.currentTab === 'tab2') {
@@ -6495,7 +6508,7 @@ class SpectroSubApp {
             this.chordAnalyzerTab2.transcribeMidiFromCqt();
             const badgeText = document.getElementById('tab2-midi-badge-text');
             if (badgeText && this.chordAnalyzerTab2.midiNotes) {
-              badgeText.textContent = `MIDI Piano Roll (${this.chordAnalyzerTab2.midiNotes.length} nốt)`;
+              badgeText.textContent = 'MIDI Piano Roll';
             }
           }
           this.hideLoading();

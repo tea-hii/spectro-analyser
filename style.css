@@ -1361,6 +1361,7 @@ input, textarea, button, select {
   pointer-events: auto;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   padding: 2px 8px;
   border-radius: 4px;
@@ -1371,6 +1372,12 @@ input, textarea, button, select {
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s ease;
+}
+
+.tier-label-overlay .midi-export-btn.icon-only {
+  width: 24px;
+  height: 22px;
+  padding: 0;
 }
 
 .tier-label-overlay .midi-export-btn:hover {
@@ -1384,6 +1391,7 @@ input, textarea, button, select {
 .midi-play-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
   padding: 2px 9px;
   border-radius: 4px;
@@ -1395,6 +1403,12 @@ input, textarea, button, select {
   cursor: pointer;
   pointer-events: auto;
   transition: all 0.15s ease;
+}
+
+.midi-play-btn.icon-only {
+  width: 24px;
+  height: 22px;
+  padding: 0;
 }
 
 .midi-play-btn:hover {
@@ -1409,6 +1423,95 @@ input, textarea, button, select {
   border-color: #f43f5e;
   color: #fecdd3;
   box-shadow: 0 0 8px rgba(244, 63, 94, 0.4);
+}
+
+/* Custom Instrument Dropdown Trigger Button & Menu */
+.midi-inst-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border-radius: 4px;
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  color: #e4e4e7;
+  font-size: 12px;
+  cursor: pointer;
+  pointer-events: auto;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+}
+
+.midi-inst-btn:hover,
+.midi-inst-btn:focus {
+  background: #27272a;
+  border-color: var(--accent-cyan);
+}
+
+.midi-inst-dropdown-menu {
+  min-width: 175px;
+  padding: 4px;
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  flex-direction: column;
+  gap: 2px;
+}
+
+.midi-inst-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #e4e4e7;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.midi-inst-item:hover {
+  background: #27272a;
+  color: #ffffff;
+}
+
+.midi-inst-item.active {
+  background: rgba(56, 189, 248, 0.14);
+  color: var(--accent-cyan);
+  font-weight: 600;
+}
+
+.midi-inst-item .inst-icon {
+  font-size: 13px;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.midi-inst-item .inst-name {
+  flex: 1;
+  text-align: left;
+}
+
+.midi-inst-item .inst-check {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  opacity: 0;
+  margin-left: 10px;
+  flex-shrink: 0;
+}
+
+.midi-inst-item.active .inst-check {
+  opacity: 1;
 }
 
 .midi-inst-select {
