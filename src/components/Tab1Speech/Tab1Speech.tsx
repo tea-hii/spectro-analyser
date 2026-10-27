@@ -46,7 +46,7 @@ export const Tab1Speech: React.FC<Tab1SpeechProps> = ({
 
   const rulerHeight = 28;
   const subOverlayHeight = 28;
-  const minimapHeight = 28;
+  const minimapHeight = 10;
 
   // Initialize tile canvas once
   if (!tileCanvasRef.current) {
@@ -567,31 +567,41 @@ export const Tab1Speech: React.FC<Tab1SpeechProps> = ({
 
     // 7. Minimap
     ctx.fillStyle = '#0b0f19';
+    ctx.fillStyle = '#080d1a';
     ctx.fillRect(0, h - miniH, w, miniH);
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, h - miniH);
+    ctx.lineTo(w, h - miniH);
+    ctx.stroke();
 
     const durMs = audio.durationMs;
     if (durMs > 0) {
-      const minP = audio.minPeaks, maxP = audio.maxPeaks;
-      if (minP && maxP && minP.length > 0) {
-        const centerY = (h - miniH) + miniH / 2;
-        const halfH = miniH / 2 - 2;
-        ctx.fillStyle = '#334155';
-        for (let px = 0; px < w; px++) {
-          const b = Math.floor((px / w) * minP.length);
-          const maxV = maxP[b], minV = minP[b];
-          ctx.fillRect(px, centerY - maxV * halfH, 1, Math.max(1, (maxV - minV) * halfH));
-        }
-      }
+      // Groove line
+      ctx.fillStyle = '#1e293b';
+      const grooveH = Math.max(2, Math.round(miniH * 0.3));
+      const grooveY = (h - miniH) + Math.round((miniH - grooveH) / 2);
+      ctx.fillRect(0, grooveY, w, grooveH);
 
       const thumbStartMs = Math.max(0, scrollOffsetMsRef.current);
       const thumbEndMs = Math.min(durMs, scrollOffsetMsRef.current + w * msPerPx);
       const thumbX = (thumbStartMs / durMs) * w;
-      const thumbW = Math.max(14, ((thumbEndMs - thumbStartMs) / durMs) * w);
+      const thumbW = Math.max(16, ((thumbEndMs - thumbStartMs) / durMs) * w);
 
-      ctx.fillStyle = 'rgba(56, 189, 248, 0.25)';
-      ctx.fillRect(thumbX, h - miniH, thumbW, miniH);
-      ctx.strokeStyle = '#38bdf8';
-      ctx.strokeRect(thumbX, h - miniH, thumbW, miniH);
+      const thumbPadY = 1;
+      const thumbH = Math.max(4, miniH - thumbPadY * 2);
+      const thumbY = (h - miniH) + thumbPadY;
+
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.55)';
+      if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(thumbX, thumbY, thumbW, thumbH, Math.min(3, thumbH / 2));
+        ctx.fill();
+      } else {
+        ctx.fillRect(thumbX, thumbY, thumbW, thumbH);
+      }
     }
 
     ctx.restore();
@@ -1251,9 +1261,9 @@ export const Tab1Speech: React.FC<Tab1SpeechProps> = ({
               audio.setSpeed(parseFloat(e.target.value));
             }}
           >
-            <option value="0.5">0.5x (Ngữ âm chậm)</option>
-            <option value="0.75">0.75x (Ngữ âm)</option>
-            <option value="1.0">1.0x Chuẩn</option>
+            <option value="0.5">0.5x</option>
+            <option value="0.75">0.75x</option>
+            <option value="1.0">1.0x</option>
             <option value="1.25">1.25x</option>
             <option value="1.5">1.5x</option>
           </select>
@@ -1369,7 +1379,7 @@ export const Tab1Speech: React.FC<Tab1SpeechProps> = ({
                 <line x1="12" y1="5" x2="12" y2="19" />
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
-              <span>+ Thêm câu</span>
+              <span>Thêm</span>
             </button>
           </div>
 

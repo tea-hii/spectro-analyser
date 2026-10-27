@@ -187,6 +187,11 @@ input, textarea, button, select {
   gap: 4px;
 }
 
+.dropdown-menu.dropdown-left {
+  right: auto;
+  left: 0;
+}
+
 .dropdown-menu.show {
   display: flex;
   animation: dropdownIn 0.15s ease-out;
@@ -218,6 +223,11 @@ input, textarea, button, select {
   background: #334155;
   border-color: rgba(56, 189, 248, 0.3);
   color: var(--accent-cyan);
+}
+
+.dropdown-item.active-tab-item {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.4);
 }
 
 .dropdown-item svg {
@@ -406,22 +416,22 @@ input, textarea, button, select {
 
 /* Aegisub Toolbar for Tab 1 */
 .aegisub-toolbar {
+  position: relative;
   background-color: var(--bg-toolbar);
   border-bottom: 1px solid var(--border-color);
   padding: 6px 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  z-index: 15;
+  z-index: 20;
 }
 
 .toolbar-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  white-space: nowrap;
+  overflow: visible;
+  flex-wrap: wrap;
 }
 
 .toolbar-row::-webkit-scrollbar {
@@ -460,6 +470,11 @@ input, textarea, button, select {
   padding: 0;
   width: 32px;
   height: 32px;
+}
+
+.tb-btn svg {
+  pointer-events: none;
+  flex-shrink: 0;
 }
 
 .tb-btn:disabled {
@@ -503,6 +518,7 @@ input, textarea, button, select {
   border-color: #10b981;
   color: #6ee7b7;
   font-weight: 600;
+  transition: all 0.2s ease;
 }
 .tb-btn.set-start.unlocked {
   background: #10b981;
@@ -515,11 +531,22 @@ input, textarea, button, select {
   border-color: #ef4444;
   color: #fca5a5;
   font-weight: 600;
+  transition: all 0.2s ease;
 }
 .tb-btn.set-end.unlocked {
   background: #ef4444;
   color: #ffffff;
   box-shadow: 0 0 10px rgba(239, 68, 68, 0.45);
+}
+
+.tb-btn.set-start.locked-disabled,
+.tb-btn.set-end.locked-disabled {
+  background: rgba(30, 41, 59, 0.5) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: #64748b !important;
+  opacity: 0.38 !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
 }
 
 .tb-select {
@@ -536,6 +563,61 @@ input, textarea, button, select {
 
 .tb-select:hover {
   border-color: var(--border-light);
+}
+
+/* Audio Latency Offset Control */
+.latency-control-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  padding: 0 8px;
+  border-radius: 6px;
+  height: 32px;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.latency-control-group:hover {
+  border-color: rgba(250, 204, 21, 0.4);
+  background: var(--bg-card-hover);
+}
+
+.latency-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.latency-input {
+  width: 52px;
+  background: rgba(2, 6, 23, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+  color: #facc15;
+  font-size: 11px;
+  padding: 2px 4px;
+  text-align: center;
+  outline: none;
+  font-weight: 700;
+  transition: all 0.15s ease;
+}
+
+.latency-input:focus {
+  border-color: #facc15;
+  box-shadow: 0 0 8px rgba(250, 204, 21, 0.3);
+  background: rgba(2, 6, 23, 0.95);
+}
+
+.latency-unit {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 600;
 }
 
 /* Split Pane Workspace for Tab 1 */
@@ -709,7 +791,8 @@ input, textarea, button, select {
   box-shadow: 0 0 8px rgba(168, 85, 247, 0.4);
 }
 
-.cue-move-btn {
+.cue-move-btn,
+.cue-tool-btn {
   width: 26px;
   height: 26px;
   border-radius: 6px;
@@ -723,15 +806,33 @@ input, textarea, button, select {
   transition: all 0.15s ease;
 }
 
-.cue-move-btn:hover:not(:disabled) {
+.cue-move-btn:hover:not(:disabled),
+.cue-tool-btn:hover:not(:disabled) {
   background: #334155;
   border-color: var(--accent-cyan);
   color: var(--accent-cyan);
 }
 
-.cue-move-btn:disabled {
+.cue-move-btn:disabled,
+.cue-tool-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+.cue-tool-btn.active {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
+.cue-trash-btn {
+  color: #f87171;
+}
+
+.cue-trash-btn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.18) !important;
+  border-color: #ef4444 !important;
+  color: #fca5a5 !important;
 }
 
 .cues-list-container {
@@ -809,6 +910,61 @@ input, textarea, button, select {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.cue-time-input {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-size: 11px;
+  width: 72px;
+  text-align: center;
+  outline: none;
+  transition: all 0.15s ease;
+}
+.cue-time-input.start-time {
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.08);
+  font-weight: 600;
+}
+.cue-time-input.start-time:focus {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.18);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
+}
+.cue-time-input.end-time {
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.08);
+  font-weight: 600;
+}
+.cue-time-input.end-time:focus {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.18);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
+}
+.cue-time-input.time-muted {
+  color: #64748b !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  background: rgba(15, 23, 42, 0.45) !important;
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+.cue-time-input.time-muted:focus {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: rgba(15, 23, 42, 0.45) !important;
+  box-shadow: none !important;
+}
+.cue-time-arrow {
+  color: #64748b;
+  font-size: 11px;
+  user-select: none;
+}
+.cue-time-arrow.time-muted {
+  color: #475569;
+  opacity: 0.45;
 }
 
 .cue-time-badge {
@@ -957,24 +1113,30 @@ input, textarea, button, select {
 /* ========================================================
    TAB 2: MUSICAL CHORD ANALYZER SPECIFIC STYLES
    ======================================================== */
+#tab-pane-2 {
+  background: #121212;
+}
+
 .chord-analyzer-container {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #080d1a;
+  background: #121212;
   position: relative;
 }
 
 .chord-toolbar {
-  background-color: var(--bg-toolbar);
-  border-bottom: 1px solid var(--border-color);
+  position: relative;
+  background-color: #18181b;
+  border-bottom: 1px solid #27272a;
   padding: 8px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   flex-wrap: wrap;
+  z-index: 20;
 }
 
 .chord-toolbar-group {
@@ -1020,19 +1182,21 @@ input, textarea, button, select {
 
 /* Upper Tier: CQT Semitones Viewport */
 .cqt-tier-container {
-  flex: 1.2;
+  flex: none;
+  height: 58%;
+  min-height: 80px;
   position: relative;
-  background: #070b14;
+  background: #121212;
   overflow: hidden;
   display: flex;
-  border-bottom: 1px solid var(--border-color);
 }
 
 /* Lower Tier: 12-Tone Chromagram Viewport */
 .chroma-tier-container {
-  flex: 0.8;
+  flex: 1;
+  min-height: 80px;
   position: relative;
-  background: #070b14;
+  background: #121212;
   overflow: hidden;
   display: flex;
 }
@@ -1041,9 +1205,9 @@ input, textarea, button, select {
   position: absolute;
   top: 6px;
   right: 12px;
-  background: rgba(15, 23, 42, 0.85);
+  background: rgba(18, 18, 18, 0.85);
   backdrop-filter: blur(4px);
-  border: 1px solid var(--border-color);
+  border: 1px solid #27272a;
   padding: 3px 8px;
   border-radius: 4px;
   font-size: 10px;
@@ -1063,7 +1227,7 @@ input, textarea, button, select {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: rgba(11, 15, 25, 0.95);
+  background: rgba(18, 18, 18, 0.96);
   z-index: 25;
   padding: 24px;
   text-align: center;

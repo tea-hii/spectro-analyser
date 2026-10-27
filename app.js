@@ -17,8 +17,10 @@ function midiToNoteLabel(m) {
 // 1. Color Palettes (Look-Up Tables)
 // -------------------------------------------------------------
 const ColorPalettes = {
-  AEGISUB_BLUE: 'Aegisub Classic',
   INFERNO: 'Inferno Heatmap',
+  MAGMA: 'Magma Heatmap',
+  TURBO: 'Turbo Spectrum',
+  AEGISUB_BLUE: 'Aegisub Classic',
   VIRIDIS: 'Viridis Bio',
   CYBERPUNK: 'Neon Cyber',
   PHONETIC_GRAY: 'Phonetic Paper'
@@ -69,6 +71,22 @@ function initColorLUTs() {
           const k = (t - 0.88) / 0.12;
           r = 1.0; g = 0.95 + 0.05 * k; b = 0.25 + 0.75 * k;
         }
+      } else if (key === 'MAGMA') {
+        if (t < 0.33) {
+          const k = t / 0.33;
+          r = 0.02 + 0.38 * k; g = 0.01 + 0.08 * k; b = 0.08 + 0.45 * k;
+        } else if (t < 0.66) {
+          const k = (t - 0.33) / 0.33;
+          r = 0.4 + 0.5 * k; g = 0.09 + 0.25 * k; b = 0.53 * (1 - k) + 0.35 * k;
+        } else {
+          const k = (t - 0.66) / 0.34;
+          r = 0.9 + 0.1 * k; g = 0.34 + 0.64 * k; b = 0.35 * (1 - k) + 0.65 * k;
+        }
+      } else if (key === 'TURBO') {
+        // High-contrast Turbo rainbow spectrum
+        r = Math.max(0, Math.min(1, 0.1357 + t * (4.5974 - t * (42.681 - t * (152.58 - t * (221.8 - t * 111.4))))));
+        g = Math.max(0, Math.min(1, 0.0914 + t * (2.1942 + t * (4.8092 - t * (14.019 - t * (4.217 - t * 11.2))))));
+        b = Math.max(0, Math.min(1, 0.1067 + t * (12.58 - t * (72.63 - t * (161.7 - t * (155.8 - t * 54.7))))));
       } else if (key === 'VIRIDIS') {
         if (t < 0.33) {
           const k = t / 0.33;
@@ -118,6 +136,7 @@ class AudioEngine {
 
     this.minPeaks = null;
     this.maxPeaks = null;
+    this.peakAmp = 1.0;
     this.peakBucketMs = 5.0;
 
     this.isPlaying = false;
@@ -131,6 +150,8 @@ class AudioEngine {
 
     this.loopStartMs = 0;
     this.loopEndMs = 0;
+
+    this.customLatencyMs = 65; // Bù trễ âm thanh thủ công (ms)
 
     this.onPositionUpdate = () => {};
     this.onPlayStateChange = () => {};
@@ -151,12 +172,13 @@ class AudioEngine {
 
   computeEnvelope(samples, sampleRate, bucketMs = 5.0) {
     if (!samples || samples.length === 0) {
-      return { minPeaks: new Float32Array(0), maxPeaks: new Float32Array(0) };
+      return { minPeaks: new Float32Array(0), maxPeaks: new Float32Array(0), peakAmp: 1.0 };
     }
     const samplesPerBucket = Math.max(1, Math.floor((bucketMs * sampleRate) / 1000.0));
     const numBuckets = Math.max(1, Math.ceil(samples.length / samplesPerBucket));
     const minPeaks = new Float32Array(numBuckets);
     const maxPeaks = new Float32Array(numBuckets);
+    let peakAmp = 0.001;
 
     for (let b = 0; b < numBuckets; b++) {
       const start = b * samplesPerBucket;
@@ -169,8 +191,10 @@ class AudioEngine {
       }
       minPeaks[b] = minVal;
       maxPeaks[b] = maxVal;
+      const absMax = Math.max(Math.abs(minVal), Math.abs(maxVal));
+      if (absMax > peakAmp) peakAmp = absMax;
     }
-    return { minPeaks, maxPeaks };
+    return { minPeaks, maxPeaks, peakAmp };
   }
 
   resampleToMono16k(sourceMono, srcRate) {
@@ -237,16 +261,17 @@ class AudioEngine {
 
     onProgress(0.45);
     const samples16k = this.resampleToMono16k(monoRaw, srcRate);
-    const durationMs = Math.round((samples16k.length / 16000) * 1000);
-    const { minPeaks, maxPeaks } = this.computeEnvelope(samples16k, 16000, 5.0);
+    const durationMs = Math.round(audioBuffer.duration * 1000);
+    const { minPeaks, maxPeaks, peakAmp } = this.computeEnvelope(samples16k, 16000, 5.0);
 
     this.audioBuffer = audioBuffer;
     this.samples16k = samples16k;
-    this.sampleRate = 16000;
+    this.sampleRate = srcRate;
     this.durationMs = durationMs;
     this.trackName = name;
     this.minPeaks = minPeaks;
     this.maxPeaks = maxPeaks;
+    this.peakAmp = peakAmp || 1.0;
     this.loopStartMs = 0;
     this.loopEndMs = Math.min(durationMs, 3000);
     this.currentPositionMs = 0;
@@ -273,7 +298,7 @@ class AudioEngine {
       channelData[i] = Math.max(-0.95, Math.min(0.95, sig));
     }
 
-    const { minPeaks, maxPeaks } = this.computeEnvelope(channelData, sr, 5.0);
+    const { minPeaks, maxPeaks, peakAmp } = this.computeEnvelope(channelData, sr, 5.0);
     this.audioBuffer = audioBuf;
     this.samples16k = channelData;
     this.sampleRate = sr;
@@ -281,8 +306,83 @@ class AudioEngine {
     this.trackName = name;
     this.minPeaks = minPeaks;
     this.maxPeaks = maxPeaks;
+    this.peakAmp = peakAmp || 1.0;
     this.loopStartMs = 0;
     this.loopEndMs = Math.min(this.durationMs, 2100);
+    this.currentPositionMs = 0;
+    return { samples16k: channelData, durationMs: this.durationMs, trackName: name };
+  }
+
+  loadSyntheticPianoChordsBuffer(name = 'Ví dụ 1: Piano (C - G - Am - F)') {
+    const ctx = this.getAudioContext();
+    const sr = 16000;
+    const durationSec = 8.0;
+    const totalSamples = Math.floor(durationSec * sr);
+    const audioBuf = ctx.createBuffer(1, totalSamples, sr);
+    const channelData = audioBuf.getChannelData(0);
+
+    function addPianoTone(buffer, startSec, durSec, freq, velocity = 0.5) {
+      const startIdx = Math.floor(startSec * sr);
+      const endIdx = Math.min(buffer.length, Math.floor((startSec + durSec) * sr));
+      for (let i = startIdx; i < endIdx; i++) {
+        const t = (i - startIdx) / sr;
+        const h1 = Math.sin(2 * Math.PI * freq * t) * Math.exp(-t / 2.5);
+        const h2 = 0.5 * Math.sin(2 * Math.PI * 2 * freq * t) * Math.exp(-t / 1.8);
+        const h3 = 0.25 * Math.sin(2 * Math.PI * 3 * freq * t) * Math.exp(-t / 1.2);
+        const h4 = 0.12 * Math.sin(2 * Math.PI * 4 * freq * t) * Math.exp(-t / 0.8);
+        const strike = (Math.random() - 0.5) * 0.05 * Math.exp(-t / 0.03);
+        buffer[i] += velocity * (h1 + h2 + h3 + h4 + strike);
+      }
+    }
+
+    // 1. Hợp âm C Major (0s - 2s): C3, G3, C4, E4, G4
+    addPianoTone(channelData, 0.0, 2.0, 130.81, 0.40);
+    addPianoTone(channelData, 0.0, 2.0, 196.00, 0.35);
+    addPianoTone(channelData, 0.0, 2.0, 261.63, 0.35);
+    addPianoTone(channelData, 0.0, 2.0, 329.63, 0.35);
+    addPianoTone(channelData, 0.0, 2.0, 392.00, 0.30);
+
+    // 2. Hợp âm G Major (2s - 4s): G2, D3, G3, B3, D4
+    addPianoTone(channelData, 2.0, 2.0, 98.00, 0.40);
+    addPianoTone(channelData, 2.0, 2.0, 146.83, 0.35);
+    addPianoTone(channelData, 2.0, 2.0, 196.00, 0.35);
+    addPianoTone(channelData, 2.0, 2.0, 246.94, 0.35);
+    addPianoTone(channelData, 2.0, 2.0, 293.66, 0.30);
+
+    // 3. Hợp âm A Minor (4s - 6s): A2, E3, A3, C4, E4
+    addPianoTone(channelData, 4.0, 2.0, 110.00, 0.40);
+    addPianoTone(channelData, 4.0, 2.0, 164.81, 0.35);
+    addPianoTone(channelData, 4.0, 2.0, 220.00, 0.35);
+    addPianoTone(channelData, 4.0, 2.0, 261.63, 0.35);
+    addPianoTone(channelData, 4.0, 2.0, 329.63, 0.30);
+
+    // 4. Hợp âm F Major (6s - 8s): F2, C3, F3, A3, C4
+    addPianoTone(channelData, 6.0, 2.0, 87.31, 0.40);
+    addPianoTone(channelData, 6.0, 2.0, 130.81, 0.35);
+    addPianoTone(channelData, 6.0, 2.0, 174.61, 0.35);
+    addPianoTone(channelData, 6.0, 2.0, 220.00, 0.35);
+    addPianoTone(channelData, 6.0, 2.0, 261.63, 0.30);
+
+    let maxAmp = 0.001;
+    for (let i = 0; i < totalSamples; i++) {
+      const a = Math.abs(channelData[i]);
+      if (a > maxAmp) maxAmp = a;
+    }
+    for (let i = 0; i < totalSamples; i++) {
+      channelData[i] = (channelData[i] / maxAmp) * 0.90;
+    }
+
+    const { minPeaks, maxPeaks, peakAmp } = this.computeEnvelope(channelData, sr, 5.0);
+    this.audioBuffer = audioBuf;
+    this.samples16k = channelData;
+    this.sampleRate = sr;
+    this.durationMs = Math.round(durationSec * 1000);
+    this.trackName = name;
+    this.minPeaks = minPeaks;
+    this.maxPeaks = maxPeaks;
+    this.peakAmp = peakAmp || 0.90;
+    this.loopStartMs = 0;
+    this.loopEndMs = this.durationMs;
     this.currentPositionMs = 0;
     return { samples16k: channelData, durationMs: this.durationMs, trackName: name };
   }
@@ -299,7 +399,11 @@ class AudioEngine {
     let durationSec = undefined;
     if (endMs !== null && endMs > clampedPos) {
       this.playRangeEndMs = endMs;
-      durationSec = (endMs - clampedPos) / 1000.0;
+      // Cho Web Audio phát vượt thêm buffer bù trễ (+0.35s + độ trễ tùy chỉnh) để âm thanh không bị ngắt sớm
+      // trước khi tai người nghe kịp nghe hết và trước khi vạch vàng kịp chạy tới điểm endMs:
+      const rawDurSec = (endMs - clampedPos) / 1000.0;
+      const extraLatencySec = Math.max(0, (this.customLatencyMs || 65) / 1000.0);
+      durationSec = rawDurSec + 0.35 + extraLatencySec;
     } else {
       this.playRangeEndMs = null;
     }
@@ -329,14 +433,30 @@ class AudioEngine {
           const nextEnd = (this.loopEndMs > this.loopStartMs) ? this.loopEndMs : null;
           this.play(nextStart, nextEnd);
         } else {
-          this.isPlaying = false;
-          this.activeSourceNode = null;
-          if (this.playRangeEndMs !== null) {
-            this.currentPositionMs = this.playRangeEndMs;
-            this.onPositionUpdate(this.playRangeEndMs);
+          // Khi audio buffer vật lý chạy hết, các mẫu âm thanh cuối cùng vẫn đang truyền qua DAC buffer (bù trễ).
+          // Cho vạch vàng chạy nốt phần bù trễ để chạm đúng mốc targetEnd (durationMs hoặc playRangeEndMs):
+          const targetEnd = (this.playRangeEndMs !== null) ? this.playRangeEndMs : this.durationMs;
+          const curPos = this.getCurrentPosition();
+          const remainingSec = Math.max(0, (targetEnd - curPos) / 1000.0);
+
+          if (remainingSec > 0.01 && remainingSec < 0.8) {
+            setTimeout(() => {
+              if (!this.isPlaying) return;
+              this.isPlaying = false;
+              this.activeSourceNode = null;
+              this.playRangeEndMs = null;
+              this.currentPositionMs = targetEnd;
+              this.onPositionUpdate(targetEnd);
+              this.onPlayStateChange(false);
+            }, remainingSec * 1000);
+          } else {
+            this.isPlaying = false;
+            this.activeSourceNode = null;
+            this.playRangeEndMs = null;
+            this.currentPositionMs = targetEnd;
+            this.onPositionUpdate(targetEnd);
+            this.onPlayStateChange(false);
           }
-          this.playRangeEndMs = null;
-          this.onPlayStateChange(false);
         }
       }
     };
@@ -369,6 +489,9 @@ class AudioEngine {
   seek(ms) {
     const clamped = Math.max(0, Math.min(this.durationMs, Math.round(ms)));
     this.currentPositionMs = clamped;
+    if (this.onSeek) {
+      try { this.onSeek(clamped); } catch (_) {}
+    }
     if (this.isPlaying) {
       this.play(clamped, this.playRangeEndMs);
     } else {
@@ -390,7 +513,18 @@ class AudioEngine {
     if (!this.isPlaying || !this.audioCtx) {
       return this.currentPositionMs;
     }
-    const elapsedSec = this.audioCtx.currentTime - this.startContextTime;
+    // Bù trễ âm thanh đầu ra: Sử dụng giá trị tùy chỉnh của người dùng (customLatencyMs) nếu có,
+    // hoặc tự động dựa trên phần cứng (mặc định 65ms trên Windows).
+    let compensationSec = 0.065;
+    if (this.customLatencyMs !== undefined && this.customLatencyMs !== null) {
+      compensationSec = this.customLatencyMs / 1000.0;
+    } else {
+      const browserLatency = (this.audioCtx.outputLatency || 0) + (this.audioCtx.baseLatency || 0);
+      compensationSec = Math.max(browserLatency, 0.065);
+    }
+
+    const rawElapsedSec = this.audioCtx.currentTime - this.startContextTime;
+    const elapsedSec = Math.max(0, rawElapsedSec - compensationSec);
     const currentMs = this.startOffsetMs + elapsedSec * 1000.0 * this.playbackSpeed;
 
     if (this.isLooping && this.loopEndMs > this.loopStartMs && currentMs >= this.loopEndMs) {
@@ -403,20 +537,22 @@ class AudioEngine {
         this.play(this.loopStartMs, this.loopEndMs);
         return this.loopStartMs;
       } else {
+        const targetEnd = this.playRangeEndMs;
         this.stop();
-        this.currentPositionMs = this.playRangeEndMs;
-        this.onPositionUpdate(this.playRangeEndMs);
-        return this.currentPositionMs;
+        this.currentPositionMs = targetEnd;
+        this.onPositionUpdate(targetEnd);
+        return targetEnd;
       }
     }
 
     if (currentMs >= this.durationMs) {
       this.stop();
       this.currentPositionMs = this.durationMs;
+      this.onPositionUpdate(this.durationMs);
       return this.durationMs;
     }
 
-    this.currentPositionMs = Math.round(currentMs);
+    this.currentPositionMs = currentMs;
     return this.currentPositionMs;
   }
 }
@@ -624,10 +760,299 @@ const TimeFormatter = {
   },
   formatFull(ms) {
     const totalSec = Math.max(0, Math.floor(ms / 1000));
-    const millis = Math.max(0, ms % 1000);
+    const millis = Math.max(0, Math.floor(ms % 1000));
     const m = Math.floor(totalSec / 60);
     const s = totalSec % 60;
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(millis).padStart(3, '0')}`;
+  },
+  parseFull(str) {
+    if (!str) return null;
+    const clean = str.trim().replace(',', '.');
+    const parts = clean.split(':');
+    if (parts.length === 2) {
+      const m = parseInt(parts[0], 10);
+      const secParts = parts[1].split('.');
+      const s = parseInt(secParts[0] || '0', 10);
+      const ms = parseInt((secParts[1] || '0').padEnd(3, '0').slice(0, 3), 10);
+      if (isNaN(m) || isNaN(s) || isNaN(ms)) return null;
+      return (m * 60 + s) * 1000 + ms;
+    } else if (parts.length === 3) {
+      const h = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      const secParts = parts[2].split('.');
+      const s = parseInt(secParts[0] || '0', 10);
+      const ms = parseInt((secParts[1] || '0').padEnd(3, '0').slice(0, 3), 10);
+      if (isNaN(h) || isNaN(m) || isNaN(s) || isNaN(ms)) return null;
+      return ((h * 60 + m) * 60 + s) * 1000 + ms;
+    } else if (parts.length === 1) {
+      const sec = parseFloat(clean);
+      if (isNaN(sec)) return null;
+      return Math.round(sec * 1000);
+    }
+    return null;
+  }
+};
+
+function downloadBlob(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+const SubtitleParser = {
+  parseSrtTime(str) {
+    if (!str) return 0;
+    const match = str.trim().match(/(?:(\d+):)?(\d+):(\d+)[,\.](\d+)/);
+    if (!match) return 0;
+    const h = parseInt(match[1] || '0', 10);
+    const m = parseInt(match[2] || '0', 10);
+    const s = parseInt(match[3] || '0', 10);
+    const msStr = (match[4] || '0').padEnd(3, '0').slice(0, 3);
+    const ms = parseInt(msStr, 10);
+    return ((h * 60 + m) * 60 + s) * 1000 + ms;
+  },
+
+  parseAssTime(str) {
+    if (!str) return 0;
+    const match = str.trim().match(/(?:(\d+):)?(\d+):(\d+)\.(\d+)/);
+    if (!match) return 0;
+    const h = parseInt(match[1] || '0', 10);
+    const m = parseInt(match[2] || '0', 10);
+    const s = parseInt(match[3] || '0', 10);
+    const csStr = (match[4] || '0').padEnd(2, '0').slice(0, 2);
+    const cs = parseInt(csStr, 10);
+    return (((h * 60 + m) * 60 + s) * 100) * 10 + cs * 10;
+  },
+
+  parse(text, filename = '') {
+    if (!text || typeof text !== 'string') return [];
+    const lowerName = filename.toLowerCase();
+
+    // 1. JSON (SpectroSub Project or array of cues)
+    if (lowerName.endsWith('.json') || text.trim().startsWith('{') || text.trim().startsWith('[')) {
+      try {
+        const parsed = JSON.parse(text);
+        const list = Array.isArray(parsed) ? parsed : (parsed.cues || []);
+        if (Array.isArray(list) && list.length > 0) {
+          return list.map(item => new SubtitleCue({
+            id: item.id,
+            startMs: item.startMs,
+            endMs: item.endMs,
+            text: item.text,
+            actor: item.actor,
+            clockState: item.clockState,
+            wordTimings: item.wordTimings
+          }));
+        }
+      } catch (_) {}
+    }
+
+    // 2. ASS (Advanced SubStation Alpha)
+    if (lowerName.endsWith('.ass') || text.includes('[Script Info]') || text.includes('Dialogue:')) {
+      const lines = text.split(/\r?\n/);
+      const cues = [];
+      let formatFields = ['layer', 'start', 'end', 'style', 'name', 'marginl', 'marginr', 'marginv', 'effect', 'text'];
+
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (line.toLowerCase().startsWith('format:')) {
+          formatFields = line.substring(7).split(',').map(f => f.trim().toLowerCase());
+          continue;
+        }
+        if (line.toLowerCase().startsWith('dialogue:')) {
+          const valStr = rawLine.substring(rawLine.indexOf(':') + 1).trim();
+          const parts = [];
+          let cur = '', fieldCount = 0;
+          for (let i = 0; i < valStr.length; i++) {
+            if (fieldCount < formatFields.length - 1 && valStr[i] === ',') {
+              parts.push(cur.trim());
+              cur = '';
+              fieldCount++;
+            } else {
+              cur += valStr[i];
+            }
+          }
+          parts.push(cur.trim());
+
+          const map = {};
+          formatFields.forEach((f, idx) => { map[f] = parts[idx] || ''; });
+
+          const startMs = this.parseAssTime(map['start']);
+          const endMs = this.parseAssTime(map['end']);
+          const rawDialogue = map['text'] || '';
+
+          const wordTimings = [];
+          let hasKaraoke = false;
+          if (/\{\\[kK][fo]?\d+\}/.test(rawDialogue)) {
+            hasKaraoke = true;
+            let curTimeMs = startMs;
+            const kRegex = /\{\\[kK][fo]?(\d+)\}([^\{]*)/g;
+            let m;
+            while ((m = kRegex.exec(rawDialogue)) !== null) {
+              const durCs = parseInt(m[1], 10) || 0;
+              const wText = m[2].trim();
+              if (wText) {
+                wordTimings.push({ word: wText, startMs: curTimeMs });
+              }
+              curTimeMs += durCs * 10;
+            }
+          }
+
+          const cleanText = rawDialogue.replace(/\{[^\}]*\}/g, '').replace(/\\N/g, ' ').trim();
+          if (cleanText) {
+            cues.push(new SubtitleCue({
+              startMs,
+              endMs,
+              text: cleanText,
+              actor: map['name'] || map['style'] || '',
+              clockState: hasKaraoke ? CueClockState.EDITING_WORDS : CueClockState.SHOW_LOCKED,
+              wordTimings: wordTimings.length > 0 ? wordTimings : undefined
+            }));
+          }
+        }
+      }
+      if (cues.length > 0) return cues;
+    }
+
+    // 3. SRT / VTT
+    if (lowerName.endsWith('.srt') || lowerName.endsWith('.vtt') || text.includes('-->')) {
+      const blocks = text.trim().split(/\r?\n\s*\r?\n/);
+      const cues = [];
+      for (const block of blocks) {
+        const bLines = block.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+        let timeIdx = -1;
+        for (let i = 0; i < bLines.length; i++) {
+          if (bLines[i].includes('-->')) {
+            timeIdx = i;
+            break;
+          }
+        }
+        if (timeIdx === -1) continue;
+        const [startStr, endStr] = bLines[timeIdx].split('-->').map(s => s.trim());
+        const startMs = this.parseSrtTime(startStr);
+        const endMs = this.parseSrtTime(endStr);
+        const cueText = bLines.slice(timeIdx + 1).join(' ').replace(/<[^>]*>/g, '').trim();
+        if (cueText) {
+          cues.push(new SubtitleCue({
+            startMs,
+            endMs,
+            text: cueText,
+            clockState: CueClockState.SHOW_LOCKED
+          }));
+        }
+      }
+      if (cues.length > 0) return cues;
+    }
+
+    // 4. Plain text lines fallback
+    const rawLines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    return rawLines.map((l, i) => new SubtitleCue({
+      startMs: i * 2500,
+      endMs: (i + 1) * 2500,
+      text: l,
+      clockState: CueClockState.SHOW_LOCKED
+    }));
+  }
+};
+
+const SubtitleExporter = {
+  formatSrtTime(ms) {
+    const totalSec = Math.max(0, Math.floor(ms / 1000));
+    const millis = Math.max(0, ms % 1000);
+    const s = totalSec % 60;
+    const totalM = Math.floor(totalSec / 60);
+    const m = totalM % 60;
+    const h = Math.floor(totalM / 60);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(millis).padStart(3, '0')}`;
+  },
+
+  formatAssTime(ms) {
+    const totalCs = Math.max(0, Math.round(ms / 10));
+    const cs = totalCs % 100;
+    const totalSec = Math.floor(totalCs / 100);
+    const s = totalSec % 60;
+    const totalM = Math.floor(totalSec / 60);
+    const m = totalM % 60;
+    const h = Math.floor(totalM / 60);
+    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}`;
+  },
+
+  toSrt(cues) {
+    return cues.map((cue, idx) => {
+      const start = this.formatSrtTime(cue.startMs);
+      const end = this.formatSrtTime(cue.endMs);
+      return `${idx + 1}\n${start} --> ${end}\n${cue.text}`;
+    }).join('\n\n') + '\n';
+  },
+
+  toAss(cues, trackName = 'SpectroSub') {
+    const header = [
+      '[Script Info]',
+      `Title: ${trackName}`,
+      'ScriptType: v4.00+',
+      'WrapStyle: 0',
+      'ScaledBorderAndShadow: yes',
+      'PlayResX: 1920',
+      'PlayResY: 1080',
+      '',
+      '[V4+ Styles]',
+      'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
+      'Style: Default,Arial,28,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,2,2,10,10,20,1',
+      '',
+      '[Events]',
+      'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text'
+    ];
+
+    const dialogues = cues.map(cue => {
+      const s = this.formatAssTime(cue.startMs);
+      const e = this.formatAssTime(cue.endMs);
+      const actor = cue.actor || '';
+
+      let textContent = cue.text;
+      if (cue.clockState === CueClockState.EDITING_WORDS) {
+        const words = cue.resolvedWordTimings();
+        if (words.length > 0) {
+          textContent = words.map((w, wIdx) => {
+            const nextStart = (wIdx < words.length - 1) ? words[wIdx + 1].startMs : cue.endMs;
+            const durCs = Math.max(1, Math.round((nextStart - w.startMs) / 10));
+            return `{\\k${durCs}}${w.word}`;
+          }).join(' ');
+        }
+      }
+
+      return `Dialogue: 0,${s},${e},Default,${actor},0,0,0,,${textContent}`;
+    });
+
+    return header.concat(dialogues).join('\n') + '\n';
+  },
+
+  toJson(cues, trackName = '', durationMs = 0) {
+    const payload = {
+      generator: 'Web SpectroSub 2.1.0',
+      trackName,
+      durationMs,
+      exportedAt: new Date().toISOString(),
+      cues: cues.map(c => ({
+        id: c.id,
+        startMs: c.startMs,
+        endMs: c.endMs,
+        text: c.text,
+        actor: c.actor,
+        clockState: c.clockState,
+        wordTimings: c.wordTimings
+      }))
+    };
+    return JSON.stringify(payload, null, 2);
+  },
+
+  toTxt(cues) {
+    return cues.map(c => c.text).join('\n') + '\n';
   }
 };
 
@@ -646,16 +1071,25 @@ class SpectrogramCanvasRenderer {
     this.viewMode = 'DUAL';
     this.paletteKey = 'AEGISUB_BLUE';
     this.zoomFactor = 40.0;
-    this.scrollOffsetMs = 0;
+    this.scrollOffsetMs = -Math.round(70 * (100.0 / 40.0)); // Thụt vào 70px tạo khoảng đen ở đầu
     this.selectionStartMs = 0;
     this.selectionEndMs = 2100;
 
     this.rulerHeight = 28;
-    this.minimapHeight = 28;
+    this.minimapHeight = 10;
     this.subOverlayHeight = 28;
+    this.isDraggingScrollbar = false;
+
+    this.specY = 0;
+    this.specH = 0;
+    this.hoveredFreq = null;
 
     this.tileCanvas = document.createElement('canvas');
     this.tileCtx = this.tileCanvas.getContext('2d', { alpha: false });
+    this._lastFStart = -1;
+    this._lastFEnd = -1;
+    this._lastPalette = null;
+    this._lastSpec = null;
 
     if (this.canvas) {
       this.initEvents();
@@ -675,6 +1109,10 @@ class SpectrogramCanvasRenderer {
     this.render();
   }
 
+  get leadMarginPx() {
+    return 70; // Visual lead margin (khoảng đen thụt vào ở đầu)
+  }
+
   get msPerPixel() {
     return Math.max(0.5, 100.0 / Math.max(5.0, this.zoomFactor));
   }
@@ -689,10 +1127,22 @@ class SpectrogramCanvasRenderer {
 
   clampScroll() {
     if (!this.audio || this.audio.durationMs <= 0) return;
-    const visibleWindowMs = (this.width || 800) * this.msPerPixel;
-    const minScroll = -200;
-    const maxScroll = Math.max(minScroll, this.audio.durationMs + 200 - visibleWindowMs);
+    const durMs = this.audio.durationMs;
+    const visibleDurMs = (this.width || 800) * this.msPerPixel;
+    // Dư không gian (khoảng đen) ở đầu: cho phép cuộn sang trái tối đa khoảng 30% bề rộng màn hình
+    const maxLeadMs = Math.round(Math.max(120, (this.width || 800) * 0.3) * this.msPerPixel);
+    // Dư không gian (khoảng đen) ở cuối: cho phép cuộn qua điểm kết thúc tối đa khoảng 40% màn hình
+    const maxTailMs = Math.round(Math.max(160, (this.width || 800) * 0.4) * this.msPerPixel);
+
+    const minScroll = -maxLeadMs;
+    const maxScroll = Math.max(minScroll, durMs - visibleDurMs + maxTailMs);
     this.scrollOffsetMs = Math.max(minScroll, Math.min(maxScroll, this.scrollOffsetMs));
+  }
+
+  resetScrollToStart() {
+    // Điểm 00:00.000 thụt vào 1 đoạn (~70px) tạo khoảng đen phía trước để không bị sát mép trái
+    this.scrollOffsetMs = -Math.round(this.leadMarginPx * this.msPerPixel);
+    this.clampScroll();
   }
 
   render() {
@@ -733,7 +1183,8 @@ class SpectrogramCanvasRenderer {
 
     let specH = 0, waveH = 0, specY = contentY, waveY = contentY;
     if (this.viewMode === 'DUAL') {
-      waveH = Math.floor(contentH * 0.38);
+      // Giới hạn chiều cao Waveform nhỏ gọn (18% contentH, tối đa 65px, tối thiểu 36px) để nhường không gian tối đa cho Spectrogram
+      waveH = Math.min(65, Math.max(36, Math.floor(contentH * 0.18)));
       waveY = contentY;
       specH = contentH - waveH;
       specY = waveY + waveH;
@@ -745,11 +1196,17 @@ class SpectrogramCanvasRenderer {
       waveY = contentY;
     }
 
+    this.specY = specY;
+    this.specH = specH;
+
     if (waveH > 0) {
       this.drawWaveform(ctx, 0, waveY, w, waveH);
     }
-    if (specH > 0 && this.spectrogram && this.spectrogram.numFrames > 0) {
-      this.drawSpectrogram(ctx, 0, specY, w, specH);
+    if (specH > 0) {
+      if (this.spectrogram && this.spectrogram.numFrames > 0) {
+        this.drawSpectrogram(ctx, 0, specY, w, specH);
+      }
+      this.drawFrequencyColorAxis(ctx, 0, specY, 6, specH);
     }
 
     // Divider between Waveform and Spectrogram in Dual mode
@@ -786,12 +1243,12 @@ class SpectrogramCanvasRenderer {
           ctx.moveTo(cEndX, contentY); ctx.lineTo(cEndX, contentBottom);
           ctx.stroke();
         } else if (cue.clockState === CueClockState.EDITING_WORDS) {
-          // Purple clock: light purple tint
-          ctx.fillStyle = 'rgba(168, 85, 247, 0.18)';
+          // Purple clock: soft & delicate purple tint
+          ctx.fillStyle = 'rgba(168, 85, 247, 0.08)';
           ctx.fillRect(drawX, contentY, drawW, contentH);
 
-          ctx.strokeStyle = 'rgba(168, 85, 247, 0.55)';
-          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = 'rgba(192, 132, 252, 0.45)';
+          ctx.lineWidth = 1.0;
           ctx.beginPath();
           ctx.moveTo(cStartX, contentY); ctx.lineTo(cStartX, contentBottom);
           ctx.moveTo(cEndX, contentY); ctx.lineTo(cEndX, contentBottom);
@@ -817,9 +1274,10 @@ class SpectrogramCanvasRenderer {
     const endX = this.timeToX(this.selectionEndMs);
     const playheadMs = this.audio ? this.audio.getCurrentPosition() : 0;
     const playheadX = this.timeToX(playheadMs);
+    const isHiddenStartStop = !!(this.activeCue && (this.activeCue.clockState === CueClockState.SHOW_LOCKED || this.activeCue.clockState === CueClockState.OFF));
 
-    // 1) Green Start line on time ruler
-    if (startX >= -10 && startX <= w + 10) {
+    // 1) Green Start line on time ruler (Hidden when clock is Blue [SHOW_LOCKED] or Gray [OFF])
+    if (!isHiddenStartStop && startX >= -10 && startX <= w + 10) {
       ctx.strokeStyle = '#10b981';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
@@ -828,8 +1286,8 @@ class SpectrogramCanvasRenderer {
       ctx.fillRect(startX - 2, 0, 4, 3);
     }
 
-    // 2) Red Stop line on time ruler
-    if (endX >= -10 && endX <= w + 10) {
+    // 2) Red Stop line on time ruler (Hidden when clock is Blue [SHOW_LOCKED] or Gray [OFF])
+    if (!isHiddenStartStop && endX >= -10 && endX <= w + 10) {
       ctx.strokeStyle = '#ef4444';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
@@ -862,6 +1320,37 @@ class SpectrogramCanvasRenderer {
       ctx.stroke();
     }
 
+    // Đường chỉ ranh giới trực quan cho điểm Bắt đầu Audio (00:00.000) và điểm Kết thúc Audio
+    if (hasAudio) {
+      const durMs = this.audio.durationMs;
+      const audioStartX = this.timeToX(0);
+      const audioEndX = this.timeToX(durMs);
+
+      // Vạch nét đứt mảnh màu xanh Cyan tại 00:00.000 (Audio Start)
+      if (audioStartX >= 0 && audioStartX <= w) {
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(audioStartX, rulerH);
+        ctx.lineTo(audioStartX, contentBottom);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Vạch nét đứt mảnh màu hồng Rose tại Audio End
+      if (audioEndX >= 0 && audioEndX <= w) {
+        ctx.strokeStyle = 'rgba(244, 63, 94, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(audioEndX, rulerH);
+        ctx.lineTo(audioEndX, contentBottom);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
     this.drawMinimap(ctx, 0, h - miniH, w, miniH);
   }
 
@@ -871,6 +1360,10 @@ class SpectrogramCanvasRenderer {
     const numBins = spec.numBins;
     const packed = spec.packedMagnitudes;
     const lut = ColorLUT[this.paletteKey] || ColorLUT.AEGISUB_BLUE;
+
+    // Nền đen đặc cho vùng làm việc ngoài dải audio
+    ctx.fillStyle = '#080d18';
+    ctx.fillRect(x, y, width, height);
 
     const vStartMs = this.xToTime(0);
     const vEndMs = this.xToTime(width);
@@ -882,23 +1375,31 @@ class SpectrogramCanvasRenderer {
     if (this.tileCanvas.width !== renderFrames || this.tileCanvas.height !== numBins) {
       this.tileCanvas.width = renderFrames;
       this.tileCanvas.height = numBins;
+      this._lastFStart = -1; // Cần vẽ lại khi kích thước thay đổi
     }
 
-    const imgData = this.tileCtx.createImageData(renderFrames, numBins);
-    const buf32 = new Uint32Array(imgData.data.buffer);
+    // Tối ưu hiệu năng 60 FPS: Chỉ tái tạo buffer tile khi dải frame, spectrogram hoặc bảng màu thực sự thay đổi
+    if (this._lastFStart !== fStart || this._lastFEnd !== fEnd || this._lastPalette !== this.paletteKey || this._lastSpec !== spec) {
+      const imgData = this.tileCtx.createImageData(renderFrames, numBins);
+      const buf32 = new Uint32Array(imgData.data.buffer);
 
-    for (let fIdx = 0; fIdx < renderFrames; fIdx++) {
-      const frame = fStart + fIdx;
-      const base = frame * numBins;
-      for (let b = 0; b < numBins; b++) {
-        const q = packed[base + b];
-        const color = lut[q];
-        const row = numBins - 1 - b;
-        buf32[row * renderFrames + fIdx] = color;
+      for (let fIdx = 0; fIdx < renderFrames; fIdx++) {
+        const frame = fStart + fIdx;
+        const base = frame * numBins;
+        for (let b = 0; b < numBins; b++) {
+          const q = packed[base + b];
+          const color = lut[q];
+          const row = numBins - 1 - b;
+          buf32[row * renderFrames + fIdx] = color;
+        }
       }
-    }
 
-    this.tileCtx.putImageData(imgData, 0, 0);
+      this.tileCtx.putImageData(imgData, 0, 0);
+      this._lastFStart = fStart;
+      this._lastFEnd = fEnd;
+      this._lastPalette = this.paletteKey;
+      this._lastSpec = spec;
+    }
 
     const startX = this.timeToX(fStart * spec.timeResolutionMs);
     const endX = this.timeToX((fEnd + 1) * spec.timeResolutionMs);
@@ -906,11 +1407,130 @@ class SpectrogramCanvasRenderer {
     ctx.drawImage(this.tileCanvas, 0, 0, renderFrames, numBins, startX, y, endX - startX, height);
   }
 
+  drawFrequencyColorAxis(ctx, x, y, width, height) {
+    if (!ctx || height <= 0) return;
+
+    ctx.save();
+
+    // 1. Linear Vertical Gradient matching the 5 Phonetic Frequency Bands:
+    // Top (y, 8000 Hz) down to Bottom (y + height, 0 Hz)
+    const grad = ctx.createLinearGradient(x, y, x, y + height);
+
+    // Dải tần số ngữ âm (Phonetic Speech Spectrogram Legend Bands):
+    // 4.500 – 8.000 Hz: Red (#ef4444) -> Liaisons & Fricatives [s, z, ʃ, ʒ]
+    // 2.500 – 4.500 Hz: Purple (#a855f7) -> Formant F3 & Nasals [õ, ã, ɛ̃]
+    // 1.000 – 2.500 Hz: Yellow (#eab308) -> Formant F2 (Độ tiến/lùi của lưỡi)
+    //   300 – 1.000 Hz: Green (#10b981) -> Formant F1 (Độ mở miệng [a, i, u])
+    //     0 –   300 Hz: Cyan (#38bdf8) -> Pitch / F0 (Cao độ thanh quản)
+
+    grad.addColorStop(0.00, '#ef4444'); // 8000 Hz
+    grad.addColorStop(0.38, '#ef4444');
+    grad.addColorStop(0.44, '#a855f7'); // 4500 Hz boundary transition
+    grad.addColorStop(0.64, '#a855f7');
+    grad.addColorStop(0.69, '#eab308'); // 2500 Hz boundary transition
+    grad.addColorStop(0.83, '#eab308');
+    grad.addColorStop(0.88, '#10b981'); // 1000 Hz boundary transition
+    grad.addColorStop(0.94, '#10b981');
+    grad.addColorStop(0.965, '#38bdf8'); // 300 Hz boundary transition
+    grad.addColorStop(1.00, '#38bdf8'); // 0 Hz
+
+    // Background shadow bar for clean separation
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+    ctx.fillRect(x, y, width + 1, height);
+
+    // Draw thin gradient color axis
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, y, width, height);
+
+    // Subtle 1px right border
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x + width + 0.5, y);
+    ctx.lineTo(x + width + 0.5, y + height);
+    ctx.stroke();
+
+    // Boundary tick markers & clean mini kHz labels
+    const ticks = [
+      { f: 8000, label: '8k',   color: '#f87171' },
+      { f: 4500, label: '4.5k', color: '#c084fc' },
+      { f: 2500, label: '2.5k', color: '#fde047' },
+      { f: 1000, label: '1k',   color: '#34d399' },
+      { f: 300,  label: '300',  color: '#38bdf8' }
+    ];
+
+    ctx.font = '9px "JetBrains Mono", monospace';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+
+    ticks.forEach(t => {
+      const frac = 1.0 - (t.f / 8000.0);
+      const ty = Math.round(y + frac * height);
+      if (ty >= y && ty <= y + height) {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.beginPath();
+        ctx.moveTo(x + width, ty);
+        ctx.lineTo(x + width + 3, ty);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+        const tw = ctx.measureText(t.label).width;
+        ctx.fillRect(x + width + 4, ty - 5, tw + 2, 10);
+
+        ctx.fillStyle = t.color;
+        ctx.fillText(t.label, x + width + 5, ty);
+      }
+    });
+
+    // If mouse is hovered over the axis, highlight exact frequency & band description
+    if (this.hoveredFreq !== null) {
+      const hFrac = 1.0 - (this.hoveredFreq / 8000.0);
+      const hy = Math.round(y + hFrac * height);
+
+      // Indicator ring on the axis
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(x + width / 2, hy, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#0284c7';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Tooltip pill badge showing ONLY the exact frequency value
+      const text = `${this.hoveredFreq} Hz`;
+      ctx.font = 'bold 11px "JetBrains Mono", monospace';
+      const mText = ctx.measureText(text);
+      const boxW = mText.width + 12;
+      const boxH = 20;
+      const boxX = x + width + 14;
+      const boxY = Math.max(y + 2, Math.min(y + height - boxH - 2, hy - boxH / 2));
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+      ctx.fillRect(boxX, boxY, boxW, boxH);
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, boxX + 6, boxY + boxH / 2);
+    }
+
+    ctx.restore();
+  }
+
+  getFrequencyBandTooltip(freq) {
+    return `${freq} Hz`;
+  }
+
   drawWaveform(ctx, x, y, width, height) {
     const minP = this.audio.minPeaks, maxP = this.audio.maxPeaks;
     if (!minP || !maxP || minP.length === 0) return;
     const centerY = y + height / 2;
-    const halfH = height / 2 - 2;
+    // Tự động scale biên độ sóng lấp đầy vừa vặn chiều cao hiển thị, loại bỏ khoảng trống thừa ở trên và dưới
+    const peakAmp = this.audio.peakAmp || 1.0;
+    const gain = Math.min(2.5, 0.94 / Math.max(0.08, peakAmp));
+    const halfH = Math.max(2, (height / 2 - 2) * gain);
 
     ctx.fillStyle = '#0a101d';
     ctx.fillRect(x, y, width, height);
@@ -922,12 +1542,12 @@ class SpectrogramCanvasRenderer {
     const bStart = Math.max(0, Math.floor(this.xToTime(0) / bucketMs));
     const bEnd = Math.min(minP.length - 1, Math.ceil(this.xToTime(width) / bucketMs));
 
-    ctx.fillStyle = 'rgba(56, 189, 248, 0.75)';
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.85)';
     ctx.beginPath();
     for (let b = bStart; b <= bEnd; b++) {
       const px = this.timeToX(b * bucketMs);
-      const topY = centerY - maxP[b] * halfH;
-      const botY = centerY - minP[b] * halfH;
+      const topY = Math.max(y, centerY - maxP[b] * halfH);
+      const botY = Math.min(y + height, centerY - minP[b] * halfH);
       ctx.rect(px, topY, Math.max(1, 100 / this.zoomFactor * 0.05), Math.max(1, botY - topY));
     }
     ctx.fill();
@@ -968,10 +1588,10 @@ class SpectrogramCanvasRenderer {
         ctx.lineWidth = isActive ? 2.5 : 1.5;
         ctx.strokeRect(startX + 1, y + padY + 1, Math.max(6, cueW - 2), barH - 2);
       } else if (cue.clockState === CueClockState.EDITING_WORDS) {
-        ctx.fillStyle = isActive ? 'rgba(168, 85, 247, 0.32)' : 'rgba(168, 85, 247, 0.20)';
+        ctx.fillStyle = isActive ? 'rgba(168, 85, 247, 0.20)' : 'rgba(168, 85, 247, 0.12)';
         ctx.fillRect(startX, y + padY, cueW, barH);
         ctx.strokeStyle = '#c084fc';
-        ctx.lineWidth = isActive ? 2.5 : 1.5;
+        ctx.lineWidth = isActive ? 1.5 : 1.0;
         ctx.strokeRect(startX + 1, y + padY + 1, Math.max(6, cueW - 2), barH - 2);
       } else {
         // SHOW_LOCKED (Blue)
@@ -1037,22 +1657,22 @@ class SpectrogramCanvasRenderer {
 
       ctx.restore();
 
-      // Bold purple vertical lines at word boundaries in EDITING_WORDS mode
+      // Soft & delicate purple vertical lines at word boundaries in EDITING_WORDS mode
       if (cue.clockState === CueClockState.EDITING_WORDS) {
         const words = cue.resolvedWordTimings();
         words.forEach(wt => {
           const wx = this.timeToX(wt.startMs);
           if (wx >= -2 && wx <= width + 2) {
-            ctx.strokeStyle = '#9333ea';
-            ctx.lineWidth = 2.5;
-            ctx.beginPath(); ctx.moveTo(wx, y); ctx.lineTo(wx, contentBottom); ctx.stroke();
+            ctx.strokeStyle = 'rgba(192, 132, 252, 0.65)';
+            ctx.lineWidth = 1.0;
+            ctx.beginPath();
+            ctx.moveTo(wx, y);
+            ctx.lineTo(wx, contentBottom);
+            ctx.stroke();
 
-            ctx.strokeStyle = '#d8b4fe';
-            ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.moveTo(wx, y); ctx.lineTo(wx, contentBottom); ctx.stroke();
-
+            // Small, clean handle at top
             ctx.fillStyle = '#a855f7';
-            ctx.fillRect(wx - 2, y + 2, 4, 7);
+            ctx.fillRect(wx - 1, y + 2, 2, 6);
           }
         });
       }
@@ -1060,6 +1680,10 @@ class SpectrogramCanvasRenderer {
   }
 
   drawSelectionWindow(ctx, x, y, width, height) {
+    // Ẩn thanh start và stop (selection window) khi đồng hồ màu xanh dương [HIỆN & KHÓA] hoặc màu xám [OFF - chế độ không chỉnh sửa gì]
+    if (this.activeCue && (this.activeCue.clockState === CueClockState.SHOW_LOCKED || this.activeCue.clockState === CueClockState.OFF)) {
+      return;
+    }
     const startX = this.timeToX(this.selectionStartMs);
     const endX = this.timeToX(this.selectionEndMs);
     ctx.fillStyle = 'rgba(16, 185, 129, 0.06)';
@@ -1094,6 +1718,7 @@ class SpectrogramCanvasRenderer {
     ctx.strokeStyle = '#334155';
     ctx.beginPath(); ctx.moveTo(x, y + height); ctx.lineTo(x + width, y + height); ctx.stroke();
 
+    const durMs = this.audio ? this.audio.durationMs : 0;
     const msPerPx = this.msPerPixel;
     let stepMs = 1000;
     if (msPerPx < 1.0) stepMs = 200;
@@ -1108,6 +1733,8 @@ class SpectrogramCanvasRenderer {
     ctx.fillStyle = '#94a3b8';
     ctx.font = '10px "JetBrains Mono", monospace';
     for (let t = firstTick; t <= vEndMs; t += stepMs) {
+      if (t < 0) continue; // Không vẽ mốc âm trước 00:00.000
+      if (durMs > 0 && t > durMs) continue; // Dừng mốc thời gian tại điểm kết thúc của audio
       const tx = this.timeToX(t);
       if (tx >= 0 && tx <= width) {
         ctx.strokeStyle = '#475569';
@@ -1115,35 +1742,60 @@ class SpectrogramCanvasRenderer {
         ctx.fillText(TimeFormatter.formatFull(t), tx + 4, y + 16);
       }
     }
+
+    // Nhãn đánh dấu điểm kết thúc Audio (End Marker)
+    if (durMs > 0) {
+      const endTx = this.timeToX(durMs);
+      if (endTx >= 0 && endTx <= width) {
+        ctx.strokeStyle = '#f43f5e';
+        ctx.beginPath(); ctx.moveTo(endTx, y + height - 12); ctx.lineTo(endTx, y + height); ctx.stroke();
+        ctx.fillStyle = '#f43f5e';
+        ctx.fillText('END ' + TimeFormatter.formatFull(durMs), endTx + 4, y + 12);
+        ctx.fillStyle = '#94a3b8';
+      }
+    }
   }
 
   drawMinimap(ctx, x, y, width, height) {
-    ctx.fillStyle = '#0b0f19';
+    // 1. Dark sleek track background (no waveform mirror)
+    ctx.fillStyle = '#080d1a';
     ctx.fillRect(x, y, width, height);
-    const durMs = this.audio.durationMs;
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + width, y);
+    ctx.stroke();
+
+    const durMs = this.audio ? this.audio.durationMs : 0;
     if (durMs <= 0) return;
 
-    const minP = this.audio.minPeaks, maxP = this.audio.maxPeaks;
-    if (minP && maxP && minP.length > 0) {
-      const centerY = y + height / 2;
-      const halfH = height / 2 - 2;
-      ctx.fillStyle = '#334155';
-      for (let px = 0; px < width; px++) {
-        const b = Math.floor((px / width) * minP.length);
-        const maxV = maxP[b], minV = minP[b];
-        ctx.fillRect(px, centerY - maxV * halfH, 1, Math.max(1, (maxV - minV) * halfH));
-      }
-    }
+    // 2. Subtle groove line along center of track
+    ctx.fillStyle = '#1e293b';
+    const grooveH = Math.max(2, Math.round(height * 0.3));
+    const grooveY = y + Math.round((height - grooveH) / 2);
+    ctx.fillRect(x, grooveY, width, grooveH);
 
-    const thumbStartMs = Math.max(0, this.scrollOffsetMs);
-    const thumbEndMs = Math.min(durMs, this.scrollOffsetMs + width * this.msPerPixel);
+    // 3. Compact modern scrollbar thumb
+    const visibleDurMs = width * this.msPerPixel;
+    const thumbStartMs = Math.max(0, Math.min(durMs, this.scrollOffsetMs));
+    const thumbEndMs = Math.max(0, Math.min(durMs, this.scrollOffsetMs + visibleDurMs));
     const thumbX = (thumbStartMs / durMs) * width;
-    const thumbW = Math.max(14, ((thumbEndMs - thumbStartMs) / durMs) * width);
+    const thumbW = Math.max(16, ((thumbEndMs - thumbStartMs) / durMs) * width);
 
-    ctx.fillStyle = 'rgba(56, 189, 248, 0.25)';
-    ctx.fillRect(thumbX, y, thumbW, height);
-    ctx.strokeStyle = '#38bdf8';
-    ctx.strokeRect(thumbX, y, thumbW, height);
+    const thumbPadY = 1;
+    const thumbH = Math.max(4, height - thumbPadY * 2);
+    const thumbY = y + thumbPadY;
+
+    ctx.fillStyle = this.isDraggingScrollbar ? '#38bdf8' : 'rgba(56, 189, 248, 0.55)';
+    if (ctx.roundRect) {
+      ctx.beginPath();
+      ctx.roundRect(thumbX, thumbY, thumbW, thumbH, Math.min(3, thumbH / 2));
+      ctx.fill();
+    } else {
+      ctx.fillRect(thumbX, thumbY, thumbW, thumbH);
+    }
   }
 
   initEvents() {
@@ -1204,15 +1856,22 @@ class SpectrogramCanvasRenderer {
       const endX = this.timeToX(this.selectionEndMs);
       const playheadX = this.timeToX(this.audio.getCurrentPosition());
       const HIT = 8;
+      const isHiddenStartStop = !!(this.activeCue && (this.activeCue.clockState === CueClockState.SHOW_LOCKED || this.activeCue.clockState === CueClockState.OFF));
 
-      const isNearStart = Math.abs(mouseX - startX) <= HIT ||
-        (mouseX >= startX && mouseX <= startX + 18 && mouseY >= this.rulerHeight && mouseY <= this.rulerHeight + 22);
-      const isNearEnd = Math.abs(mouseX - endX) <= HIT ||
-        (mouseX >= endX - 18 && mouseX <= endX && mouseY >= this.rulerHeight && mouseY <= this.rulerHeight + 22);
+      const isNearStart = !isHiddenStartStop && (Math.abs(mouseX - startX) <= HIT ||
+        (mouseX >= startX && mouseX <= startX + 18 && mouseY >= this.rulerHeight && mouseY <= this.rulerHeight + 22));
+      const isNearEnd = !isHiddenStartStop && (Math.abs(mouseX - endX) <= HIT ||
+        (mouseX >= endX - 18 && mouseX <= endX && mouseY >= this.rulerHeight && mouseY <= this.rulerHeight + 22));
       const isNearYellow = Math.abs(mouseX - playheadX) <= HIT;
 
       const hasVisibleTranscript = this.cues.some(cue => cue.clockState !== CueClockState.OFF);
       const subH = hasVisibleTranscript ? this.subOverlayHeight : 0;
+
+      const rectH = c.getBoundingClientRect().height;
+      if (mouseY >= rectH - this.minimapHeight) {
+        c.style.cursor = 'pointer';
+        return;
+      }
 
       if (isNearStart || isNearEnd || isNearYellow) {
         c.style.cursor = 'ew-resize';
@@ -1227,10 +1886,29 @@ class SpectrogramCanvasRenderer {
       const mouseX = getX(e);
       const mouseY = getY(e);
       updateCursor(mouseX, mouseY);
+
+      // Check if mouse is hovering over the left frequency color axis
+      if (this.specH > 0 && mouseX <= 32 && mouseY >= this.specY && mouseY <= this.specY + this.specH) {
+        const frac = (mouseY - this.specY) / this.specH;
+        const freqHz = Math.round(8000 * (1 - frac));
+        if (this.hoveredFreq !== freqHz) {
+          this.hoveredFreq = freqHz;
+          this.render();
+        }
+      } else {
+        if (this.hoveredFreq !== null) {
+          this.hoveredFreq = null;
+          this.render();
+        }
+      }
     });
 
     c.addEventListener('mouseleave', () => {
       if (!isDragging) c.style.cursor = 'crosshair';
+      if (this.hoveredFreq !== null) {
+        this.hoveredFreq = null;
+        this.render();
+      }
     });
 
     const onStart = (e) => {
@@ -1242,11 +1920,39 @@ class SpectrogramCanvasRenderer {
       const startX = this.timeToX(this.selectionStartMs);
       const endX = this.timeToX(this.selectionEndMs);
       const playheadX = this.timeToX(this.audio.getCurrentPosition());
+      const rectH = c.getBoundingClientRect().height;
+
+      // 1. Click / drag on slim bottom scrollbar (moves in swipe direction!)
+      if (dragStartY >= rectH - this.minimapHeight) {
+        dragTarget = 'SCROLLBAR';
+        this.isDraggingScrollbar = true;
+        c.style.cursor = 'grabbing';
+        const durMs = this.audio ? this.audio.durationMs : 0;
+        if (durMs > 0) {
+          const visibleDurMs = this.width * this.msPerPixel;
+          const thumbStartMs = Math.max(0, this.scrollOffsetMs);
+          const thumbEndMs = Math.min(durMs, this.scrollOffsetMs + visibleDurMs);
+          const thumbX = (thumbStartMs / durMs) * this.width;
+          const thumbW = Math.max(16, ((thumbEndMs - thumbStartMs) / durMs) * this.width);
+
+          // If clicked outside the current thumb, center thumb at click location
+          if (dragStartX < thumbX || dragStartX > thumbX + thumbW) {
+            const targetTimeMs = (dragStartX / this.width) * durMs;
+            const desired = targetTimeMs - visibleDurMs / 2;
+            this.scrollOffsetMs = desired;
+            this.clampScroll();
+            dragStartScrollMs = this.scrollOffsetMs;
+            this.render();
+          }
+        }
+        return;
+      }
 
       const wordHit = findWordHandleAt(dragStartX, dragStartY);
       if (wordHit) {
         dragTarget = 'WORD';
         dragWordInfo = wordHit;
+        if (this.onBeforeCuesChange) this.onBeforeCuesChange();
         if (this.onCueSelect) this.onCueSelect(wordHit.cue);
         c.style.cursor = 'ew-resize';
         return;
@@ -1256,16 +1962,21 @@ class SpectrogramCanvasRenderer {
       if (yellowHit) {
         dragTarget = yellowHit.edge === 'START' ? 'CUE_START' : 'CUE_END';
         dragCueEdgeInfo = { cue: yellowHit.cue };
+        if (this.onBeforeCuesChange) this.onBeforeCuesChange();
         if (this.onCueSelect) this.onCueSelect(yellowHit.cue);
         c.style.cursor = 'ew-resize';
         return;
       }
 
-      if (Math.abs(dragStartX - startX) <= 12 || (dragStartX >= startX && dragStartX <= startX + 18 && dragStartY >= this.rulerHeight && dragStartY <= this.rulerHeight + 22)) {
+      const isHiddenStartStop = !!(this.activeCue && (this.activeCue.clockState === CueClockState.SHOW_LOCKED || this.activeCue.clockState === CueClockState.OFF));
+
+      if (!isHiddenStartStop && (Math.abs(dragStartX - startX) <= 12 || (dragStartX >= startX && dragStartX <= startX + 18 && dragStartY >= this.rulerHeight && dragStartY <= this.rulerHeight + 22))) {
         dragTarget = 'START';
+        if (this.onBeforeCuesChange) this.onBeforeCuesChange();
         c.style.cursor = 'ew-resize';
-      } else if (Math.abs(dragStartX - endX) <= 12 || (dragStartX >= endX - 18 && dragStartX <= endX && dragStartY >= this.rulerHeight && dragStartY <= this.rulerHeight + 22)) {
+      } else if (!isHiddenStartStop && (Math.abs(dragStartX - endX) <= 12 || (dragStartX >= endX - 18 && dragStartX <= endX && dragStartY >= this.rulerHeight && dragStartY <= this.rulerHeight + 22))) {
         dragTarget = 'END';
+        if (this.onBeforeCuesChange) this.onBeforeCuesChange();
         c.style.cursor = 'ew-resize';
       } else if (Math.abs(dragStartX - playheadX) <= 12) {
         dragTarget = 'PLAYHEAD';
@@ -1301,14 +2012,14 @@ class SpectrogramCanvasRenderer {
         if (this.onCuesUpdate) this.onCuesUpdate();
       } else if (dragTarget === 'START') {
         this.selectionStartMs = Math.max(0, Math.min(this.selectionEndMs - 50, Math.round(curTime)));
-        if (this.activeCue && this.activeCue.clockState !== CueClockState.SHOW_LOCKED) {
+        if (this.activeCue && this.activeCue.clockState !== CueClockState.SHOW_LOCKED && this.activeCue.clockState !== CueClockState.OFF) {
           this.activeCue.startMs = this.selectionStartMs;
           if (this.onCuesUpdate) this.onCuesUpdate();
         }
         c.style.cursor = 'ew-resize';
       } else if (dragTarget === 'END') {
         this.selectionEndMs = Math.max(this.selectionStartMs + 50, Math.min(this.audio.durationMs, Math.round(curTime)));
-        if (this.activeCue && this.activeCue.clockState !== CueClockState.SHOW_LOCKED) {
+        if (this.activeCue && this.activeCue.clockState !== CueClockState.SHOW_LOCKED && this.activeCue.clockState !== CueClockState.OFF) {
           this.activeCue.endMs = this.selectionEndMs;
           if (this.onCuesUpdate) this.onCuesUpdate();
         }
@@ -1316,8 +2027,20 @@ class SpectrogramCanvasRenderer {
       } else if (dragTarget === 'PLAYHEAD') {
         this.audio.seek(Math.max(0, Math.min(this.audio.durationMs, curTime)));
         c.style.cursor = 'ew-resize';
+      } else if (dragTarget === 'SCROLLBAR') {
+        const durMs = this.audio ? this.audio.durationMs : 0;
+        if (durMs > 0) {
+          const deltaX = curX - dragStartX;
+          const msPerScrollbarPixel = durMs / Math.max(1, this.width);
+          // Positive deltaX (drag right) moves forward in time (+ deltaMs)
+          const newOffset = dragStartScrollMs + deltaX * msPerScrollbarPixel;
+          this.scrollOffsetMs = newOffset;
+          this.clampScroll();
+        }
+        c.style.cursor = 'grabbing';
       } else {
         this.scrollOffsetMs = dragStartScrollMs - (curX - dragStartX) * this.msPerPixel;
+        this.clampScroll();
       }
       this.render();
     };
@@ -1330,6 +2053,7 @@ class SpectrogramCanvasRenderer {
         }
       }
       isDragging = false;
+      this.isDraggingScrollbar = false;
       dragTarget = null;
       dragWordInfo = null;
       dragCueEdgeInfo = null;
@@ -1345,6 +2069,14 @@ class SpectrogramCanvasRenderer {
 
     c.addEventListener('wheel', (e) => {
       e.preventDefault();
+      // Trackpad or Shift+wheel horizontal scrolling in natural swipe direction
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) || (e.shiftKey && !e.ctrlKey)) {
+        const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+        this.scrollOffsetMs += delta * this.msPerPixel * 0.8;
+        this.clampScroll();
+        this.render();
+        return;
+      }
       const mouseX = e.clientX - c.getBoundingClientRect().left;
       const timeAtMouse = this.xToTime(mouseX);
       const delta = e.deltaY < 0 ? 8 : -8;
@@ -1352,6 +2084,7 @@ class SpectrogramCanvasRenderer {
       if (newZoom !== this.zoomFactor) {
         this.zoomFactor = newZoom;
         this.scrollOffsetMs = timeAtMouse - mouseX * this.msPerPixel;
+        this.clampScroll();
         this.render();
       }
     }, { passive: false });
@@ -1375,18 +2108,24 @@ class MusicalChordAnalyzer {
     this.scrollOffsetMs = 0;
 
     this.pitchRangeMode = 'AUTO';
-    this.activeMinMidi = 36;
-    this.activeMaxMidi = 76;
+    this.activeMinMidi = 38; // Default D2
+    this.activeMaxMidi = 76; // Default E5
 
     this.rulerHeight = 24;
     this.minimapHeight = 24;
     this.leftGutterWidth = 54;
 
-    this.cqtTileCanvas = document.createElement('canvas');
-    this.cqtTileCtx = this.cqtTileCanvas.getContext('2d', { alpha: false });
+    this.bpm = 120;
+    this.barGridMode = '1_BAR'; // '1_BAR', 'HALF_BAR', 'QUARTER_BAR', 'OFF'
 
-    this.chromaTileCanvas = document.createElement('canvas');
-    this.chromaTileCtx = this.chromaTileCanvas.getContext('2d', { alpha: false });
+    // Offscreen Canvases for 60 FPS GPU-accelerated blitting
+    this.cqtOffscreen = document.createElement('canvas');
+    this.cqtOffscreenCtx = this.cqtOffscreen.getContext('2d', { alpha: false });
+
+    this.chromaOffscreen = document.createElement('canvas');
+    this.chromaOffscreenCtx = this.chromaOffscreen.getContext('2d', { alpha: false });
+
+    this.offscreenValid = false;
 
     if (this.cqtCanvas && this.chromaCanvas) {
       this.initEvents();
@@ -1430,24 +2169,98 @@ class MusicalChordAnalyzer {
     return this.scrollOffsetMs + (x - this.leftGutterWidth) * this.msPerPixel;
   }
 
-  updatePitchRangeBounds() {
-    if (!this.data) return;
-    if (this.pitchRangeMode === 'AUTO') {
+  resetPitchRangeToAuto() {
+    if (this.data && typeof this.data.autoMinMidi === 'number' && typeof this.data.autoMaxMidi === 'number') {
       this.activeMinMidi = this.data.autoMinMidi;
       this.activeMaxMidi = this.data.autoMaxMidi;
-    } else if (this.pitchRangeMode === 'GUITAR_KEYS') {
-      this.activeMinMidi = 40;
-      this.activeMaxMidi = 88;
-    } else if (this.pitchRangeMode === 'BASS_MID') {
-      this.activeMinMidi = 24;
-      this.activeMaxMidi = 72;
-    } else if (this.pitchRangeMode === 'VOCAL_LEAD') {
-      this.activeMinMidi = 45;
-      this.activeMaxMidi = 81;
     } else {
-      this.activeMinMidi = this.data.minMidi;
-      this.activeMaxMidi = this.data.maxMidi;
+      this.activeMinMidi = 38;
+      this.activeMaxMidi = 76;
     }
+  }
+
+  updatePitchRangeBounds() {
+    if (typeof this.activeMinMidi !== 'number' || typeof this.activeMaxMidi !== 'number') {
+      this.resetPitchRangeToAuto();
+    }
+  }
+
+  buildOffscreenCanvases() {
+    if (!this.data) return;
+    const spec = this.data;
+    const numFrames = spec.numFrames;
+    if (numFrames <= 0) return;
+
+    this.updatePitchRangeBounds();
+    const minM = this.activeMinMidi;
+    const maxM = this.activeMaxMidi;
+    const renderedSemitones = maxM - minM + 1;
+    if (renderedSemitones <= 0) return;
+
+    // 1. Pre-render full CQT matrix to offscreen canvas
+    if (this.cqtOffscreen.width !== numFrames || this.cqtOffscreen.height !== renderedSemitones) {
+      this.cqtOffscreen.width = numFrames;
+      this.cqtOffscreen.height = renderedSemitones;
+    }
+
+    const cqtImgData = this.cqtOffscreenCtx.createImageData(numFrames, renderedSemitones);
+    const cqtBuf32 = new Uint32Array(cqtImgData.data.buffer);
+    const lut = ColorLUT[this.paletteKey] || ColorLUT.INFERNO;
+    const cqtMatrix = new Uint8Array(spec.cqtMatrix);
+    const totalBins = spec.numSemitones;
+    const globalMinM = spec.minMidi;
+
+    for (let f = 0; f < numFrames; f++) {
+      const frameBase = f * totalBins;
+      for (let row = 0; row < renderedSemitones; row++) {
+        const m = maxM - row;
+        const sIdx = m - globalMinM;
+        const q = (sIdx >= 0 && sIdx < totalBins) ? cqtMatrix[frameBase + sIdx] : 0;
+        cqtBuf32[row * numFrames + f] = lut[q];
+      }
+    }
+    this.cqtOffscreenCtx.putImageData(cqtImgData, 0, 0);
+
+    // 2. Pre-render full 12-Tone Chromagram to offscreen canvas
+    if (this.chromaOffscreen.width !== numFrames || this.chromaOffscreen.height !== 12) {
+      this.chromaOffscreen.width = numFrames;
+      this.chromaOffscreen.height = 12;
+    }
+
+    const chromaImgData = this.chromaOffscreenCtx.createImageData(numFrames, 12);
+    const chromaBuf32 = new Uint32Array(chromaImgData.data.buffer);
+    const chromaMatrix = new Uint8Array(spec.chromagramMatrix);
+
+    for (let f = 0; f < numFrames; f++) {
+      const frameBase = f * 12;
+      for (let row = 0; row < 12; row++) {
+        const pc = 11 - row;
+        const q = chromaMatrix[frameBase + pc];
+        const t = q / 255.0;
+
+        let r = 0, g = 0, b = 0;
+        if (t < 0.2) {
+          r = 0.04; g = 0.05; b = 0.15 * (t / 0.2);
+        } else if (t < 0.5) {
+          const k = (t - 0.2) / 0.3;
+          r = 0.04 + 0.5 * k; g = 0.05 + 0.1 * k; b = 0.15 + 0.65 * k;
+        } else if (t < 0.8) {
+          const k = (t - 0.5) / 0.3;
+          r = 0.54 + 0.4 * k; g = 0.15 + 0.7 * k; b = 0.8 * (1 - k);
+        } else {
+          const k = (t - 0.8) / 0.2;
+          r = 0.94 + 0.06 * k; g = 0.85 + 0.15 * k; b = 0.4 * k;
+        }
+
+        const R = Math.floor(r * 255);
+        const G = Math.floor(g * 255);
+        const B = Math.floor(b * 255);
+        chromaBuf32[row * numFrames + f] = (255 << 24) | (B << 16) | (G << 8) | R;
+      }
+    }
+    this.chromaOffscreenCtx.putImageData(chromaImgData, 0, 0);
+
+    this.offscreenValid = true;
   }
 
   clampScroll() {
@@ -1471,7 +2284,7 @@ class MusicalChordAnalyzer {
     if (!this.cqtCtx || !this.cqtWidth || !this.cqtHeight) return;
     const ctx = this.cqtCtx, w = this.cqtWidth, h = this.cqtHeight;
 
-    ctx.fillStyle = '#070b14';
+    ctx.fillStyle = '#121212';
     ctx.fillRect(0, 0, w, h);
 
     if (!this.data) return;
@@ -1487,73 +2300,86 @@ class MusicalChordAnalyzer {
     const renderedSemitones = maxM - minM + 1;
     const semitoneH = graphH / renderedSemitones;
 
-    // Piano Roll Labels
+    // Piano Roll Labels (Active Range) & Horizontal Grid Lines
+    // Thiết kế phím đàn Piano chân thực: Phím đen thụt vào so với phím trắng, font nhỏ hơn, chỉ ghi nhãn phím trắng
+    const blackKeyW = Math.round(gutterW * 0.62); // Phím đen thụt vào ~38% chiều rộng gutter
+
+    // 1. Vẽ các phím trắng trước (nền phím trắng rộng hết gutterW)
     for (let m = minM; m <= maxM; m++) {
       const row = maxM - m;
       const y = rulerH + row * semitoneH;
       const pc = m % 12;
       const isBlack = (pc === 1 || pc === 3 || pc === 6 || pc === 8 || pc === 10);
 
-      ctx.fillStyle = isBlack ? '#111827' : '#1e293b';
-      ctx.fillRect(0, y, gutterW, semitoneH);
+      if (!isBlack) {
+        ctx.fillStyle = '#222634';
+        ctx.fillRect(0, y, gutterW, semitoneH);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0, y, gutterW, semitoneH);
 
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(0, y, gutterW, semitoneH);
+        // Chỉ ghi chú giá trị nốt cho phím trắng với cỡ chữ nhỏ 8.5px
+        ctx.fillStyle = (pc === 0) ? '#38bdf8' : '#e2e8f0';
+        ctx.font = (pc === 0 ? 'bold ' : '') + '8.5px "JetBrains Mono", monospace';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(midiToNoteLabel(m), gutterW - 4, y + semitoneH / 2);
+      }
+    }
 
-      ctx.fillStyle = (pc === 0) ? '#38bdf8' : (isBlack ? '#94a3b8' : '#f8fafc');
-      ctx.font = (pc === 0 ? 'bold ' : '') + '10px "JetBrains Mono", monospace';
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(midiToNoteLabel(m), gutterW - 6, y + semitoneH / 2);
+    // 2. Vẽ các phím đen (ngắn hơn, thụt vào phía trong) và đường lưới ngang
+    for (let m = minM; m <= maxM; m++) {
+      const row = maxM - m;
+      const y = rulerH + row * semitoneH;
+      const pc = m % 12;
+      const isBlack = (pc === 1 || pc === 3 || pc === 6 || pc === 8 || pc === 10);
 
-      ctx.strokeStyle = (pc === 0) ? 'rgba(56, 189, 248, 0.25)' : 'rgba(255, 255, 255, 0.04)';
+      if (isBlack) {
+        // Khoảng lộ ra của phím trắng ở phần đầu thụt vào
+        ctx.fillStyle = '#1b1e2a';
+        ctx.fillRect(blackKeyW, y, gutterW - blackKeyW, semitoneH);
+
+        // Thân phím đen (ngắn hơn, màu đen tuyền obsidian)
+        ctx.fillStyle = '#0d0f17';
+        ctx.fillRect(0, y + 0.5, blackKeyW, semitoneH - 1);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0, y + 0.5, blackKeyW, semitoneH - 1);
+      }
+
+      // Đường lưới ngang qua Spectrogram
+      ctx.strokeStyle = (pc === 0) ? 'rgba(56, 189, 248, 0.3)' : (isBlack ? 'rgba(255, 255, 255, 0.04)' : 'rgba(255, 255, 255, 0.08)');
       ctx.beginPath();
       ctx.moveTo(gutterW, y + semitoneH);
       ctx.lineTo(w, y + semitoneH);
       ctx.stroke();
     }
 
-    // CQT Matrix Heatmap
+    // Fast 60 FPS Blit from Pre-rendered Offscreen Canvas
     const spec = this.data;
+    if (!this.offscreenValid) {
+      this.buildOffscreenCanvases();
+    }
+
     const vStartMs = this.xToTime(gutterW);
     const vEndMs = this.xToTime(w);
     const fStart = Math.max(0, Math.floor(vStartMs / spec.timeResolutionMs));
     const fEnd = Math.min(spec.numFrames - 1, Math.ceil(vEndMs / spec.timeResolutionMs));
     const renderFrames = fEnd - fStart + 1;
 
-    if (renderFrames > 0 && renderedSemitones > 0) {
-      if (this.cqtTileCanvas.width !== renderFrames || this.cqtTileCanvas.height !== renderedSemitones) {
-        this.cqtTileCanvas.width = renderFrames;
-        this.cqtTileCanvas.height = renderedSemitones;
-      }
-
-      const imgData = this.cqtTileCtx.createImageData(renderFrames, renderedSemitones);
-      const buf32 = new Uint32Array(imgData.data.buffer);
-      const lut = ColorLUT[this.paletteKey] || ColorLUT.INFERNO;
-      const cqtMatrix = new Uint8Array(spec.cqtMatrix);
-      const totalBins = spec.numSemitones;
-      const globalMinM = spec.minMidi;
-
-      for (let fIdx = 0; fIdx < renderFrames; fIdx++) {
-        const frame = fStart + fIdx;
-        const frameBase = frame * totalBins;
-
-        for (let row = 0; row < renderedSemitones; row++) {
-          const m = maxM - row;
-          const sIdx = m - globalMinM;
-          const q = (sIdx >= 0 && sIdx < totalBins) ? cqtMatrix[frameBase + sIdx] : 0;
-          buf32[row * renderFrames + fIdx] = lut[q];
-        }
-      }
-
-      this.cqtTileCtx.putImageData(imgData, 0, 0);
-
+    if (renderFrames > 0 && renderedSemitones > 0 && this.offscreenValid) {
       const startX = this.timeToX(fStart * spec.timeResolutionMs);
       const endX = this.timeToX((fEnd + 1) * spec.timeResolutionMs);
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(this.cqtTileCanvas, 0, 0, renderFrames, renderedSemitones, startX, rulerH, endX - startX, graphH);
+      ctx.drawImage(
+        this.cqtOffscreen,
+        fStart, 0, renderFrames, renderedSemitones,
+        startX, rulerH, endX - startX, graphH
+      );
     }
+
+    // BPM & Bar / Beat Grid lines across CQT Spectrogram
+    this.drawBpmGrid(ctx, gutterW, rulerH, w, graphH, false);
 
     // Time Ruler
     this.drawTimeRuler(ctx, 0, 0, w, rulerH);
@@ -1590,7 +2416,7 @@ class MusicalChordAnalyzer {
     if (!this.chromaCtx || !this.chromaWidth || !this.chromaHeight) return;
     const ctx = this.chromaCtx, w = this.chromaWidth, h = this.chromaHeight;
 
-    ctx.fillStyle = '#060a12';
+    ctx.fillStyle = '#121212';
     ctx.fillRect(0, 0, w, h);
 
     if (!this.data) return;
@@ -1605,77 +2431,50 @@ class MusicalChordAnalyzer {
       const y = pcRow * laneH;
       const isBlack = (pc === 1 || pc === 3 || pc === 6 || pc === 8 || pc === 10);
 
-      ctx.fillStyle = isBlack ? '#111827' : '#1e293b';
+      ctx.fillStyle = isBlack ? '#18181b' : '#27272a';
       ctx.fillRect(0, y, gutterW, laneH);
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
       ctx.strokeRect(0, y, gutterW, laneH);
 
-      ctx.fillStyle = (pc === 0) ? '#fde047' : '#ffffff';
+      ctx.fillStyle = (pc === 0) ? '#fde047' : '#f4f4f5';
       ctx.font = 'bold 11px "JetBrains Mono", monospace';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
       ctx.fillText(NOTE_NAMES[pc], gutterW - 8, y + laneH / 2);
 
-      ctx.strokeStyle = (pc === 0) ? 'rgba(253, 224, 71, 0.3)' : 'rgba(255, 255, 255, 0.05)';
+      // Horizontal grid lines across Chromagram
+      ctx.strokeStyle = (pc === 0) ? 'rgba(253, 224, 71, 0.28)' : 'rgba(255, 255, 255, 0.05)';
       ctx.beginPath();
       ctx.moveTo(gutterW, y + laneH);
       ctx.lineTo(w, y + laneH);
       ctx.stroke();
     }
 
+    // Fast 60 FPS Blit from Pre-rendered Chromagram Offscreen Canvas
     const spec = this.data;
+    if (!this.offscreenValid) {
+      this.buildOffscreenCanvases();
+    }
+
     const vStartMs = this.xToTime(gutterW);
     const vEndMs = this.xToTime(w);
     const fStart = Math.max(0, Math.floor(vStartMs / spec.timeResolutionMs));
     const fEnd = Math.min(spec.numFrames - 1, Math.ceil(vEndMs / spec.timeResolutionMs));
     const renderFrames = fEnd - fStart + 1;
 
-    if (renderFrames > 0) {
-      if (this.chromaTileCanvas.width !== renderFrames || this.chromaTileCanvas.height !== 12) {
-        this.chromaTileCanvas.width = renderFrames;
-        this.chromaTileCanvas.height = 12;
-      }
-
-      const imgData = this.chromaTileCtx.createImageData(renderFrames, 12);
-      const buf32 = new Uint32Array(imgData.data.buffer);
-      const chromaMatrix = new Uint8Array(spec.chromagramMatrix);
-
-      for (let fIdx = 0; fIdx < renderFrames; fIdx++) {
-        const frame = fStart + fIdx;
-        const frameBase = frame * 12;
-        for (let row = 0; row < 12; row++) {
-          const pc = 11 - row;
-          const q = chromaMatrix[frameBase + pc];
-          const t = q / 255.0;
-
-          let r = 0, g = 0, b = 0;
-          if (t < 0.2) {
-            r = 0.04; g = 0.05; b = 0.15 * (t / 0.2);
-          } else if (t < 0.5) {
-            const k = (t - 0.2) / 0.3;
-            r = 0.04 + 0.5 * k; g = 0.05 + 0.1 * k; b = 0.15 + 0.65 * k;
-          } else if (t < 0.8) {
-            const k = (t - 0.5) / 0.3;
-            r = 0.54 + 0.4 * k; g = 0.15 + 0.7 * k; b = 0.8 * (1 - k);
-          } else {
-            const k = (t - 0.8) / 0.2;
-            r = 0.94 + 0.06 * k; g = 0.85 + 0.15 * k; b = 0.4 * k;
-          }
-
-          const R = Math.floor(r * 255);
-          const G = Math.floor(g * 255);
-          const B = Math.floor(b * 255);
-          buf32[row * renderFrames + fIdx] = (255 << 24) | (B << 16) | (G << 8) | R;
-        }
-      }
-
-      this.chromaTileCtx.putImageData(imgData, 0, 0);
-
+    if (renderFrames > 0 && this.offscreenValid) {
       const startX = this.timeToX(fStart * spec.timeResolutionMs);
       const endX = this.timeToX((fEnd + 1) * spec.timeResolutionMs);
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(this.chromaTileCanvas, 0, 0, renderFrames, 12, startX, 0, endX - startX, graphH);
+      ctx.drawImage(
+        this.chromaOffscreen,
+        fStart, 0, renderFrames, 12,
+        startX, 0, endX - startX, graphH
+      );
     }
+
+    // BPM & Bar / Beat Grid lines across Chromagram
+    this.drawBpmGrid(ctx, gutterW, 0, w, graphH, false);
 
     const playheadMs = this.audio.getCurrentPosition();
     const playheadX = this.timeToX(playheadMs);
@@ -1692,14 +2491,14 @@ class MusicalChordAnalyzer {
   }
 
   drawTimeRuler(ctx, x, y, width, height) {
-    ctx.fillStyle = '#0f172a';
+    ctx.fillStyle = '#18181b';
     ctx.fillRect(x, y, width, height);
 
-    ctx.strokeStyle = '#334155';
+    ctx.strokeStyle = '#27272a';
     ctx.beginPath(); ctx.moveTo(x, y + height); ctx.lineTo(x + width, y + height); ctx.stroke();
 
     const gutterW = this.leftGutterWidth;
-    ctx.fillStyle = '#1e293b';
+    ctx.fillStyle = '#27272a';
     ctx.fillRect(0, y, gutterW, height);
 
     const msPerPx = this.msPerPixel;
@@ -1725,10 +2524,80 @@ class MusicalChordAnalyzer {
         ctx.fillText(TimeFormatter.formatFull(t), tx + 4, y + 14);
       }
     }
+
+    // BPM & Bar / Beat Markers on Time Ruler
+    this.drawBpmGrid(ctx, gutterW, y, width, height, true);
+  }
+
+  drawBpmGrid(ctx, gutterW, topY, width, height, isRuler = false) {
+    if (this.barGridMode === 'OFF' || !this.bpm || this.bpm <= 0) return;
+
+    const beatMs = 60000.0 / this.bpm;
+    const barMs = beatMs * 4.0; // 4/4 meter
+    let gridStepMs = barMs;
+    if (this.barGridMode === 'HALF_BAR') gridStepMs = barMs / 2.0;
+    else if (this.barGridMode === 'QUARTER_BAR') gridStepMs = barMs / 4.0;
+
+    const vStartMs = this.xToTime(gutterW);
+    const vEndMs = this.xToTime(width);
+    const firstGridMs = Math.floor(vStartMs / gridStepMs) * gridStepMs;
+
+    ctx.save();
+    for (let t = firstGridMs; t <= vEndMs; t += gridStepMs) {
+      if (t < -0.1) continue;
+      const gx = this.timeToX(t);
+      if (gx < gutterW || gx > width) continue;
+
+      const eps = 1.0;
+      const remBar = Math.abs(t % barMs);
+      const isFullBar = remBar < eps || Math.abs(remBar - barMs) < eps;
+      const remHalf = Math.abs(t % (barMs / 2.0));
+      const isHalfBar = remHalf < eps || Math.abs(remHalf - (barMs / 2.0)) < eps;
+
+      if (isFullBar) {
+        // Vạch 1 Bar (Khuôn nhịp): Màu vàng kim hổ phách sắc nét
+        ctx.strokeStyle = 'rgba(250, 204, 21, 0.45)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(gx, topY);
+        ctx.lineTo(gx, topY + height);
+        ctx.stroke();
+
+        if (isRuler) {
+          const barNum = Math.round(t / barMs) + 1;
+          ctx.fillStyle = '#fde047';
+          ctx.font = 'bold 9px "JetBrains Mono", monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(`Bar ${barNum}`, gx, topY + 11);
+        }
+      } else if (isHalfBar) {
+        // Vạch 1/2 Bar: Nét đứt màu xanh Cyan
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(gx, topY);
+        ctx.lineTo(gx, topY + height);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      } else {
+        // Vạch 1/4 Bar (Phách): Nét đứt mảnh mờ
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 4]);
+        ctx.beginPath();
+        ctx.moveTo(gx, topY);
+        ctx.lineTo(gx, topY + height);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+    ctx.restore();
   }
 
   drawMinimap(ctx, x, y, width, height) {
-    ctx.fillStyle = '#0b0f19';
+    ctx.fillStyle = '#121212';
     ctx.fillRect(x, y, width, height);
 
     const durMs = this.audio.durationMs;
@@ -1772,9 +2641,11 @@ class MusicalChordAnalyzer {
   initEvents() {
     const bindCanvasGestures = (canvas) => {
       if (!canvas) return;
-      let isDragging = false, dragStartX = 0, dragStartScrollMs = 0;
+      let isDragging = false, dragStartX = 0, dragStartY = 0, dragStartScrollMs = 0;
+      let dragStartMinMidi = 0, dragStartMaxMidi = 0;
 
       const getX = (e) => (e.touches ? e.touches[0].clientX : e.clientX) - canvas.getBoundingClientRect().left;
+      const getY = (e) => (e.touches ? e.touches[0].clientY : e.clientY) - canvas.getBoundingClientRect().top;
 
       canvas.addEventListener('mousemove', (e) => {
         if (isDragging) return;
@@ -1794,7 +2665,10 @@ class MusicalChordAnalyzer {
       const onStart = (e) => {
         isDragging = true;
         dragStartX = getX(e);
+        dragStartY = getY(e);
         dragStartScrollMs = this.scrollOffsetMs;
+        dragStartMinMidi = this.activeMinMidi;
+        dragStartMaxMidi = this.activeMaxMidi;
         const curTime = this.xToTime(dragStartX);
         const playheadX = this.timeToX(this.audio.getCurrentPosition());
 
@@ -1809,6 +2683,31 @@ class MusicalChordAnalyzer {
         if (!isDragging) return;
         const curX = getX(e);
         this.scrollOffsetMs = dragStartScrollMs - (curX - dragStartX) * this.msPerPixel;
+
+        // Kéo chuột theo chiều dọc trên CQT Canvas để cuộn dải nốt (Vertical Pitch Pan)
+        if (canvas === this.cqtCanvas && this.cqtHeight > this.rulerHeight) {
+          const curY = getY(e);
+          const graphH = this.cqtHeight - this.rulerHeight;
+          const currentSpan = dragStartMaxMidi - dragStartMinMidi + 1;
+          const semitoneH = graphH / Math.max(1, currentSpan);
+          const deltaNotes = Math.round((curY - dragStartY) / semitoneH);
+
+          if (deltaNotes !== 0) {
+            const span = dragStartMaxMidi - dragStartMinMidi;
+            let newMin = dragStartMinMidi + deltaNotes;
+            let newMax = dragStartMaxMidi + deltaNotes;
+            const globalMin = 21, globalMax = 108;
+            if (newMin < globalMin) { newMin = globalMin; newMax = globalMin + span; }
+            if (newMax > globalMax) { newMax = globalMax; newMin = globalMax - span; }
+            if (newMin !== this.activeMinMidi || newMax !== this.activeMaxMidi) {
+              this.activeMinMidi = newMin;
+              this.activeMaxMidi = newMax;
+              this.offscreenValid = false;
+              this.buildOffscreenCanvases();
+            }
+          }
+        }
+
         this.render();
       };
 
@@ -1824,17 +2723,65 @@ class MusicalChordAnalyzer {
       window.addEventListener('touchmove', onMove, { passive: true });
       window.addEventListener('touchend', onEnd);
 
+      // 2D Zoom: Trỏ chuột tới đâu cuộn chuột sẽ Zoom cả chiều ngang (Thời gian) và chiều dọc (Cao độ nốt)
       canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
-        const mouseX = e.clientX - canvas.getBoundingClientRect().left;
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        // 1. Zoom theo chiều ngang (Trục thời gian X), tâm tại con trỏ mouseX:
         const timeAtMouse = this.xToTime(mouseX);
-        const delta = e.deltaY < 0 ? 8 : -8;
-        const newZoom = Math.max(5, Math.min(200, this.zoomFactor + delta));
+        const deltaX = e.deltaY < 0 ? 8 : -8;
+        const newZoom = Math.max(5, Math.min(250, this.zoomFactor + deltaX));
         if (newZoom !== this.zoomFactor) {
           this.zoomFactor = newZoom;
           this.scrollOffsetMs = timeAtMouse - (mouseX - this.leftGutterWidth) * this.msPerPixel;
-          this.render();
         }
+
+        // 2. Zoom theo chiều dọc (Trục nốt / cao độ Y trên CQT Spectrogram), tâm tại con trỏ mouseY:
+        if (canvas === this.cqtCanvas && this.cqtHeight > this.rulerHeight) {
+          const rulerH = this.rulerHeight;
+          const graphH = this.cqtHeight - rulerH;
+          const currentSpan = Math.max(6, this.activeMaxMidi - this.activeMinMidi);
+
+          // Tỉ lệ vị trí Y chuột trong biểu đồ CQT (0 = đỉnh, 1 = đáy)
+          const clampedMouseY = Math.max(rulerH, Math.min(this.cqtHeight, mouseY));
+          const fracY = Math.max(0, Math.min(1, (clampedMouseY - rulerH) / graphH));
+          const noteAtMouse = this.activeMaxMidi - fracY * currentSpan;
+
+          // e.deltaY < 0: Cuộn lên -> Zoom in (thu hẹp dải bán âm để phóng to nốt)
+          // e.deltaY > 0: Cuộn xuống -> Zoom out (mở rộng dải nốt)
+          const zoomFactorY = e.deltaY < 0 ? 0.85 : 1.18;
+          let newSpan = Math.round(currentSpan * zoomFactorY);
+          newSpan = Math.max(8, Math.min(88, newSpan)); // Tối thiểu 8 nốt, tối đa 88 nốt piano
+
+          if (newSpan !== currentSpan) {
+            let newMaxMidi = Math.round(noteAtMouse + fracY * newSpan);
+            let newMinMidi = newMaxMidi - newSpan;
+
+            const globalMin = 21; // A0
+            const globalMax = 108; // C8
+
+            if (newMinMidi < globalMin) {
+              newMinMidi = globalMin;
+              newMaxMidi = Math.min(globalMax, globalMin + newSpan);
+            }
+            if (newMaxMidi > globalMax) {
+              newMaxMidi = globalMax;
+              newMinMidi = Math.max(globalMin, globalMax - newSpan);
+            }
+
+            if (newMinMidi !== this.activeMinMidi || newMaxMidi !== this.activeMaxMidi) {
+              this.activeMinMidi = newMinMidi;
+              this.activeMaxMidi = newMaxMidi;
+              this.offscreenValid = false;
+              this.buildOffscreenCanvases();
+            }
+          }
+        }
+
+        this.render();
       }, { passive: false });
     };
 
@@ -1870,6 +2817,54 @@ class SpectroSubApp {
     this.chordAnalyzerTab2 = new MusicalChordAnalyzer(cqtCanvas, chromaCanvas, this.audioTab2);
     this.chordWorker = null;
 
+    // Undo / Redo history stacks for Tab 1 (Max 5 steps)
+    this.historyStack = [];
+    this.futureStack = [];
+    this.maxHistorySteps = 5;
+
+    // Track last played word for replay capability
+    this.lastPlayedWordTab1 = null;
+    this.audioTab1.onSeek = () => {
+      this.lastPlayedWordTab1 = null;
+    };
+    this.audioTab1.onPositionUpdate = (ms) => {
+      if (this.currentTab === 'tab1') {
+        const badge1 = document.getElementById('cursor-time-badge');
+        if (badge1) badge1.textContent = TimeFormatter.formatFull(ms);
+        this.rendererTab1.render();
+      }
+    };
+    this.audioTab1.onPlayStateChange = () => {
+      if (this.currentTab === 'tab1') {
+        this.rendererTab1.render();
+      }
+    };
+
+    this.audioTab2.onPositionUpdate = (ms) => {
+      if (this.currentTab === 'tab2') {
+        const badge2 = document.getElementById('tab2-time-badge');
+        if (badge2) badge2.textContent = TimeFormatter.formatFull(ms);
+        this.chordAnalyzerTab2.render();
+      }
+    };
+    this.audioTab2.onPlayStateChange = () => {
+      if (this.currentTab === 'tab2') {
+        this.chordAnalyzerTab2.render();
+      }
+    };
+
+    // Connect renderer callbacks
+    this.rendererTab1.onBeforeCuesChange = () => {
+      this.pushHistoryState();
+    };
+    this.rendererTab1.onCuesUpdate = () => {
+      this.renderTab1CuesList();
+    };
+    this.rendererTab1.onCueSelect = (cue) => {
+      this.selectTab1Cue(cue);
+      this.renderTab1CuesList();
+    };
+
     this.initUI();
     this.initAudioPlaybackLoop();
     this.bindKeyboardShortcuts();
@@ -1887,8 +2882,99 @@ class SpectroSubApp {
     this.rendererTab1.resize();
     this.chordAnalyzerTab2.resize();
 
-    // Auto load Sample 1 for Tab 1
+    // Auto load Sample 1 for Tab 1 and Tab 2
     this.loadTab1Preset(1);
+    this.loadTab2Preset(1);
+    this.updateUndoRedoButtonsState();
+  }
+
+  snapshotCuesState() {
+    return {
+      cues: (this.cuesTab1 || []).map(c => new SubtitleCue({
+        id: c.id,
+        startMs: c.startMs,
+        endMs: c.endMs,
+        text: c.text,
+        actor: c.actor,
+        clockState: c.clockState,
+        wordTimings: c.wordTimings ? c.wordTimings.map(w => ({ ...w })) : null
+      })),
+      activeCueId: this.activeCueTab1 ? this.activeCueTab1.id : null
+    };
+  }
+
+  pushHistoryState() {
+    const snap = this.snapshotCuesState();
+    this.historyStack.push(snap);
+    if (this.historyStack.length > this.maxHistorySteps) {
+      this.historyStack.shift(); // Max 5 steps
+    }
+    this.futureStack = [];
+    this.updateUndoRedoButtonsState();
+  }
+
+  undo() {
+    if (this.historyStack.length === 0) return;
+    const currentState = this.snapshotCuesState();
+    const previousState = this.historyStack.pop();
+
+    this.futureStack.push(currentState);
+    if (this.futureStack.length > this.maxHistorySteps) {
+      this.futureStack.shift();
+    }
+
+    this.restoreCuesState(previousState);
+    this.updateUndoRedoButtonsState();
+  }
+
+  redo() {
+    if (this.futureStack.length === 0) return;
+    const currentState = this.snapshotCuesState();
+    const nextState = this.futureStack.pop();
+
+    this.historyStack.push(currentState);
+    if (this.historyStack.length > this.maxHistorySteps) {
+      this.historyStack.shift();
+    }
+
+    this.restoreCuesState(nextState);
+    this.updateUndoRedoButtonsState();
+  }
+
+  restoreCuesState(state) {
+    if (!state || !state.cues) return;
+    this.cuesTab1 = state.cues.map(c => new SubtitleCue(c));
+    this.rendererTab1.cues = this.cuesTab1;
+
+    let targetCue = null;
+    if (state.activeCueId) {
+      targetCue = this.cuesTab1.find(c => c.id === state.activeCueId);
+    }
+    if (!targetCue && this.cuesTab1.length > 0) {
+      targetCue = this.cuesTab1[0];
+    }
+    this.selectTab1Cue(targetCue);
+    this.renderTab1CuesList();
+    this.rendererTab1.render();
+  }
+
+  updateUndoRedoButtonsState() {
+    const btnUndo = document.getElementById('btn-undo');
+    const btnRedo = document.getElementById('btn-redo');
+    if (btnUndo) {
+      const canUndo = this.historyStack.length > 0;
+      btnUndo.disabled = !canUndo;
+      btnUndo.classList.toggle('disabled', !canUndo);
+      btnUndo.style.opacity = canUndo ? '1' : '0.35';
+      btnUndo.title = canUndo ? `Hoàn tác - Undo (${this.historyStack.length}/5 bước) (Ctrl+Z)` : 'Không có thao tác nào để hoàn tác (Ctrl+Z)';
+    }
+    if (btnRedo) {
+      const canRedo = this.futureStack.length > 0;
+      btnRedo.disabled = !canRedo;
+      btnRedo.classList.toggle('disabled', !canRedo);
+      btnRedo.style.opacity = canRedo ? '1' : '0.35';
+      btnRedo.title = canRedo ? `Làm lại - Forward / Redo (${this.futureStack.length}/5 bước) (Ctrl+Y)` : 'Không có thao tác nào để làm lại (Ctrl+Y)';
+    }
   }
 
   updateHeaderMeta(title, durationMs) {
@@ -1927,19 +3013,80 @@ class SpectroSubApp {
     const pane2 = document.getElementById('tab-pane-2');
     const nav1 = document.getElementById('nav-tab-1');
     const nav2 = document.getElementById('nav-tab-2');
+    const item1 = document.getElementById('menu-item-tab-1');
+    const item2 = document.getElementById('menu-item-tab-2');
     const badge = document.getElementById('header-active-tab-badge');
 
-    if (pane1) pane1.classList.toggle('active', targetTab === 'tab1');
-    if (pane2) pane2.classList.toggle('active', targetTab === 'tab2');
+    if (pane1) {
+      pane1.classList.toggle('active', targetTab === 'tab1');
+      pane1.style.display = targetTab === 'tab1' ? 'flex' : 'none';
+    }
+    if (pane2) {
+      pane2.classList.toggle('active', targetTab === 'tab2');
+      pane2.style.display = targetTab === 'tab2' ? 'flex' : 'none';
+    }
     if (nav1) nav1.classList.toggle('active', targetTab === 'tab1');
     if (nav2) nav2.classList.toggle('active', targetTab === 'tab2');
+    if (item1) item1.classList.toggle('active-tab-item', targetTab === 'tab1');
+    if (item2) item2.classList.toggle('active-tab-item', targetTab === 'tab2');
 
     if (badge) {
-      badge.textContent = targetTab === 'tab1' ? 'Tab 1: Speech Spectrogram' : 'Tab 2: Musical Chord Analyzer';
+      badge.textContent = targetTab === 'tab1' ? 'Tab 1: Speech Spectrogram' : 'Tab 2: Chord Analyser';
+    }
+
+    // Update Web App brand title per active Tab
+    const appTitle = document.getElementById('app-title-header') || document.querySelector('.app-title');
+    if (targetTab === 'tab2') {
+      if (appTitle) appTitle.textContent = 'Chord Analyser';
+      document.title = 'Chord Analyser - Musical Chord Analyzer';
+    } else {
+      if (appTitle) appTitle.textContent = 'Spectrogram Analyzer';
+      document.title = 'Spectrogram Analyzer - Speech Spectrogram & Musical Chord Analyzer';
+    }
+
+    // Toggle Save Button availability between Tab 1 and Tab 2
+    const btnSave = document.getElementById('btn-open-export');
+    if (btnSave) {
+      if (targetTab === 'tab2') {
+        btnSave.disabled = true;
+        btnSave.classList.add('disabled');
+        btnSave.style.opacity = '0.35';
+        btnSave.style.pointerEvents = 'none';
+        btnSave.title = 'Lưu script chỉ khả dụng trong Tab 1 (Speech Spectrogram)';
+      } else {
+        btnSave.disabled = false;
+        btnSave.classList.remove('disabled');
+        btnSave.style.opacity = '1';
+        btnSave.style.pointerEvents = 'auto';
+        btnSave.title = 'Lưu / Xuất kịch bản phụ đề (.ass, .srt, .json)';
+      }
     }
 
     const drawer = document.getElementById('tab-drawer-overlay');
     if (drawer) drawer.style.display = 'none';
+
+    const tabDropdown = document.getElementById('tab-dropdown-menu');
+    if (tabDropdown) {
+      tabDropdown.classList.remove('show');
+      tabDropdown.style.display = 'none';
+    }
+
+    const tab2Dropdown = document.getElementById('tab2-tab-dropdown-menu');
+    if (tab2Dropdown) {
+      tab2Dropdown.classList.remove('show');
+      tab2Dropdown.style.display = 'none';
+    }
+
+    const fileDropdown = document.getElementById('file-dropdown-menu');
+    if (fileDropdown) {
+      fileDropdown.classList.remove('show');
+      fileDropdown.style.display = 'none';
+    }
+
+    const tab2Item1 = document.getElementById('tab2-menu-item-tab-1');
+    const tab2Item2 = document.getElementById('tab2-menu-item-tab-2');
+    if (tab2Item1) tab2Item1.classList.toggle('active-tab-item', targetTab === 'tab1');
+    if (tab2Item2) tab2Item2.classList.toggle('active-tab-item', targetTab === 'tab2');
 
     if (targetTab === 'tab1') {
       this.updateHeaderMeta(this.audioTab1.trackName, this.audioTab1.durationMs);
@@ -1951,14 +3098,187 @@ class SpectroSubApp {
   }
 
   initUI() {
-    // Drawer buttons
+    // 3-Lines Hamburger Menu Button & Dropdown for Tab Switching (Tab 1)
     const btnHam = document.getElementById('btn-hamburger');
+    const tabDropdown = document.getElementById('tab-dropdown-menu');
+    if (btnHam && tabDropdown) {
+      btnHam.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = tabDropdown.classList.contains('show');
+        if (isOpen) {
+          tabDropdown.classList.remove('show');
+          tabDropdown.style.display = 'none';
+        } else {
+          const fileDropdown = document.getElementById('file-dropdown-menu');
+          if (fileDropdown) {
+            fileDropdown.classList.remove('show');
+            fileDropdown.style.display = 'none';
+          }
+          tabDropdown.classList.add('show');
+          tabDropdown.style.display = 'flex';
+        }
+      });
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('#hamburger-dropdown-wrapper')) {
+          tabDropdown.classList.remove('show');
+          tabDropdown.style.display = 'none';
+        }
+      });
+    }
+
+    const itemTab1 = document.getElementById('menu-item-tab-1');
+    const itemTab2 = document.getElementById('menu-item-tab-2');
+    if (itemTab1) {
+      itemTab1.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (tabDropdown) {
+          tabDropdown.classList.remove('show');
+          tabDropdown.style.display = 'none';
+        }
+        this.switchTab('tab1');
+      });
+    }
+    if (itemTab2) {
+      itemTab2.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (tabDropdown) {
+          tabDropdown.classList.remove('show');
+          tabDropdown.style.display = 'none';
+        }
+        this.switchTab('tab2');
+      });
+    }
+
+    // 3-Lines Hamburger Menu Button & Dropdown for Tab Switching (Tab 2)
+    const btnHam2 = document.getElementById('btn-tab2-hamburger');
+    const tab2Dropdown = document.getElementById('tab2-tab-dropdown-menu');
+    if (btnHam2 && tab2Dropdown) {
+      btnHam2.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = tab2Dropdown.classList.contains('show');
+        if (isOpen) {
+          tab2Dropdown.classList.remove('show');
+          tab2Dropdown.style.display = 'none';
+        } else {
+          tab2Dropdown.classList.add('show');
+          tab2Dropdown.style.display = 'flex';
+        }
+      });
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('#tab2-hamburger-dropdown-wrapper')) {
+          tab2Dropdown.classList.remove('show');
+          tab2Dropdown.style.display = 'none';
+        }
+      });
+    }
+
+    const tab2Item1 = document.getElementById('tab2-menu-item-tab-1');
+    const tab2Item2 = document.getElementById('tab2-menu-item-tab-2');
+    if (tab2Item1) {
+      tab2Item1.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (tab2Dropdown) {
+          tab2Dropdown.classList.remove('show');
+          tab2Dropdown.style.display = 'none';
+        }
+        this.switchTab('tab1');
+      });
+    }
+    if (tab2Item2) {
+      tab2Item2.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (tab2Dropdown) {
+          tab2Dropdown.classList.remove('show');
+          tab2Dropdown.style.display = 'none';
+        }
+        this.switchTab('tab2');
+      });
+    }
+
+    // File Menu Button & Dropdown (Up File & Save Script in Tab 1 Toolbar)
+    const btnFileMenu = document.getElementById('btn-file-menu');
+    const fileDropdown = document.getElementById('file-dropdown-menu');
+    if (btnFileMenu && fileDropdown) {
+      btnFileMenu.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = fileDropdown.classList.contains('show');
+        if (isOpen) {
+          fileDropdown.classList.remove('show');
+          fileDropdown.style.display = 'none';
+        } else {
+          if (tabDropdown) {
+            tabDropdown.classList.remove('show');
+            tabDropdown.style.display = 'none';
+          }
+          fileDropdown.classList.add('show');
+          fileDropdown.style.display = 'flex';
+        }
+      });
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('#file-menu-dropdown-wrapper')) {
+          fileDropdown.classList.remove('show');
+          fileDropdown.style.display = 'none';
+        }
+      });
+    }
+
+    const btnFileUploadAudio = document.getElementById('btn-file-upload-audio');
+    if (btnFileUploadAudio) {
+      btnFileUploadAudio.addEventListener('click', () => {
+        if (fileDropdown) {
+          fileDropdown.classList.remove('show');
+          fileDropdown.style.display = 'none';
+        }
+        const input = document.getElementById('input-audio-tab1');
+        if (input) input.click();
+      });
+    }
+
+    const btnFileUploadSub = document.getElementById('btn-file-upload-sub');
+    if (btnFileUploadSub) {
+      btnFileUploadSub.addEventListener('click', () => {
+        if (fileDropdown) {
+          fileDropdown.classList.remove('show');
+          fileDropdown.style.display = 'none';
+        }
+        const input = document.getElementById('input-sub-tab1');
+        if (input) input.click();
+      });
+    }
+
+    const btnFileLoadSample = document.getElementById('btn-file-load-sample');
+    if (btnFileLoadSample) {
+      btnFileLoadSample.addEventListener('click', () => {
+        if (fileDropdown) {
+          fileDropdown.classList.remove('show');
+          fileDropdown.style.display = 'none';
+        }
+        this.loadTab1Preset(1);
+      });
+    }
+
+    const btnFileSaveScript = document.getElementById('btn-file-save-script');
+    if (btnFileSaveScript) {
+      btnFileSaveScript.addEventListener('click', () => {
+        if (fileDropdown) {
+          fileDropdown.classList.remove('show');
+          fileDropdown.style.display = 'none';
+        }
+        const modalExport = document.getElementById('modal-export');
+        const inputExportFilename = document.getElementById('export-filename');
+        if (modalExport) {
+          if (inputExportFilename) {
+            const defaultName = (this.audioTab1.trackName || 'transcript').replace(/\.[^/.]+$/, '');
+            inputExportFilename.value = defaultName;
+          }
+          modalExport.style.display = 'flex';
+        }
+      });
+    }
+
+    // Optional Drawer overlay support
     const drawer = document.getElementById('tab-drawer-overlay');
     const btnCloseDrawer = document.getElementById('btn-close-drawer');
-
-    if (btnHam && drawer) {
-      btnHam.addEventListener('click', () => { drawer.style.display = 'flex'; });
-    }
     if (btnCloseDrawer && drawer) {
       btnCloseDrawer.addEventListener('click', () => { drawer.style.display = 'none'; });
     }
@@ -2000,27 +3320,31 @@ class SpectroSubApp {
       });
     }
 
+    const btnDropUploadAudio = document.getElementById('btn-dropdown-upload-audio');
+    if (btnDropUploadAudio) {
+      btnDropUploadAudio.addEventListener('click', () => {
+        if (menuUpload) menuUpload.style.display = 'none';
+        const input = (this.currentTab === 'tab1')
+          ? document.getElementById('input-audio-tab1')
+          : document.getElementById('input-audio-tab2');
+        if (input) input.click();
+      });
+    }
+
+    const btnDropUploadSub = document.getElementById('btn-dropdown-upload-sub');
+    if (btnDropUploadSub) {
+      btnDropUploadSub.addEventListener('click', () => {
+        if (menuUpload) menuUpload.style.display = 'none';
+        const input = document.getElementById('input-sub-tab1');
+        if (input) input.click();
+      });
+    }
+
     const btnSample1 = document.getElementById('btn-dropdown-load-sample1');
     if (btnSample1) {
       btnSample1.addEventListener('click', () => {
         if (menuUpload) menuUpload.style.display = 'none';
         this.loadTab1Preset(1);
-      });
-    }
-
-    const btnSample2 = document.getElementById('btn-dropdown-load-sample2');
-    if (btnSample2) {
-      btnSample2.addEventListener('click', () => {
-        if (menuUpload) menuUpload.style.display = 'none';
-        this.loadTab1Preset(2);
-      });
-    }
-
-    const btnSample3 = document.getElementById('btn-dropdown-load-sample3');
-    if (btnSample3) {
-      btnSample3.addEventListener('click', () => {
-        if (menuUpload) menuUpload.style.display = 'none';
-        this.loadTab1Preset(3);
       });
     }
 
@@ -2077,6 +3401,22 @@ class SpectroSubApp {
           return;
         }
 
+        // Nếu người dùng bấm lại nút Play Word khi từ đang phát hoặc vừa phát xong (con trỏ đang ở mốc cuối từ):
+        // Phát lại chính từ đó thay vì nhảy sang từ tiếp theo
+        if (this.lastPlayedWordTab1 && this.lastPlayedWordTab1.cueId === targetCue.id) {
+          const isReplay = this.audioTab1.isPlaying ||
+            Math.abs(curPos - this.lastPlayedWordTab1.endMs) < 60 ||
+            (curPos >= this.lastPlayedWordTab1.startMs && curPos <= this.lastPlayedWordTab1.endMs);
+          if (isReplay) {
+            const wStart = this.lastPlayedWordTab1.startMs;
+            const wEnd = this.lastPlayedWordTab1.endMs;
+            this.audioTab1.loopStartMs = wStart;
+            this.audioTab1.loopEndMs = wEnd;
+            this.audioTab1.play(wStart, wEnd);
+            return;
+          }
+        }
+
         let targetWordIdx = 0;
         if (curPos < words[0].startMs) {
           targetWordIdx = 0;
@@ -2096,6 +3436,13 @@ class SpectroSubApp {
         const wStart = words[targetWordIdx].startMs;
         const wEnd = (targetWordIdx < words.length - 1) ? words[targetWordIdx + 1].startMs : targetCue.endMs;
 
+        this.lastPlayedWordTab1 = {
+          cueId: targetCue.id,
+          wordIdx: targetWordIdx,
+          startMs: wStart,
+          endMs: wEnd
+        };
+
         this.audioTab1.loopStartMs = wStart;
         this.audioTab1.loopEndMs = wEnd;
         this.audioTab1.play(wStart, wEnd);
@@ -2110,29 +3457,18 @@ class SpectroSubApp {
       });
     }
 
-    const btnSetStart = document.getElementById('btn-set-start');
-    if (btnSetStart) {
-      btnSetStart.addEventListener('click', () => {
-        const cur = this.audioTab1.getCurrentPosition();
-        this.rendererTab1.selectionStartMs = cur;
-        if (this.activeCueTab1) {
-          this.activeCueTab1.startMs = cur;
-          this.renderTab1CuesList();
-        }
-        this.rendererTab1.render();
+    // Undo / Redo Buttons (Tab 1)
+    const btnUndo = document.getElementById('btn-undo');
+    if (btnUndo) {
+      btnUndo.addEventListener('click', () => {
+        this.undo();
       });
     }
 
-    const btnSetEnd = document.getElementById('btn-set-end');
-    if (btnSetEnd) {
-      btnSetEnd.addEventListener('click', () => {
-        const cur = this.audioTab1.getCurrentPosition();
-        this.rendererTab1.selectionEndMs = cur;
-        if (this.activeCueTab1) {
-          this.activeCueTab1.endMs = cur;
-          this.renderTab1CuesList();
-        }
-        this.rendererTab1.render();
+    const btnRedo = document.getElementById('btn-redo');
+    if (btnRedo) {
+      btnRedo.addEventListener('click', () => {
+        this.redo();
       });
     }
 
@@ -2185,6 +3521,76 @@ class SpectroSubApp {
       });
     }
 
+    // Audio Latency Offset Input (Bù trễ âm thanh thủ công ms)
+    const inputLatency = document.getElementById('input-latency-offset');
+    if (inputLatency) {
+      const savedLatency = localStorage.getItem('tab1_latency_compensation_ms');
+      if (savedLatency !== null) {
+        const val = parseFloat(savedLatency);
+        if (!isNaN(val)) {
+          inputLatency.value = val;
+          this.audioTab1.customLatencyMs = val;
+        }
+      } else {
+        this.audioTab1.customLatencyMs = 65;
+        inputLatency.value = 65;
+      }
+
+      const onLatencyChange = () => {
+        const val = parseFloat(inputLatency.value);
+        if (!isNaN(val)) {
+          this.audioTab1.customLatencyMs = val;
+          localStorage.setItem('tab1_latency_compensation_ms', val);
+        }
+      };
+
+      inputLatency.addEventListener('input', onLatencyChange);
+      inputLatency.addEventListener('change', onLatencyChange);
+    }
+
+    // Select All Cues
+    const btnSelectAll = document.getElementById('btn-select-all');
+    if (btnSelectAll) {
+      btnSelectAll.addEventListener('click', () => {
+        if (!this.cuesTab1 || this.cuesTab1.length === 0) return;
+        const allSelected = this.selectedCueIds.size === this.cuesTab1.length;
+        if (allSelected) {
+          this.selectedCueIds.clear();
+        } else {
+          this.cuesTab1.forEach(c => this.selectedCueIds.add(c.id));
+        }
+        this.renderTab1CuesList();
+      });
+    }
+
+    // Delete Selected Cues (Trash Button)
+    const btnDeleteSelected = document.getElementById('btn-delete-selected');
+    if (btnDeleteSelected) {
+      btnDeleteSelected.addEventListener('click', () => {
+        const targetIds = this.selectedCueIds.size > 0
+          ? new Set(this.selectedCueIds)
+          : (this.activeCueTab1 ? new Set([this.activeCueTab1.id]) : new Set());
+
+        if (targetIds.size === 0 || !this.cuesTab1 || this.cuesTab1.length === 0) return;
+
+        this.pushHistoryState();
+        const firstDeletedIdx = this.cuesTab1.findIndex(c => targetIds.has(c.id));
+        this.cuesTab1 = this.cuesTab1.filter(c => !targetIds.has(c.id));
+        this.selectedCueIds.clear();
+
+        if (this.cuesTab1.length > 0) {
+          const nextIdx = Math.min(Math.max(0, firstDeletedIdx), this.cuesTab1.length - 1);
+          this.selectTab1Cue(this.cuesTab1[nextIdx]);
+        } else {
+          this.activeCueTab1 = null;
+          this.rendererTab1.activeCue = null;
+          this.rendererTab1.cues = [];
+        }
+        this.renderTab1CuesList();
+        this.rendererTab1.render();
+      });
+    }
+
     // Move Selected Cues Up / Down
     const btnMoveUp = document.getElementById('btn-move-up');
     if (btnMoveUp) {
@@ -2192,6 +3598,7 @@ class SpectroSubApp {
         const targetIds = this.selectedCueIds.size > 0 ? this.selectedCueIds : (this.activeCueTab1 ? new Set([this.activeCueTab1.id]) : new Set());
         if (targetIds.size === 0 || this.cuesTab1.length < 2) return;
 
+        this.pushHistoryState();
         let moved = false;
         for (let i = 1; i < this.cuesTab1.length; i++) {
           if (targetIds.has(this.cuesTab1[i].id) && !targetIds.has(this.cuesTab1[i - 1].id)) {
@@ -2214,6 +3621,7 @@ class SpectroSubApp {
         const targetIds = this.selectedCueIds.size > 0 ? this.selectedCueIds : (this.activeCueTab1 ? new Set([this.activeCueTab1.id]) : new Set());
         if (targetIds.size === 0 || this.cuesTab1.length < 2) return;
 
+        this.pushHistoryState();
         let moved = false;
         for (let i = this.cuesTab1.length - 2; i >= 0; i--) {
           if (targetIds.has(this.cuesTab1[i].id) && !targetIds.has(this.cuesTab1[i + 1].id)) {
@@ -2239,6 +3647,7 @@ class SpectroSubApp {
         const nextIdx = (states.indexOf(curFirst) + 1) % states.length;
         const nextState = states[nextIdx];
 
+        this.pushHistoryState();
         this.cuesTab1.forEach(c => {
           c.clockState = nextState;
           if (nextState === CueClockState.EDITING_WORDS && (!c.wordTimings || c.wordTimings.length === 0)) {
@@ -2246,6 +3655,8 @@ class SpectroSubApp {
           }
         });
         btnMasterClock.setAttribute('data-state', nextState);
+        btnMasterClock.title = 'Đồng bộ chế độ tất cả câu: ' + this.getClockStateTooltip(nextState);
+        this.updateStartEndButtonsState();
         this.renderTab1CuesList();
         this.rendererTab1.render();
       });
@@ -2316,7 +3727,62 @@ class SpectroSubApp {
       });
     }
 
-    // Tab 1 file input
+    // Tab 2 Horizontal Splitter resizing between CQT and Chromagram
+    const tab2Splitter = document.getElementById('tab2-pane-splitter');
+    const tab2CqtContainer = document.getElementById('tab2-cqt-container');
+    const stackedViewports = document.querySelector('.chord-stacked-viewports');
+
+    if (tab2Splitter && tab2CqtContainer && stackedViewports) {
+      let isDraggingTab2Splitter = false, tab2StartY = 0, tab2StartHeight = 0;
+
+      tab2Splitter.addEventListener('mousedown', (e) => {
+        isDraggingTab2Splitter = true;
+        tab2StartY = e.clientY;
+        tab2StartHeight = tab2CqtContainer.getBoundingClientRect().height;
+        tab2Splitter.classList.add('dragging');
+        document.body.style.cursor = 'row-resize';
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isDraggingTab2Splitter) return;
+        const delta = e.clientY - tab2StartY;
+        const totalH = stackedViewports.getBoundingClientRect().height || 500;
+        const newPct = Math.max(18, Math.min(82, ((tab2StartHeight + delta) / totalH) * 100));
+        tab2CqtContainer.style.height = `${newPct}%`;
+        this.chordAnalyzerTab2.resize();
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (isDraggingTab2Splitter) {
+          isDraggingTab2Splitter = false;
+          tab2Splitter.classList.remove('dragging');
+          document.body.style.cursor = '';
+          this.chordAnalyzerTab2.resize();
+        }
+      });
+    }
+
+    // Drag and Drop on Spectrogram Canvas Panel (Audio or Subtitle)
+    if (canvasPanel) {
+      canvasPanel.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      });
+      canvasPanel.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+          const file = e.dataTransfer.files[0];
+          const ext = (file.name.split('.').pop() || '').toLowerCase();
+          if (['ass', 'srt', 'vtt', 'json', 'txt'].includes(ext)) {
+            this.loadTab1SubtitleFile(file);
+          } else {
+            this.loadTab1AudioFile(file);
+          }
+        }
+      });
+    }
+
+    // Tab 1 file input (Audio)
     const inputTab1 = document.getElementById('input-audio-tab1');
     if (inputTab1) {
       inputTab1.addEventListener('change', (e) => {
@@ -2324,6 +3790,72 @@ class SpectroSubApp {
           this.loadTab1AudioFile(e.target.files[0]);
           e.target.value = '';
         }
+      });
+    }
+
+    // Tab 1 file input (Subtitles: .ass, .srt, .json, .vtt, .txt)
+    const inputSubTab1 = document.getElementById('input-sub-tab1');
+    if (inputSubTab1) {
+      inputSubTab1.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          this.loadTab1SubtitleFile(e.target.files[0]);
+          e.target.value = '';
+        }
+      });
+    }
+
+    // Export / Save Script Modal
+    const btnOpenExport = document.getElementById('btn-open-export');
+    const modalExport = document.getElementById('modal-export');
+    const btnConfirmExport = document.getElementById('btn-confirm-export');
+    const inputExportFilename = document.getElementById('export-filename');
+
+    if (btnOpenExport && modalExport) {
+      btnOpenExport.addEventListener('click', () => {
+        if (inputExportFilename) {
+          const defaultName = (this.audioTab1.trackName || 'transcript').replace(/\.[^/.]+$/, '');
+          inputExportFilename.value = defaultName;
+        }
+        modalExport.style.display = 'flex';
+      });
+    }
+
+    if (btnConfirmExport && modalExport) {
+      btnConfirmExport.addEventListener('click', () => {
+        if (!this.cuesTab1 || this.cuesTab1.length === 0) {
+          alert('Danh sách câu hiện đang trống, không có phụ đề để lưu.');
+          return;
+        }
+
+        const selectedRadio = document.querySelector('input[name="export-format"]:checked');
+        const format = selectedRadio ? selectedRadio.value : 'ass';
+        const baseName = (inputExportFilename && inputExportFilename.value.trim()) || 'transcript';
+
+        let content = '';
+        let mimeType = 'text/plain;charset=utf-8';
+        const ext = format;
+
+        switch (format) {
+          case 'ass':
+            content = SubtitleExporter.toAss(this.cuesTab1, baseName);
+            mimeType = 'text/x-ssa;charset=utf-8';
+            break;
+          case 'srt':
+            content = SubtitleExporter.toSrt(this.cuesTab1);
+            mimeType = 'application/x-subrip;charset=utf-8';
+            break;
+          case 'json':
+            content = SubtitleExporter.toJson(this.cuesTab1, this.audioTab1.trackName, this.audioTab1.durationMs);
+            mimeType = 'application/json;charset=utf-8';
+            break;
+          case 'txt':
+            content = SubtitleExporter.toTxt(this.cuesTab1);
+            mimeType = 'text/plain;charset=utf-8';
+            break;
+        }
+
+        downloadBlob(content, `${baseName}.${ext}`, mimeType);
+        modalExport.style.display = 'none';
       });
     }
 
@@ -2339,18 +3871,67 @@ class SpectroSubApp {
       });
     }
 
-    const btnTab2ZoomOut = document.getElementById('btn-tab2-zoom-out');
-    if (btnTab2ZoomOut) {
-      btnTab2ZoomOut.addEventListener('click', () => {
-        this.chordAnalyzerTab2.zoomFactor = Math.max(5, this.chordAnalyzerTab2.zoomFactor - 8);
-        this.chordAnalyzerTab2.render();
-      });
+    // Tab 2 Latency Offset Input (Bù trễ âm thanh thủ công ms)
+    const inputTab2Latency = document.getElementById('input-tab2-latency-offset');
+    if (inputTab2Latency) {
+      const savedTab2Latency = localStorage.getItem('tab2_latency_compensation_ms');
+      if (savedTab2Latency !== null) {
+        const val = parseFloat(savedTab2Latency);
+        if (!isNaN(val)) {
+          inputTab2Latency.value = val;
+          this.audioTab2.customLatencyMs = val;
+        }
+      } else {
+        this.audioTab2.customLatencyMs = 65;
+        inputTab2Latency.value = 65;
+      }
+
+      const onTab2LatencyChange = () => {
+        const val = parseFloat(inputTab2Latency.value);
+        if (!isNaN(val)) {
+          this.audioTab2.customLatencyMs = val;
+          localStorage.setItem('tab2_latency_compensation_ms', val);
+        }
+      };
+
+      inputTab2Latency.addEventListener('input', onTab2LatencyChange);
+      inputTab2Latency.addEventListener('change', onTab2LatencyChange);
     }
 
-    const btnTab2ZoomIn = document.getElementById('btn-tab2-zoom-in');
-    if (btnTab2ZoomIn) {
-      btnTab2ZoomIn.addEventListener('click', () => {
-        this.chordAnalyzerTab2.zoomFactor = Math.min(200, this.chordAnalyzerTab2.zoomFactor + 8);
+    // Tab 2 BPM & Bar / Beat Grid Control
+    const inputTab2Bpm = document.getElementById('input-tab2-bpm');
+    const selectTab2BarGrid = document.getElementById('select-tab2-bar-grid');
+
+    if (inputTab2Bpm) {
+      const savedBpm = localStorage.getItem('tab2_bpm');
+      if (savedBpm !== null) {
+        const val = parseFloat(savedBpm);
+        if (!isNaN(val) && val >= 30 && val <= 300) {
+          inputTab2Bpm.value = val;
+          this.chordAnalyzerTab2.bpm = val;
+        }
+      }
+      const onBpmChange = () => {
+        const val = parseFloat(inputTab2Bpm.value);
+        if (!isNaN(val) && val > 0) {
+          this.chordAnalyzerTab2.bpm = val;
+          localStorage.setItem('tab2_bpm', val);
+          this.chordAnalyzerTab2.render();
+        }
+      };
+      inputTab2Bpm.addEventListener('input', onBpmChange);
+      inputTab2Bpm.addEventListener('change', onBpmChange);
+    }
+
+    if (selectTab2BarGrid) {
+      const savedGrid = localStorage.getItem('tab2_bar_grid');
+      if (savedGrid !== null) {
+        selectTab2BarGrid.value = savedGrid;
+        this.chordAnalyzerTab2.barGridMode = savedGrid;
+      }
+      selectTab2BarGrid.addEventListener('change', (e) => {
+        this.chordAnalyzerTab2.barGridMode = e.target.value;
+        localStorage.setItem('tab2_bar_grid', e.target.value);
         this.chordAnalyzerTab2.render();
       });
     }
@@ -2359,6 +3940,8 @@ class SpectroSubApp {
     if (selPitchRange) {
       selPitchRange.addEventListener('change', (e) => {
         this.chordAnalyzerTab2.pitchRangeMode = e.target.value;
+        this.chordAnalyzerTab2.offscreenValid = false;
+        this.chordAnalyzerTab2.buildOffscreenCanvases();
         this.chordAnalyzerTab2.render();
       });
     }
@@ -2367,7 +3950,16 @@ class SpectroSubApp {
     if (selPalette) {
       selPalette.addEventListener('change', (e) => {
         this.chordAnalyzerTab2.paletteKey = e.target.value;
+        this.chordAnalyzerTab2.offscreenValid = false;
+        this.chordAnalyzerTab2.buildOffscreenCanvases();
         this.chordAnalyzerTab2.render();
+      });
+    }
+
+    const btnTab2Preset = document.getElementById('btn-tab2-preset');
+    if (btnTab2Preset) {
+      btnTab2Preset.addEventListener('click', () => {
+        this.loadTab2Preset(1);
       });
     }
 
@@ -2427,18 +4019,19 @@ class SpectroSubApp {
       this.rendererTab1.selectionStartMs = 0;
       this.rendererTab1.selectionEndMs = Math.min(3000, this.audioTab1.durationMs);
 
-      if (this.cuesTab1.length === 0) {
-        this.cuesTab1 = [new SubtitleCue({
-          startMs: 0,
-          endMs: Math.min(3000, this.audioTab1.durationMs),
-          text: 'Câu phụ đề mới',
-          clockState: CueClockState.SHOW_LOCKED
-        })];
-      }
-      this.selectTab1Cue(this.cuesTab1[0]);
+      // Reset hoàn toàn danh sách câu từ file audio cũ
+      this.cuesTab1 = [];
+      this.selectedCueIds.clear();
+      this.selectTab1Cue(null);
+
+      // Reset lịch sử Undo / Redo cho file audio mới
+      this.historyStack = [];
+      this.redoStack = [];
+      this.updateUndoRedoButtonsState();
 
       this.updateHeaderMeta(file.name, this.audioTab1.durationMs);
       this.hideLoading();
+      this.rendererTab1.resetScrollToStart();
       this.rendererTab1.resize();
       this.renderTab1CuesList();
     } catch (err) {
@@ -2448,90 +4041,85 @@ class SpectroSubApp {
     }
   }
 
-  getClockStateTooltip(state) {
-    switch (state) {
-      case CueClockState.OFF:
-        return 'Chế độ [TẮT - Xám]: Không hiện dòng transcript dưới thanh thời gian';
-      case CueClockState.SHOW_LOCKED:
-        return 'Chế độ [HIỆN & KHÓA - Xanh Dương]: Hiện dòng text dưới thanh thời gian';
-      case CueClockState.EDITING_TIME:
-        return 'Chế độ [SỬA THỜI GIAN - Vàng]: Ám vàng nhạt vùng phổ/sóng & cho phép kéo chỉnh mốc';
-      case CueClockState.EDITING_WORDS:
-        return 'Chế độ [SỬA TỪNG TỪ - Tím]: Ám tím nhạt & kéo các vạch tím đậm để chỉnh vị trí từng từ';
-      default:
-        return 'Chế độ đồng hồ';
+  async loadTab1SubtitleFile(file) {
+    try {
+      this.showLoading(`Đang đọc file phụ đề "${file.name}"...`, 0.2);
+      const text = await file.text();
+      const parsedCues = SubtitleParser.parse(text, file.name);
+
+      if (!parsedCues || parsedCues.length === 0) {
+        this.hideLoading();
+        alert('Không tìm thấy dòng phụ đề hợp lệ trong file: ' + file.name);
+        return;
+      }
+
+      this.cuesTab1 = parsedCues;
+      this.selectedCueIds.clear();
+
+      const maxEnd = Math.max(...parsedCues.map(c => c.endMs || 0));
+      if (!this.audioTab1.durationMs || this.audioTab1.durationMs < maxEnd) {
+        this.audioTab1.durationMs = Math.max(7000, maxEnd + 1000);
+      }
+
+      this.selectTab1Cue(parsedCues[0]);
+      this.renderTab1CuesList();
+      this.rendererTab1.render();
+      this.hideLoading();
+    } catch (err) {
+      console.error(err);
+      this.hideLoading();
+      alert('Không thể đọc file phụ đề: ' + err.message);
     }
   }
 
-  async loadTab1Preset(presetId) {
-    let trackLabel = 'Ví dụ 1';
-    let presetCues = [];
-    let candidatePaths = [];
-
-    if (presetId === 1) {
-      candidatePaths = [
-        '/assets/french_liaisons.mp3',
-        './assets/french_liaisons.mp3',
-        '/public/assets/french_liaisons.mp3',
-        '/assets/french_liaisons.wav'
-      ];
-      trackLabel = 'Ví dụ 1';
-      presetCues = [
-        new SubtitleCue({
-          startMs: 0,
-          endMs: 2100,
-          text: "C'est une rất belle histoire",
-          actor: "Ví dụ 1",
-          clockState: CueClockState.EDITING_WORDS
-        }),
-        new SubtitleCue({
-          startMs: 2100,
-          endMs: 4100,
-          text: "les enfants adorent les oiseaux",
-          actor: "Ví dụ 1",
-          clockState: CueClockState.EDITING_TIME
-        }),
-        new SubtitleCue({
-          startMs: 4100,
-          endMs: 6020,
-          text: "et nous allons ensemble à Paris",
-          actor: "Ví dụ 1",
-          clockState: CueClockState.SHOW_LOCKED
-        })
-      ];
-    } else if (presetId === 2) {
-      candidatePaths = [
-        '/assets/french_conversation.mp3',
-        './assets/french_conversation.mp3',
-        '/public/assets/french_conversation.mp3',
-        '/assets/french_conversation.wav'
-      ];
-      trackLabel = 'Ví dụ 2';
-      presetCues = [
-        new SubtitleCue({ startMs: 0, endMs: 2600, text: "Je ne sais pas ce que tu penses", actor: "Ví dụ 2", clockState: CueClockState.EDITING_WORDS }),
-        new SubtitleCue({ startMs: 2650, endMs: 5560, text: "mais il faut faire attention aux liaisons et aux élisions", actor: "Ví dụ 2", clockState: CueClockState.SHOW_LOCKED })
-      ];
-    } else {
-      candidatePaths = [
-        '/assets/french_liaisons.wav',
-        './assets/french_liaisons.wav',
-        '/public/assets/french_liaisons.wav',
-        '/assets/french_liaisons.mp3'
-      ];
-      trackLabel = 'Ví dụ 3';
-      presetCues = [];
-      for (let i = 0; i < 28; i++) {
-        const s = i * 7500;
-        const state = (i % 3 === 0) ? CueClockState.EDITING_WORDS : (i % 3 === 1 ? CueClockState.EDITING_TIME : CueClockState.SHOW_LOCKED);
-        presetCues.push(new SubtitleCue({
-          startMs: s,
-          endMs: s + 3200,
-          text: `[#${i + 1}] C'est une belle prononciation française`,
-          actor: 'Français',
-          clockState: state
-        }));
-      }
+  getClockStateTooltip(state) {
+    switch (state) {
+      case CueClockState.OFF:
+        return 'Chế độ [TẮT / KHÔNG CHỈNH SỬA - Xám]: Ẩn vạch start/stop & không hiện transcript (Click để đổi chế độ)';
+      case CueClockState.SHOW_LOCKED:
+        return 'Chế độ [HIỆN & KHÓA - Xanh Dương]: Hiện text dưới thanh thời gian & ẩn vạch start/stop (Click để đổi chế độ)';
+      case CueClockState.EDITING_TIME:
+        return 'Chế độ [SỬA THỜI GIAN - Vàng]: Ám vàng nhạt vùng phổ/sóng & hiện vạch xanh [start] - đỏ [stop] để kéo chỉnh mốc (Click để đổi chế độ)';
+      case CueClockState.EDITING_WORDS:
+        return 'Chế độ [SỬA TỪNG TỪ - Tím]: Ám tím nhạt & kéo các vạch tím đậm để chỉnh vị trí từng từ (Click để đổi chế độ)';
+      default:
+        return 'Chế độ đồng hồ (Click để đổi chế độ)';
     }
+  }
+
+  async loadTab1Preset(presetId = 1) {
+    const trackLabel = 'Ví dụ 1';
+    const candidatePaths = [
+      './assets/french_liaisons.mp3',
+      'assets/french_liaisons.mp3',
+      './assets/french_liaisons.wav',
+      'assets/french_liaisons.wav',
+      '/assets/french_liaisons.mp3',
+      '/assets/french_liaisons.wav'
+    ];
+    const presetCues = [
+      new SubtitleCue({
+        startMs: 0,
+        endMs: 2100,
+        text: "C'est une très belle histoire",
+        actor: "Ví dụ 1",
+        clockState: CueClockState.EDITING_WORDS
+      }),
+      new SubtitleCue({
+        startMs: 2100,
+        endMs: 4100,
+        text: "les enfants adorent les oiseaux",
+        actor: "Ví dụ 1",
+        clockState: CueClockState.EDITING_TIME
+      }),
+      new SubtitleCue({
+        startMs: 4100,
+        endMs: 6020,
+        text: "et nous allons ensemble à Paris",
+        actor: "Ví dụ 1",
+        clockState: CueClockState.SHOW_LOCKED
+      })
+    ];
 
     this.cuesTab1 = presetCues;
     this.selectTab1Cue(presetCues[0]);
@@ -2541,6 +4129,7 @@ class SpectroSubApp {
     const durSec = presetCues.length > 0 ? (presetCues[presetCues.length - 1].endMs / 1000.0) : 6.02;
     this.audioTab1.loadSyntheticSpeechBuffer(durSec, trackLabel);
     this.updateHeaderMeta(trackLabel, this.audioTab1.durationMs);
+    this.rendererTab1.resetScrollToStart();
     this.rendererTab1.resize();
 
     try {
@@ -2579,7 +4168,36 @@ class SpectroSubApp {
     })();
   }
 
+  updateStartEndButtonsState() {
+    const btnSetStart = document.getElementById('btn-set-start');
+    const btnSetEnd = document.getElementById('btn-set-end');
+    if (!btnSetStart || !btnSetEnd) return;
+
+    const isLockedOrOff = !!(this.activeCueTab1 && (this.activeCueTab1.clockState === CueClockState.SHOW_LOCKED || this.activeCueTab1.clockState === CueClockState.OFF));
+
+    if (isLockedOrOff) {
+      btnSetStart.disabled = true;
+      btnSetStart.classList.add('locked-disabled');
+      btnSetStart.title = 'Phím [ Start ] bị ẩn và làm tối khi đồng hồ màu xanh dương hoặc màu xám (chế độ không chỉnh sửa). Đổi đồng hồ sang Vàng để chỉnh mốc.';
+
+      btnSetEnd.disabled = true;
+      btnSetEnd.classList.add('locked-disabled');
+      btnSetEnd.title = 'Phím [ Stop ] bị ẩn và làm tối khi đồng hồ màu xanh dương hoặc màu xám (chế độ không chỉnh sửa). Đổi đồng hồ sang Vàng để chỉnh mốc.';
+    } else {
+      btnSetStart.disabled = false;
+      btnSetStart.classList.remove('locked-disabled');
+      btnSetStart.title = 'Gán điểm Bắt đầu câu tại con trỏ (Phím [)';
+
+      btnSetEnd.disabled = false;
+      btnSetEnd.classList.remove('locked-disabled');
+      btnSetEnd.title = 'Gán điểm Kết thúc (Stop) câu tại con trỏ (Phím ])';
+    }
+  }
+
   selectTab1Cue(cue) {
+    if (!this.activeCueTab1 || (cue && cue.id !== this.activeCueTab1.id)) {
+      this.lastPlayedWordTab1 = null;
+    }
     this.activeCueTab1 = cue;
     this.rendererTab1.activeCue = cue;
     this.rendererTab1.cues = this.cuesTab1;
@@ -2589,12 +4207,14 @@ class SpectroSubApp {
       this.audioTab1.loopStartMs = cue.startMs;
       this.audioTab1.loopEndMs = cue.endMs;
     }
+    this.updateStartEndButtonsState();
     this.rendererTab1.render();
   }
 
   addTab1CuesFromText(rawText, position = 'AFTER_SELECTED') {
     const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
     if (lines.length === 0) return;
+    this.pushHistoryState();
     let baseStart = this.rendererTab1.selectionEndMs || 0;
     const newCues = lines.map((l, i) => new SubtitleCue({
       startMs: baseStart + i * 2500,
@@ -2625,6 +4245,7 @@ class SpectroSubApp {
   }
 
   renderTab1CuesList() {
+    this.updateStartEndButtonsState();
     const container = document.getElementById('cues-list-container');
     if (!container) return;
     container.innerHTML = '';
@@ -2632,6 +4253,41 @@ class SpectroSubApp {
     const countLabel = document.getElementById('cues-count-label');
     if (countLabel) {
       countLabel.textContent = `Danh sách câu (${this.cuesTab1.length})${this.selectedCueIds.size > 0 ? ` • Đã chọn ${this.selectedCueIds.size}` : ''}`;
+    }
+
+    const btnSelectAll = document.getElementById('btn-select-all');
+    if (btnSelectAll) {
+      const allSelected = this.cuesTab1.length > 0 && this.selectedCueIds.size === this.cuesTab1.length;
+      btnSelectAll.classList.toggle('active', allSelected);
+      btnSelectAll.title = allSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả câu';
+      btnSelectAll.disabled = this.cuesTab1.length === 0;
+    }
+
+    const btnDeleteSelected = document.getElementById('btn-delete-selected');
+    if (btnDeleteSelected) {
+      const hasTargets = this.selectedCueIds.size > 0 || (this.cuesTab1.length > 0 && this.activeCueTab1);
+      btnDeleteSelected.disabled = !hasTargets;
+      btnDeleteSelected.title = this.selectedCueIds.size > 0
+        ? `Xóa ${this.selectedCueIds.size} câu đã chọn`
+        : (this.activeCueTab1 ? 'Xóa câu đang chọn' : 'Xóa các câu đã chọn');
+    }
+
+    const btnMoveUp = document.getElementById('btn-move-up');
+    const btnMoveDown = document.getElementById('btn-move-down');
+    const canMove = this.cuesTab1.length >= 2 && (this.selectedCueIds.size > 0 || this.activeCueTab1);
+    if (btnMoveUp) btnMoveUp.disabled = !canMove;
+    if (btnMoveDown) btnMoveDown.disabled = !canMove;
+
+    if (this.cuesTab1.length === 0) {
+      const emptyDiv = document.createElement('div');
+      emptyDiv.style.cssText = 'padding: 36px 16px; text-align: center; color: #64748b; font-size: 13px; line-height: 1.6;';
+      emptyDiv.innerHTML = `
+        <div style="font-size: 26px; margin-bottom: 6px;">📝</div>
+        <div style="font-weight: 600; color: #94a3b8; margin-bottom: 4px;">Danh sách câu đang trống</div>
+        <div style="font-size: 12px; color: #64748b;">Bấm <strong>"+ Thêm câu"</strong> ở góc phải hoặc nạp file phụ đề (.ass, .srt, .json) để bắt đầu.</div>
+      `;
+      container.appendChild(emptyDiv);
+      return;
     }
 
     this.cuesTab1.forEach((cue) => {
@@ -2645,6 +4301,7 @@ class SpectroSubApp {
         if (e.target.closest('.nudge-btn') || e.target.closest('.cue-clock-btn') || e.target.tagName === 'INPUT') return;
         this.selectTab1Cue(cue);
         this.rendererTab1.scrollOffsetMs = cue.startMs - (this.rendererTab1.width * this.rendererTab1.msPerPixel) * 0.15;
+        this.rendererTab1.clampScroll();
         this.audioTab1.seek(cue.startMs);
         this.renderTab1CuesList();
         this.rendererTab1.render();
@@ -2680,16 +4337,87 @@ class SpectroSubApp {
       const metaLeft = document.createElement('div');
       metaLeft.className = 'cue-meta-left';
 
-      const timeBadge = document.createElement('span');
-      timeBadge.className = 'cue-time-badge mono-font';
-      timeBadge.textContent = TimeFormatter.formatMinuteSecond(cue.startMs);
-      timeBadge.addEventListener('click', (e) => {
+      const canEditTimes = (cue.clockState === CueClockState.EDITING_TIME || cue.clockState === CueClockState.EDITING_WORDS);
+      const lockedTip = 'Bấm vào biểu tượng đồng hồ để đổi chế độ và sửa';
+
+      // Start Time Input (Màu xanh khi edit - chìm màu xám khi clock xám/xanh)
+      const startInput = document.createElement('input');
+      startInput.type = 'text';
+      startInput.className = canEditTimes
+        ? 'cue-time-input start-time mono-font'
+        : 'cue-time-input start-time mono-font time-muted';
+      startInput.value = TimeFormatter.formatFull(cue.startMs);
+      startInput.readOnly = !canEditTimes;
+      startInput.title = canEditTimes
+        ? 'Thời gian Bắt đầu (phút:giây.tíc tắc). Bấm vào để sửa chính xác'
+        : lockedTip;
+      startInput.addEventListener('click', (e) => {
         e.stopPropagation();
         this.selectTab1Cue(cue);
-        this.rendererTab1.scrollOffsetMs = cue.startMs - (this.rendererTab1.width * this.rendererTab1.msPerPixel) * 0.15;
-        this.audioTab1.seek(cue.startMs);
-        this.rendererTab1.render();
       });
+      startInput.addEventListener('focus', () => {
+        this.selectTab1Cue(cue);
+      });
+      if (canEditTimes) {
+        startInput.addEventListener('change', () => {
+          const parsed = TimeFormatter.parseFull(startInput.value);
+          if (parsed !== null && parsed >= 0 && parsed < cue.endMs) {
+            this.pushHistoryState();
+            cue.startMs = parsed;
+            this.rendererTab1.selectionStartMs = parsed;
+            this.audioTab1.loopStartMs = parsed;
+            startInput.value = TimeFormatter.formatFull(parsed);
+            this.rendererTab1.render();
+          } else {
+            startInput.value = TimeFormatter.formatFull(cue.startMs);
+          }
+        });
+        startInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') startInput.blur();
+        });
+      }
+
+      // Dấu mũi tên phân tách
+      const arrowSep = document.createElement('span');
+      arrowSep.className = 'cue-time-arrow' + (!canEditTimes ? ' time-muted' : '');
+      arrowSep.textContent = '→';
+
+      // End Time Input (Màu đỏ khi edit - chìm màu xám khi clock xám/xanh)
+      const endInput = document.createElement('input');
+      endInput.type = 'text';
+      endInput.className = canEditTimes
+        ? 'cue-time-input end-time mono-font'
+        : 'cue-time-input end-time mono-font time-muted';
+      endInput.value = TimeFormatter.formatFull(cue.endMs);
+      endInput.readOnly = !canEditTimes;
+      endInput.title = canEditTimes
+        ? 'Thời gian Kết thúc (phút:giây.tíc tắc). Bấm vào để sửa chính xác'
+        : lockedTip;
+      endInput.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.selectTab1Cue(cue);
+      });
+      endInput.addEventListener('focus', () => {
+        this.selectTab1Cue(cue);
+      });
+      if (canEditTimes) {
+        endInput.addEventListener('change', () => {
+          const parsed = TimeFormatter.parseFull(endInput.value);
+          if (parsed !== null && parsed > cue.startMs) {
+            this.pushHistoryState();
+            cue.endMs = parsed;
+            this.rendererTab1.selectionEndMs = parsed;
+            this.audioTab1.loopEndMs = parsed;
+            endInput.value = TimeFormatter.formatFull(parsed);
+            this.rendererTab1.render();
+          } else {
+            endInput.value = TimeFormatter.formatFull(cue.endMs);
+          }
+        });
+        endInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') endInput.blur();
+        });
+      }
 
       const clockBtn = document.createElement('button');
       clockBtn.className = 'cue-clock-btn';
@@ -2698,6 +4426,7 @@ class SpectroSubApp {
       clockBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
       clockBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        this.pushHistoryState();
         const states = [CueClockState.OFF, CueClockState.SHOW_LOCKED, CueClockState.EDITING_TIME, CueClockState.EDITING_WORDS];
         const curIdx = states.indexOf(cue.clockState);
         cue.clockState = states[(curIdx + 1) % states.length];
@@ -2711,41 +4440,34 @@ class SpectroSubApp {
         this.rendererTab1.render();
       });
 
-      metaLeft.appendChild(timeBadge);
+      metaLeft.appendChild(startInput);
+      metaLeft.appendChild(arrowSep);
+      metaLeft.appendChild(endInput);
       metaLeft.appendChild(clockBtn);
 
-      const rightControls = document.createElement('div');
-      rightControls.style.display = 'flex';
-      rightControls.style.gap = '4px';
-
-      const btnDel = document.createElement('button');
-      btnDel.className = 'nudge-btn';
-      btnDel.textContent = 'Xóa';
-      btnDel.style.color = '#ef4444';
-      btnDel.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const idx = this.cuesTab1.indexOf(cue);
-        this.cuesTab1.splice(idx, 1);
-        this.selectedCueIds.delete(cue.id);
-        if (this.cuesTab1.length > 0) this.selectTab1Cue(this.cuesTab1[Math.max(0, idx - 1)]);
-        else this.activeCueTab1 = null;
-        this.renderTab1CuesList();
-        this.rendererTab1.render();
-      });
-
-      rightControls.appendChild(btnDel);
       row1.appendChild(metaLeft);
-      row1.appendChild(rightControls);
       cardMain.appendChild(row1);
 
       const textInput = document.createElement('input');
       textInput.className = 'cue-text-input';
       textInput.value = cue.text;
+      let prevText = cue.text;
+      textInput.addEventListener('focus', () => {
+        prevText = cue.text;
+        this.selectTab1Cue(cue);
+      });
+      textInput.addEventListener('change', (e) => {
+        if (e.target.value !== prevText) {
+          this.pushHistoryState();
+          cue.text = e.target.value;
+          prevText = cue.text;
+          this.rendererTab1.render();
+        }
+      });
       textInput.addEventListener('input', (e) => {
         cue.text = e.target.value;
         this.rendererTab1.render();
       });
-      textInput.addEventListener('focus', () => this.selectTab1Cue(cue));
       cardMain.appendChild(textInput);
 
       card.appendChild(cardMain);
@@ -2756,6 +4478,49 @@ class SpectroSubApp {
   // -------------------------------------------------------------
   // Tab 2 Operations
   // -------------------------------------------------------------
+  loadTab2Preset(presetId = 1) {
+    try {
+      const trackLabel = 'Ví dụ 1: Piano (C - G - Am - F)';
+      this.audioTab2.loadSyntheticPianoChordsBuffer(trackLabel);
+
+      const emptyOverlay = document.getElementById('tab2-empty-overlay');
+      if (emptyOverlay) emptyOverlay.style.display = 'none';
+
+      if (this.currentTab === 'tab2') {
+        this.updateHeaderMeta(trackLabel, this.audioTab2.durationMs);
+      }
+
+      if (this.chordWorker) {
+        this.chordWorker.terminate();
+      }
+
+      this.chordWorker = new Worker('./chord-worker.js');
+      this.chordWorker.onmessage = (e) => {
+        const msg = e.data;
+        if (msg.type === 'done') {
+          this.chordAnalyzerTab2.data = msg;
+          this.chordAnalyzerTab2.resetPitchRangeToAuto();
+          this.chordAnalyzerTab2.offscreenValid = false;
+          this.chordAnalyzerTab2.buildOffscreenCanvases();
+          if (this.currentTab === 'tab2') {
+            this.updateHeaderMeta(trackLabel, this.audioTab2.durationMs);
+          }
+          this.chordAnalyzerTab2.resize();
+        } else if (msg.type === 'error') {
+          console.error('Lỗi phân tích hợp âm preset Tab 2:', msg.error);
+        }
+      };
+
+      this.chordWorker.postMessage({
+        action: 'analyzeChords',
+        samples: this.audioTab2.samples16k,
+        sampleRate: 16000
+      });
+    } catch (err) {
+      console.error('loadTab2Preset error:', err);
+    }
+  }
+
   async loadTab2AudioFile(file) {
     try {
       this.showLoading(`Đang đọc bài nhạc "${file.name}" vào RAM Tab 2...`, 0.05);
@@ -2772,7 +4537,7 @@ class SpectroSubApp {
         this.chordWorker.terminate();
       }
 
-      this.chordWorker = new Worker('/chord-worker.js');
+      this.chordWorker = new Worker('./chord-worker.js');
 
       this.chordWorker.onmessage = (e) => {
         const msg = e.data;
@@ -2780,6 +4545,9 @@ class SpectroSubApp {
           this.showLoading('Đang phân tích CQT Semitones & Triệt tiêu bồi âm trong Web Worker...', 0.35 + msg.progress * 0.6);
         } else if (msg.type === 'done') {
           this.chordAnalyzerTab2.data = msg;
+          this.chordAnalyzerTab2.resetPitchRangeToAuto();
+          this.chordAnalyzerTab2.offscreenValid = false;
+          this.chordAnalyzerTab2.buildOffscreenCanvases();
           this.hideLoading();
 
           const emptyOverlay = document.getElementById('tab2-empty-overlay');
@@ -2834,6 +4602,14 @@ class SpectroSubApp {
     const tick = () => {
       if (this.currentTab === 'tab1') {
         if (this.audioTab1.isPlaying) {
+          const cur1 = this.audioTab1.getCurrentPosition();
+          const visibleWindowMs = (this.rendererTab1.width || 800) * this.rendererTab1.msPerPixel;
+          const leftMs = this.rendererTab1.scrollOffsetMs;
+          const rightMs = leftMs + visibleWindowMs;
+          if (cur1 >= rightMs || cur1 < leftMs) {
+            this.rendererTab1.scrollOffsetMs = cur1 - visibleWindowMs * 0.15;
+            this.rendererTab1.clampScroll();
+          }
           this.rendererTab1.render();
         }
         const cur1 = this.audioTab1.getCurrentPosition();
@@ -2841,6 +4617,14 @@ class SpectroSubApp {
         if (badge1) badge1.textContent = TimeFormatter.formatFull(cur1);
       } else {
         if (this.audioTab2.isPlaying) {
+          const cur2 = this.audioTab2.getCurrentPosition();
+          const viewW = (this.chordAnalyzerTab2.cqtWidth || 800) - this.chordAnalyzerTab2.leftGutterWidth;
+          const visibleWindowMs = viewW * this.chordAnalyzerTab2.msPerPixel;
+          const leftMs = this.chordAnalyzerTab2.scrollOffsetMs;
+          const rightMs = leftMs + visibleWindowMs;
+          if (cur2 >= rightMs || cur2 < leftMs) {
+            this.chordAnalyzerTab2.scrollOffsetMs = Math.max(-200, cur2 - visibleWindowMs * 0.15);
+          }
           this.chordAnalyzerTab2.render();
         }
         const cur2 = this.audioTab2.getCurrentPosition();
@@ -2854,6 +4638,25 @@ class SpectroSubApp {
 
   bindKeyboardShortcuts() {
     window.addEventListener('keydown', (e) => {
+      // Ctrl+Z (Undo) & Ctrl+Y / Ctrl+Shift+Z (Redo) for Tab 1
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        if (this.currentTab === 'tab1') {
+          e.preventDefault();
+          if (e.shiftKey) {
+            this.redo();
+          } else {
+            this.undo();
+          }
+          return;
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        if (this.currentTab === 'tab1') {
+          e.preventDefault();
+          this.redo();
+          return;
+        }
+      }
+
       const target = e.target;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
 
@@ -2878,14 +4681,6 @@ class SpectroSubApp {
           const btn = document.getElementById('btn-tab2-loop');
           if (btn) btn.click();
         }
-      } else if (e.key === '[' && this.currentTab === 'tab1') {
-        e.preventDefault();
-        const btn = document.getElementById('btn-set-start');
-        if (btn) btn.click();
-      } else if (e.key === ']' && this.currentTab === 'tab1') {
-        e.preventDefault();
-        const btn = document.getElementById('btn-set-end');
-        if (btn) btn.click();
       } else if (e.code === 'ArrowLeft') {
         e.preventDefault();
         const delta = e.shiftKey ? -100 : -500;
@@ -2918,8 +4713,16 @@ class SpectroSubApp {
 }
 
 // -------------------------------------------------------------
-// 7. Initialization: 100% Wrapped in DOMContentLoaded
+// 7. Initialization: 100% Wrapped in window.addEventListener('load', ...)
 // -------------------------------------------------------------
-document.addEventListener('DOMContentLoaded', () => {
-  window.app = new SpectroSubApp();
-});
+function initAppSafely() {
+  if (!window.app) {
+    window.app = new SpectroSubApp();
+  }
+}
+
+if (document.readyState === 'complete') {
+  initAppSafely();
+} else {
+  window.addEventListener('load', initAppSafely);
+}

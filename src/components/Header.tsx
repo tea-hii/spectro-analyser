@@ -121,35 +121,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <polygon points="5 3 19 12 5 21" />
                 </svg>
-                <span>Ví dụ 1 (Liaisons Pháp)</span>
-              </button>
-
-              <button
-                className="dropdown-item"
-                type="button"
-                onClick={() => {
-                  setDropdownOpen(false);
-                  onLoadPreset(2);
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polygon points="5 3 19 12 5 21" />
-                </svg>
-                <span>Ví dụ 2 (Hội thoại)</span>
-              </button>
-
-              <button
-                className="dropdown-item"
-                type="button"
-                onClick={() => {
-                  setDropdownOpen(false);
-                  onLoadPreset(3);
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polygon points="5 3 19 12 5 21" />
-                </svg>
-                <span>Ví dụ 3 (28 câu dài)</span>
+                <span>Ví dụ 1</span>
               </button>
             </div>
           )}
