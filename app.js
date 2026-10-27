@@ -1331,7 +1331,7 @@ class SpectrogramCanvasRenderer {
   }
 
   get msPerPixel() {
-    return Math.max(0.5, 100.0 / Math.max(0.08, this.zoomFactor));
+    return Math.max(0.5, 100.0 / Math.max(0.05, this.zoomFactor));
   }
 
   timeToX(ms) {
@@ -1346,13 +1346,10 @@ class SpectrogramCanvasRenderer {
     if (!this.audio || this.audio.durationMs <= 0) return;
     const durMs = this.audio.durationMs;
     const visibleDurMs = (this.width || 800) * this.msPerPixel;
-    // Dư không gian (khoảng đen) ở đầu: cho phép cuộn sang trái tối đa khoảng 30% bề rộng màn hình
-    const maxLeadMs = Math.round(Math.max(120, (this.width || 800) * 0.3) * this.msPerPixel);
-    // Dư không gian (khoảng đen) ở cuối: cho phép cuộn qua điểm kết thúc tối đa khoảng 40% màn hình
-    const maxTailMs = Math.round(Math.max(160, (this.width || 800) * 0.4) * this.msPerPixel);
+    const leadMs = Math.round(this.leadMarginPx * this.msPerPixel);
 
-    const minScroll = -maxLeadMs;
-    const maxScroll = Math.max(minScroll, durMs - visibleDurMs + maxTailMs);
+    const minScroll = -leadMs;
+    const maxScroll = Math.max(minScroll, durMs - visibleDurMs + leadMs);
     this.scrollOffsetMs = Math.max(minScroll, Math.min(maxScroll, this.scrollOffsetMs));
   }
 
@@ -1956,11 +1953,12 @@ class SpectrogramCanvasRenderer {
     ctx.font = '10px "JetBrains Mono", monospace';
     for (let t = firstTick; t <= vEndMs; t += stepMs) {
       if (t < 0) continue; // Không vẽ mốc âm trước 00:00.000
-      if (durMs > 0 && t > durMs) continue; // Dừng mốc thời gian tại điểm kết thúc của audio
+      const isPastAudio = durMs > 0 && t > durMs;
       const tx = this.timeToX(t);
       if (tx >= 0 && tx <= width) {
-        ctx.strokeStyle = '#475569';
+        ctx.strokeStyle = isPastAudio ? '#27272a' : '#475569';
         ctx.beginPath(); ctx.moveTo(tx, y + height - 8); ctx.lineTo(tx, y + height); ctx.stroke();
+        ctx.fillStyle = isPastAudio ? '#52525b' : '#94a3b8';
         ctx.fillText(TimeFormatter.formatFull(t), tx + 4, y + 16);
       }
     }
@@ -2252,8 +2250,9 @@ class SpectrogramCanvasRenderer {
         const curDistX = Math.abs(p1.x - p2.x);
         const midX = (p1.x + p2.x) / 2;
 
-        const scaleX = pinchStartDistX > 0 ? curDistX / pinchStartDistX : 1.0;
-        const newZoom = Math.max(5, Math.min(200, pinchStartZoom * scaleX));
+        const rawRatio = pinchStartDistX > 0 ? curDistX / pinchStartDistX : 1.0;
+        const scaleX = rawRatio < 1.0 ? Math.pow(rawRatio, 1.8) : Math.pow(rawRatio, 1.4);
+        const newZoom = Math.max(0.05, Math.min(200, pinchStartZoom * scaleX));
         if (newZoom !== this.zoomFactor) {
           this.zoomFactor = newZoom;
           this.scrollOffsetMs = pinchCenterTime - midX * this.msPerPixel;
@@ -2356,8 +2355,8 @@ class SpectrogramCanvasRenderer {
       }
       const mouseX = e.clientX - c.getBoundingClientRect().left;
       const timeAtMouse = this.xToTime(mouseX);
-      const delta = e.deltaY < 0 ? 8 : -8;
-      const newZoom = Math.max(5, Math.min(200, this.zoomFactor + delta));
+      const factor = e.deltaY < 0 ? 1.15 : (1.0 / 1.15);
+      const newZoom = Math.max(0.05, Math.min(200, this.zoomFactor * factor));
       if (newZoom !== this.zoomFactor) {
         this.zoomFactor = newZoom;
         this.scrollOffsetMs = timeAtMouse - mouseX * this.msPerPixel;
@@ -2436,7 +2435,7 @@ class MusicalChordAnalyzer {
   }
 
   get msPerPixel() {
-    return Math.max(0.5, 100.0 / Math.max(5.0, this.zoomFactor));
+    return Math.max(0.5, 100.0 / Math.max(0.05, this.zoomFactor));
   }
 
   timeToX(ms) {
@@ -2545,8 +2544,8 @@ class MusicalChordAnalyzer {
     if (!this.audio || this.audio.durationMs <= 0) return;
     const viewW = (this.cqtWidth || 800) - this.leftGutterWidth;
     const visibleWindowMs = viewW * this.msPerPixel;
-    const minScroll = -200;
-    const maxScroll = Math.max(minScroll, this.audio.durationMs + 200 - visibleWindowMs);
+    const minScroll = 0;
+    const maxScroll = Math.max(0, this.audio.durationMs - visibleWindowMs);
     this.scrollOffsetMs = Math.max(minScroll, Math.min(maxScroll, this.scrollOffsetMs));
   }
 
@@ -2794,12 +2793,26 @@ class MusicalChordAnalyzer {
     ctx.font = '10px "JetBrains Mono", monospace';
     ctx.textAlign = 'left';
 
+    const durMs = this.audio ? this.audio.durationMs : 0;
     for (let t = firstTick; t <= vEndMs; t += stepMs) {
+      if (t < 0) continue;
+      const isPastAudio = durMs > 0 && t > durMs;
       const tx = this.timeToX(t);
       if (tx >= gutterW && tx <= width) {
-        ctx.strokeStyle = '#475569';
+        ctx.strokeStyle = isPastAudio ? '#27272a' : '#475569';
         ctx.beginPath(); ctx.moveTo(tx, y + height - 6); ctx.lineTo(tx, y + height); ctx.stroke();
+        ctx.fillStyle = isPastAudio ? '#52525b' : '#94a3b8';
         ctx.fillText(TimeFormatter.formatFull(t), tx + 4, y + 14);
+      }
+    }
+
+    if (durMs > 0) {
+      const endTx = this.timeToX(durMs);
+      if (endTx >= gutterW && endTx <= width) {
+        ctx.strokeStyle = '#f43f5e';
+        ctx.beginPath(); ctx.moveTo(endTx, y + height - 10); ctx.lineTo(endTx, y + height); ctx.stroke();
+        ctx.fillStyle = '#f43f5e';
+        ctx.fillText('END ' + TimeFormatter.formatFull(durMs), endTx + 4, y + 11);
       }
     }
 
@@ -3096,8 +3109,9 @@ class MusicalChordAnalyzer {
             }
           } else {
             // Zoom theo chiều ngang (Trục thời gian)
-            const scaleX = pinchStartDistX > 0 ? curDistX / pinchStartDistX : 1.0;
-            const newZoom = Math.max(0.08, Math.min(250, pinchStartZoom * scaleX));
+            const rawRatio = pinchStartDistX > 0 ? curDistX / pinchStartDistX : 1.0;
+            const scaleX = rawRatio < 1.0 ? Math.pow(rawRatio, 1.8) : Math.pow(rawRatio, 1.4);
+            const newZoom = Math.max(0.05, Math.min(250, pinchStartZoom * scaleX));
             if (newZoom !== this.zoomFactor) {
               this.zoomFactor = newZoom;
               this.scrollOffsetMs = pinchCenterTime - (midX - this.leftGutterWidth) * this.msPerPixel;
@@ -3240,7 +3254,7 @@ class MusicalChordAnalyzer {
           // --- ZOOM THEO CHIỀU NGANG (Trục thời gian X), tâm tại con trỏ mouseX ---
           const timeAtMouse = this.xToTime(mouseX);
           const factor = e.deltaY < 0 ? 1.15 : (1.0 / 1.15);
-          const newZoom = Math.max(0.08, Math.min(250, this.zoomFactor * factor));
+          const newZoom = Math.max(0.05, Math.min(250, this.zoomFactor * factor));
           if (newZoom !== this.zoomFactor) {
             this.zoomFactor = newZoom;
             this.scrollOffsetMs = timeAtMouse - (mouseX - this.leftGutterWidth) * this.msPerPixel;
@@ -5678,19 +5692,21 @@ class SpectroSubApp {
         curAudio.seek(curAudio.getCurrentPosition() + delta);
       } else if (e.key === '+' || e.key === '=') {
         if (this.currentTab === 'tab1') {
-          this.rendererTab1.zoomFactor = Math.min(200, this.rendererTab1.zoomFactor + 10);
+          this.rendererTab1.zoomFactor = Math.min(200, Math.max(this.rendererTab1.zoomFactor + 1, this.rendererTab1.zoomFactor * 1.22));
+          this.rendererTab1.clampScroll();
           this.rendererTab1.render();
         } else {
-          this.chordAnalyzerTab2.zoomFactor = Math.min(250, Math.max(this.chordAnalyzerTab2.zoomFactor + 1, this.chordAnalyzerTab2.zoomFactor * 1.18));
+          this.chordAnalyzerTab2.zoomFactor = Math.min(250, Math.max(this.chordAnalyzerTab2.zoomFactor + 1, this.chordAnalyzerTab2.zoomFactor * 1.22));
           this.chordAnalyzerTab2.clampScroll();
           this.chordAnalyzerTab2.render();
         }
       } else if (e.key === '-' || e.key === '_') {
         if (this.currentTab === 'tab1') {
-          this.rendererTab1.zoomFactor = Math.max(5, this.rendererTab1.zoomFactor - 10);
+          this.rendererTab1.zoomFactor = Math.max(0.05, this.rendererTab1.zoomFactor * 0.82);
+          this.rendererTab1.clampScroll();
           this.rendererTab1.render();
         } else {
-          this.chordAnalyzerTab2.zoomFactor = Math.max(0.08, this.chordAnalyzerTab2.zoomFactor * 0.85);
+          this.chordAnalyzerTab2.zoomFactor = Math.max(0.05, this.chordAnalyzerTab2.zoomFactor * 0.82);
           this.chordAnalyzerTab2.clampScroll();
           this.chordAnalyzerTab2.render();
         }
