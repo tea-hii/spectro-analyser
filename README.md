@@ -19,7 +19,7 @@ A 100% client-side web application for audio frequency analysis, speech phonetic
 - **Color Palettes**: 5 color LUTs (Aegisub Classic, Inferno, Viridis, Neon Cyber, Paper).
 
 ### Supported Upload Files
-- **Audio Files**: `.mp3`, `.wav`, `.flac`, `.ogg`, `.webm`, `.aac`, `.m4a`
+- **Audio & Video Files**: `.mp3`, `.wav`, `.flac`, `.ogg`, `.webm`, `.aac`, `.m4a`, `.mp4`, `.mov`, `.mkv` *(browser extracts audio track directly in-memory; offers fast Waveform-only mode for files > 15 mins)*
 - **Subtitle / Script Files**: `.ass`, `.srt`, `.json`, `.txt`
 
 ### Supported Export Files
@@ -53,7 +53,7 @@ A 100% client-side web application for audio frequency analysis, speech phonetic
 - **Built-in Synthesizer**: Instant playback audition with Grand Piano, Electric Piano (Rhodes), Acoustic Guitar, or String Ensemble.
 
 ### Supported Upload Files
-- **Audio Files**: `.mp3`, `.wav`, `.flac`, `.ogg`, `.webm`, `.aac`, `.m4a`
+- **Audio & Video Files**: `.mp3`, `.wav`, `.flac`, `.ogg`, `.webm`, `.aac`, `.m4a`, `.mp4`, `.mov`, `.mkv` *(browser extracts audio track directly in-memory; offers fast Waveform-only mode for files > 15 mins)*
 
 ### Supported Export Files
 - **MIDI Files**: `.mid` (Standard Type 0 MIDI file, compatible with any DAW such as Ableton Live, FL Studio, Logic Pro, Reaper, MuseScore, Sibelius).

@@ -34,7 +34,19 @@ const I18N_LOCALES = {
     file_menu_title: 'File (Up File & Save Script)',
     file_upload_heading: '📁 Up File',
     file_save_heading: '💾 Save Script',
-    upload_audio: 'Tải file Audio (mp3, wav...)',
+    upload_audio: 'Tải Audio / Video (mp3, wav, mp4...)',
+    modal_long_audio_title: 'Tối Ưu Hóa Tải File Audio / Video Dài',
+    long_audio_duration_info_prefix: 'Thời lượng: ',
+    long_audio_duration_info_suffix: ' (> 15 phút) — Trình duyệt đã bóc tách luồng âm thanh vào RAM.',
+    long_audio_question: 'File này dài hơn 15 phút. Bạn có muốn phân tích biểu đồ phổ <strong>Spectrogram</strong> không?',
+    long_audio_opt_waveform: '🟢 Chỉ phân tích Dạng Sóng (Waveform Only)',
+    long_audio_badge_rec: 'Khuyến nghị',
+    long_audio_desc_waveform: 'Xử lý siêu tốc (< 1 giây), tiết kiệm tối đa RAM và CPU. Rất mượt mà trên cả điện thoại và máy tính. Hoàn hảo cho việc căn chỉnh mốc thời gian phụ đề & karaoke bằng đỉnh sóng âm.',
+    long_audio_opt_spectro: '🟣 Phân tích cả Biểu đồ phổ (Spectrogram STFT)',
+    long_audio_badge_opt: 'Tối ưu 50% RAM',
+    long_audio_desc_spectro: 'Hệ thống sẽ tự động tăng bước nhảy khung (Hop Size 32ms) để tính toán nhanh gấp đôi và giảm 50% RAM. Tuy nhiên vẫn sẽ mất vài giây tính toán và chiếm nhiều RAM hơn dạng sóng.',
+    btn_long_audio_waveform: '✓ Chỉ Dạng Sóng (Khuyến nghị)',
+    btn_long_audio_spectro: 'Tạo cả Spectrogram',
     upload_sub: 'Tải phụ đề / kịch bản (.ass, .srt, .json)',
     load_sample_tab1: 'Ví dụ 1 (Mẫu Pháp)',
     save_script: 'Lưu / Xuất Kịch Bản (.ass, .srt)',
@@ -152,7 +164,19 @@ const I18N_LOCALES = {
     file_menu_title: 'File (Upload & Export Script)',
     file_upload_heading: '📁 Upload File',
     file_save_heading: '💾 Save Script',
-    upload_audio: 'Upload Audio file (mp3, wav...)',
+    upload_audio: 'Upload Audio / Video (mp3, wav, mp4...)',
+    modal_long_audio_title: 'Long Audio / Video Optimization',
+    long_audio_duration_info_prefix: 'Duration: ',
+    long_audio_duration_info_suffix: ' (> 15 mins) — Audio stream extracted to in-memory RAM.',
+    long_audio_question: 'This file is longer than 15 minutes. Would you like to generate the <strong>Spectrogram</strong>?',
+    long_audio_opt_waveform: '🟢 Waveform Only (Recommended)',
+    long_audio_badge_rec: 'Recommended',
+    long_audio_desc_waveform: 'Instant analysis (< 1 second), maximum RAM & CPU savings. Silky smooth 60fps on mobile and desktop. Ideal for subtitle and karaoke speech timing alignment.',
+    long_audio_opt_spectro: '🟣 Generate Full Spectrogram (STFT)',
+    long_audio_badge_opt: '50% RAM Optimized',
+    long_audio_desc_spectro: 'Automatically adapts hop size (32ms) to compute 2x faster with 50% less memory. However, it still requires extra RAM and a few seconds of calculation.',
+    btn_long_audio_waveform: '✓ Waveform Only (Recommended)',
+    btn_long_audio_spectro: 'Generate Spectrogram',
     upload_sub: 'Upload Subtitle / Script (.ass, .srt, .json)',
     load_sample_tab1: 'Example 1 (French Sample)',
     save_script: 'Export / Save Script (.ass, .srt)',
@@ -1538,6 +1562,19 @@ class SpectrogramCanvasRenderer {
     if (specH > 0) {
       if (this.spectrogram && this.spectrogram.numFrames > 0) {
         this.drawSpectrogram(ctx, 0, specY, w, specH);
+      } else {
+        ctx.fillStyle = '#080d18';
+        ctx.fillRect(0, specY, w, specH);
+        ctx.fillStyle = '#64748b';
+        ctx.font = '12px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(
+          (typeof CURRENT_LANG !== 'undefined' && CURRENT_LANG === 'EN')
+            ? 'Spectrogram was skipped for fast long-audio processing (Waveform Mode active)'
+            : 'Đã bỏ qua Spectrogram để tối ưu RAM cho file dài (Đang dùng chế độ Dạng sóng)',
+          w / 2,
+          specY + specH / 2
+        );
       }
       this.drawFrequencyColorAxis(ctx, 0, specY, 6, specH);
     }
@@ -5008,8 +5045,33 @@ class SpectroSubApp {
 
     const modalCancelBtns = document.querySelectorAll('.modal-footer .modal-close-btn');
     modalCancelBtns.forEach(btn => {
-      if (btn !== btnModalFreqClose) btn.textContent = t('btn_cancel');
+      if (btn !== btnModalFreqClose && btn.id !== 'btn-close-long-audio') btn.textContent = t('btn_cancel');
     });
+
+    // Localize modal-long-audio
+    const modalLongAudio = document.getElementById('modal-long-audio');
+    if (modalLongAudio) {
+      const qEl = document.getElementById('long-audio-question');
+      if (qEl) qEl.innerHTML = t('long_audio_question');
+      const optW = document.getElementById('long-audio-opt-waveform');
+      if (optW) optW.textContent = t('long_audio_opt_waveform');
+      const badgeW = document.getElementById('long-audio-badge-rec');
+      if (badgeW) badgeW.textContent = t('long_audio_badge_rec');
+      const descW = document.getElementById('long-audio-desc-waveform');
+      if (descW) descW.textContent = t('long_audio_desc_waveform');
+      const optS = document.getElementById('long-audio-opt-spectro');
+      if (optS) optS.textContent = t('long_audio_opt_spectro');
+      const badgeS = document.getElementById('long-audio-badge-opt');
+      if (badgeS) badgeS.textContent = t('long_audio_badge_opt');
+      const descS = document.getElementById('long-audio-desc-spectro');
+      if (descS) descS.textContent = t('long_audio_desc_spectro');
+      const btnW = document.getElementById('btn-long-audio-waveform');
+      if (btnW) btnW.textContent = t('btn_long_audio_waveform');
+      const btnS = document.getElementById('btn-long-audio-spectro');
+      if (btnS) btnS.textContent = t('btn_long_audio_spectro');
+    }
+
+    this.syncViewModeUI();
 
     this.updateUndoRedoButtonsState();
     this.renderTab1CuesList();
@@ -5722,27 +5784,12 @@ class SpectroSubApp {
 
     // Direct 3-level Eye View Mode Switch (Spectro -> Waveform -> Dual)
     const btnViewMode = document.getElementById('btn-view-mode');
-    const viewModeLabel = document.getElementById('view-mode-label');
     if (btnViewMode) {
       btnViewMode.addEventListener('click', () => {
         const modes = ['SPECTROGRAM', 'WAVEFORM', 'DUAL'];
         const nextIdx = (modes.indexOf(this.rendererTab1.viewMode) + 1) % modes.length;
-        const nextMode = modes[nextIdx];
-        this.rendererTab1.viewMode = nextMode;
-
-        if (viewModeLabel) {
-          viewModeLabel.textContent = nextMode === 'SPECTROGRAM' ? 'Spectro' : nextMode === 'WAVEFORM' ? 'Waveform' : 'Dual';
-        }
-        btnViewMode.title = `Chế độ hiển thị: ${nextMode} (Bấm để đổi: Spectro → Waveform → Dual)`;
-        btnViewMode.style.borderColor = nextMode === 'DUAL' ? '#38bdf8' : nextMode === 'SPECTROGRAM' ? '#a855f7' : '#10b981';
-        btnViewMode.style.color = nextMode === 'DUAL' ? '#38bdf8' : nextMode === 'SPECTROGRAM' ? '#d8b4fe' : '#6ee7b7';
-        btnViewMode.style.background = nextMode === 'DUAL'
-          ? 'rgba(56, 189, 248, 0.14)'
-          : nextMode === 'SPECTROGRAM'
-            ? 'rgba(168, 85, 247, 0.14)'
-            : 'rgba(16, 185, 129, 0.14)';
-
-        this.rendererTab1.render();
+        this.rendererTab1.viewMode = modes[nextIdx];
+        this.syncViewModeUI();
       });
     }
 
@@ -6674,24 +6721,129 @@ class SpectroSubApp {
   // -------------------------------------------------------------
   // Tab 1 Operations
   // -------------------------------------------------------------
+  syncViewModeUI() {
+    const btnViewMode = document.getElementById('btn-view-mode');
+    const viewModeLabel = document.getElementById('view-mode-label');
+    if (!this.rendererTab1) return;
+    const mode = this.rendererTab1.viewMode || 'DUAL';
+    if (viewModeLabel) {
+      viewModeLabel.textContent = mode === 'SPECTROGRAM' ? 'Spectro' : mode === 'WAVEFORM' ? 'Waveform' : 'Dual';
+    }
+    if (btnViewMode) {
+      btnViewMode.title = `${t('view_mode_prefix')}${mode}${t('view_mode_suffix')}`;
+      btnViewMode.style.borderColor = mode === 'DUAL' ? '#38bdf8' : mode === 'SPECTROGRAM' ? '#a855f7' : '#10b981';
+      btnViewMode.style.color = mode === 'DUAL' ? '#38bdf8' : mode === 'SPECTROGRAM' ? '#d8b4fe' : '#6ee7b7';
+      btnViewMode.style.background = mode === 'DUAL'
+        ? 'rgba(56, 189, 248, 0.14)'
+        : mode === 'SPECTROGRAM'
+          ? 'rgba(168, 85, 247, 0.14)'
+          : 'rgba(16, 185, 129, 0.14)';
+    }
+    this.rendererTab1.render();
+  }
+
+  promptLongAudioSpectrogram(durationMs, fileName) {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('modal-long-audio');
+      const titleEl = document.getElementById('long-audio-file-name');
+      const infoEl = document.getElementById('long-audio-duration-info');
+      const btnWaveform = document.getElementById('btn-long-audio-waveform');
+      const btnSpectro = document.getElementById('btn-long-audio-spectro');
+      const btnClose = document.getElementById('btn-close-long-audio');
+
+      if (!modal || !btnWaveform || !btnSpectro) {
+        resolve('WAVEFORM_ONLY');
+        return;
+      }
+
+      const totalSec = Math.max(0, Math.floor(durationMs / 1000));
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      const durStr = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+      if (titleEl) titleEl.textContent = fileName || 'Audio / Video';
+      if (infoEl) {
+        infoEl.textContent = `${t('long_audio_duration_info_prefix')}${durStr}${t('long_audio_duration_info_suffix')}`;
+      }
+
+      modal.style.display = 'flex';
+
+      const cleanup = () => {
+        modal.style.display = 'none';
+        btnWaveform.removeEventListener('click', onWaveform);
+        btnSpectro.removeEventListener('click', onSpectro);
+        if (btnClose) btnClose.removeEventListener('click', onClose);
+      };
+
+      const onWaveform = () => {
+        cleanup();
+        resolve('WAVEFORM_ONLY');
+      };
+
+      const onSpectro = () => {
+        cleanup();
+        resolve('SPECTROGRAM');
+      };
+
+      const onClose = () => {
+        cleanup();
+        resolve('WAVEFORM_ONLY');
+      };
+
+      btnWaveform.addEventListener('click', onWaveform);
+      btnSpectro.addEventListener('click', onSpectro);
+      if (btnClose) btnClose.addEventListener('click', onClose);
+    });
+  }
+
   async loadTab1AudioFile(file) {
     try {
       this.showLoading(`Đang đọc file "${file.name}" vào RAM Tab 1...`, 0.05);
       const arrayBuf = await file.arrayBuffer();
 
-      this.showLoading('Đang giải mã & Downsample 16kHz Mono (Tab 1)...', 0.25);
+      this.showLoading('Đang giải mã âm thanh & Downsample 16kHz Mono (Tab 1)...', 0.25);
       await this.audioTab1.loadAudioBuffer(arrayBuf, file.name, (p) => {
         this.showLoading('Đang phân tích âm thanh Tab 1...', p);
       });
 
-      this.showLoading('Đang tính ma trận 2D STFT (512-pt Cooley-Tukey FFT)...', 0.5);
-      const spec = await this.fftTab1.computeSpectrogramAsync(
-        this.audioTab1.samples16k,
-        16000,
-        (p) => this.showLoading('Đang vẽ biểu đồ phổ Tab 1...', p)
-      );
+      const durationMs = this.audioTab1.durationMs;
+      let shouldComputeSpectrogram = true;
+      let targetHopSize = 256;
 
-      this.rendererTab1.spectrogram = spec;
+      // Nếu audio/video dài hơn 15 phút (900.000 ms), hiển thị popup hỏi người dùng
+      if (durationMs > 15 * 60 * 1000) {
+        this.hideLoading();
+        const userChoice = await this.promptLongAudioSpectrogram(durationMs, file.name);
+        if (userChoice === 'WAVEFORM_ONLY') {
+          shouldComputeSpectrogram = false;
+        } else {
+          shouldComputeSpectrogram = true;
+          // Tối ưu thông số: tăng hopSize từ 256 lên 512 (32ms/khung) hoặc 1024 cho file rất dài (> 30p)
+          targetHopSize = durationMs > 30 * 60 * 1000 ? 1024 : 512;
+        }
+      }
+
+      if (shouldComputeSpectrogram) {
+        this.showLoading(
+          targetHopSize > 256
+            ? 'Đang tính ma trận STFT (Tối ưu hóa nhanh 50% RAM)...'
+            : 'Đang tính ma trận 2D STFT (512-pt Cooley-Tukey FFT)...',
+          0.5
+        );
+        this.fftTab1.hopSize = targetHopSize;
+        const spec = await this.fftTab1.computeSpectrogramAsync(
+          this.audioTab1.samples16k,
+          16000,
+          (p) => this.showLoading('Đang vẽ biểu đồ phổ Tab 1...', p)
+        );
+        this.rendererTab1.spectrogram = spec;
+        this.rendererTab1.viewMode = 'DUAL';
+      } else {
+        this.rendererTab1.spectrogram = null;
+        this.rendererTab1.viewMode = 'WAVEFORM';
+      }
+
+      this.syncViewModeUI();
       this.rendererTab1.selectionStartMs = 0;
       this.rendererTab1.selectionEndMs = Math.min(3000, this.audioTab1.durationMs);
 
@@ -6713,7 +6865,7 @@ class SpectroSubApp {
     } catch (err) {
       console.error(err);
       this.hideLoading();
-      alert('Không thể đọc file audio Tab 1: ' + err.message);
+      alert('Không thể đọc file audio/video Tab 1: ' + err.message);
     }
   }
 

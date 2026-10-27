@@ -75,7 +75,7 @@
           <div id="upload-dropdown-menu" class="dropdown-menu">
             <button id="btn-dropdown-upload-audio" class="dropdown-item" type="button">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-              <span>Tải file Audio (mp3, wav...)</span>
+              <span data-i18n="upload_audio">Tải Audio / Video (mp3, wav, mp4...)</span>
             </button>
             <button id="btn-dropdown-upload-sub" class="dropdown-item" type="button">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
@@ -208,7 +208,7 @@
                   <div id="file-menu-header-upload" style="padding: 6px 12px 2px; font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">📁 Up File</div>
                   <button id="btn-file-upload-audio" class="dropdown-item" type="button">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-                    <span>Tải file Audio (mp3, wav...)</span>
+                    <span data-i18n="upload_audio">Tải Audio / Video (mp3, wav, mp4...)</span>
                   </button>
                   <button id="btn-file-upload-sub" class="dropdown-item" type="button">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
@@ -647,7 +647,7 @@
   <div id="root" style="display: none;"></div>
 
   <!-- Separate Hidden File Inputs (Zero-leakage) -->
-  <input type="file" id="input-audio-tab1" accept="audio/*,video/*" style="display: none;">
+  <input type="file" id="input-audio-tab1" accept="audio/*,video/*,.mp4,.webm,.mkv,.mov,.avi,.flv,.m4v,.mp3,.wav,.flac,.ogg,.aac,.m4a" style="display: none;">
   <input type="file" id="input-sub-tab1" accept=".ass,.srt,.vtt,.json,.txt" style="display: none;">
   <input type="file" id="input-audio-tab2" accept="audio/*,video/*" style="display: none;">
 
@@ -869,6 +869,61 @@
       <div class="modal-footer">
         <button class="tb-btn modal-close-btn" type="button">Hủy</button>
         <button id="btn-confirm-export" class="tb-btn" style="background: var(--accent-cyan); color: #021424; font-weight: 700; border-color: var(--accent-cyan);" type="button">Tải File Về</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Long Audio / Video Optimization (Tab 1) -->
+  <div id="modal-long-audio" class="modal-overlay" style="display: none;">
+    <div class="modal-card" style="max-width: 540px;">
+      <div class="modal-header">
+        <h3 id="modal-long-audio-title" data-i18n="modal_long_audio_title" class="modal-title">Tối Ưu Hóa Tải File Audio / Video Dài</h3>
+        <button id="btn-close-long-audio" class="tb-btn icon-only modal-close-btn" style="border: none; background: transparent;" type="button">✕</button>
+      </div>
+      <div class="modal-body" style="font-size: 13px; line-height: 1.6; display: flex; flex-direction: column; gap: 14px;">
+        <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 12px;">
+          <div style="font-size: 26px;">⏱️</div>
+          <div>
+            <div id="long-audio-file-name" style="font-weight: 700; color: #f8fafc; font-size: 14px;">video.mp4</div>
+            <div id="long-audio-duration-info" style="color: #38bdf8; font-size: 12px; margin-top: 2px;">Thời lượng: 24:35 (> 15 phút) — Trình duyệt đã bóc tách luồng âm thanh vào RAM.</div>
+          </div>
+        </div>
+
+        <div id="long-audio-question" style="color: #cbd5e1;">
+          File này dài hơn 15 phút. Bạn có muốn phân tích biểu đồ phổ <strong>Spectrogram</strong> không?
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <!-- Option 1: Waveform Only (Recommended) -->
+          <div style="background: rgba(16, 185, 129, 0.08); border: 1.5px solid #10b981; border-radius: 8px; padding: 12px 14px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <strong id="long-audio-opt-waveform" style="color: #34d399; font-size: 13.5px;">🟢 Chỉ phân tích Dạng Sóng (Waveform Only)</strong>
+              <span id="long-audio-badge-rec" style="font-size: 10px; background: rgba(16, 185, 129, 0.25); color: #6ee7b7; padding: 2px 8px; border-radius: 12px; font-weight: 700; text-transform: uppercase;">Khuyến nghị</span>
+            </div>
+            <div id="long-audio-desc-waveform" style="font-size: 12px; color: #94a3b8; margin-top: 6px;">
+              Xử lý siêu tốc (&lt; 1 giây), tiết kiệm tối đa RAM và CPU. Rất mượt mà trên cả điện thoại và máy tính. Hoàn hảo cho việc căn chỉnh mốc thời gian phụ đề &amp; karaoke bằng đỉnh sóng âm.
+            </div>
+          </div>
+
+          <!-- Option 2: Spectrogram (Fast Optimized) -->
+          <div style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.35); border-radius: 8px; padding: 12px 14px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <strong id="long-audio-opt-spectro" style="color: #c084fc; font-size: 13.5px;">🟣 Phân tích cả Biểu đồ phổ (Spectrogram STFT)</strong>
+              <span id="long-audio-badge-opt" style="font-size: 10px; background: rgba(168, 85, 247, 0.2); color: #d8b4fe; padding: 2px 8px; border-radius: 12px; font-weight: 600;">Tối ưu 50% RAM</span>
+            </div>
+            <div id="long-audio-desc-spectro" style="font-size: 12px; color: #94a3b8; margin-top: 6px;">
+              Hệ thống sẽ tự động tăng bước nhảy khung (Hop Size 32ms) để tính toán nhanh gấp đôi và giảm 50% RAM. Tuy nhiên vẫn sẽ mất vài giây tính toán và chiếm nhiều RAM hơn dạng sóng.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button id="btn-long-audio-waveform" class="tb-btn" style="background: #059669; color: #ffffff; border-color: #10b981; font-weight: 700; padding: 8px 16px;" type="button">
+          ✓ Chỉ Dạng Sóng (Khuyến nghị)
+        </button>
+        <button id="btn-long-audio-spectro" class="tb-btn" style="background: #2e1065; color: #d8b4fe; border-color: #7c3aed; font-weight: 600; padding: 8px 16px;" type="button">
+          Tạo cả Spectrogram
+        </button>
       </div>
     </div>
   </div>
