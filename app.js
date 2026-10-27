@@ -2483,6 +2483,12 @@ class MusicalChordAnalyzer {
     this.midiHeight = 0;
     this.midiThreshold = 70; // Ngưỡng lọc năng lượng CQT tối thiểu (chỉ nốt sáng rõ)
 
+    // MIDI Edit Mode state
+    this.isMidiEditMode = false;
+    this.midiTool = 'PENCIL'; // 'PENCIL', 'ERASER', 'HAND'
+    this.drawingMidiNote = null;
+    this.isErasingMidi = false;
+
     this.data = null;
     this.paletteKey = 'INFERNO';
     this.zoomFactor = 35.0;
@@ -3260,6 +3266,41 @@ class MusicalChordAnalyzer {
     this.drawBpmGrid(ctx, gutterW, y, width, height, true);
   }
 
+
+  getGridStepMs() {
+    const bpm = this.bpm || 120;
+    const beatMs = 60000.0 / bpm;
+    const barMs = beatMs * 4.0;
+    if (this.barGridMode === 'HALF_BAR') return barMs / 2.0;
+    if (this.barGridMode === 'QUARTER_BAR') return barMs / 4.0;
+    if (this.barGridMode === 'EIGHTH_BAR') return barMs / 8.0;
+    if (this.barGridMode === 'OFF') return barMs / 8.0;
+    return barMs;
+  }
+
+  eraseMidiNoteAt(x, y) {
+    if (!this.midiNotes || this.midiNotes.length === 0) return;
+    const minM = this.activeMinMidi;
+    const maxM = this.activeMaxMidi;
+    const renderedSemitones = Math.max(1, maxM - minM + 1);
+    const semitoneH = this.midiHeight / renderedSemitones;
+    const row = Math.floor(y / semitoneH);
+    const pitch = Math.max(minM, Math.min(maxM, maxM - row));
+
+    const initialLen = this.midiNotes.length;
+    this.midiNotes = this.midiNotes.filter(note => {
+      if (note.pitch !== pitch) return true;
+      const x1 = this.timeToX(note.startMs);
+      const x2 = this.timeToX(note.endMs);
+      const isInsideTime = (x >= x1 - 8 && x <= x2 + 8);
+      return !isInsideTime;
+    });
+
+    if (this.midiNotes.length !== initialLen) {
+      this.render();
+    }
+  }
+
   drawBpmGrid(ctx, gutterW, topY, width, height, isRuler = false) {
     if (this.barGridMode === 'OFF' || !this.bpm || this.bpm <= 0) return;
 
@@ -3424,6 +3465,15 @@ class MusicalChordAnalyzer {
           return;
         }
 
+        if (canvas === this.midiCanvas && this.isMidiEditMode) {
+          if (curX >= this.leftGutterWidth) {
+            canvas.style.cursor = (this.midiTool === 'PENCIL') ? 'crosshair' : (this.midiTool === 'ERASER') ? 'cell' : 'grab';
+          } else {
+            canvas.style.cursor = 'default';
+          }
+          return;
+        }
+
         const playheadX = this.timeToX(this.audio.getCurrentPosition());
         if (Math.abs(curX - playheadX) <= 8 && curX >= this.leftGutterWidth) {
           canvas.style.cursor = 'ew-resize';
@@ -3478,6 +3528,31 @@ class MusicalChordAnalyzer {
         dragStartScrollMs = this.scrollOffsetMs;
         dragStartMinMidi = this.activeMinMidi;
         dragStartMaxMidi = this.activeMaxMidi;
+
+        // MIDI Edit Mode: Pencil Drawing & Eraser
+        if (canvas === this.midiCanvas && this.isMidiEditMode && dragStartX >= this.leftGutterWidth) {
+          const minM = this.activeMinMidi;
+          const maxM = this.activeMaxMidi;
+          const renderedSemitones = Math.max(1, maxM - minM + 1);
+          const semitoneH = (this.midiHeight || 100) / renderedSemitones;
+          const row = Math.floor(dragStartY / semitoneH);
+          const pitch = Math.max(minM, Math.min(maxM, maxM - row));
+
+          if (this.midiTool === 'PENCIL') {
+            const gridStepMs = this.getGridStepMs();
+            const rawTime = this.xToTime(dragStartX);
+            const snappedStart = Math.floor(rawTime / gridStepMs) * gridStepMs;
+            const startMs = Math.max(0, snappedStart);
+            const endMs = startMs + gridStepMs;
+            this.drawingMidiNote = { pitch, startMs, endMs, velocity: 90 };
+            this.render();
+            return;
+          } else if (this.midiTool === 'ERASER') {
+            this.isErasingMidi = true;
+            this.eraseMidiNoteAt(dragStartX, dragStartY);
+            return;
+          }
+        }
 
         const rectH = canvas.getBoundingClientRect().height;
         const durMs = this.audio ? this.audio.durationMs : 0;
@@ -3571,7 +3646,23 @@ class MusicalChordAnalyzer {
 
         if (!isDragging) return;
         const curX = getX(e);
+        const curY = getY(e);
         const durMs = this.audio ? this.audio.durationMs : 0;
+
+        // MIDI Edit Mode onMove
+        if (canvas === this.midiCanvas && this.isMidiEditMode) {
+          if (this.midiTool === 'PENCIL' && this.drawingMidiNote) {
+            const gridStepMs = this.getGridStepMs();
+            const curTime = this.xToTime(curX);
+            const snappedEnd = Math.ceil(curTime / gridStepMs) * gridStepMs;
+            this.drawingMidiNote.endMs = Math.max(this.drawingMidiNote.startMs + gridStepMs, snappedEnd);
+            this.render();
+            return;
+          } else if (this.midiTool === 'ERASER' && this.isErasingMidi) {
+            this.eraseMidiNoteAt(curX, curY);
+            return;
+          }
+        }
 
         if (dragTarget === 'SCROLLBAR') {
           if (durMs > 0) {
@@ -3625,6 +3716,21 @@ class MusicalChordAnalyzer {
             pinchLockedAxis = null;
           }
         }
+
+        if (canvas === this.midiCanvas && this.isMidiEditMode) {
+          if (this.midiTool === 'PENCIL' && this.drawingMidiNote) {
+            if (!this.midiNotes) this.midiNotes = [];
+            const note = this.drawingMidiNote;
+            this.midiNotes.push(note);
+            this.midiNotes.sort((a, b) => a.startMs - b.startMs || a.pitch - b.pitch);
+            if (window.app && window.app.midiPreviewer) {
+              window.app.midiPreviewer.playNote(note.pitch, Math.min(0.8, (note.endMs - note.startMs) / 1000.0), 90);
+            }
+            this.drawingMidiNote = null;
+          }
+          this.isErasingMidi = false;
+        }
+
         isDragging = false;
         dragTarget = null;
         this.isDraggingScrollbar = false;
@@ -5691,6 +5797,67 @@ class SpectroSubApp {
       });
     }
 
+    // MIDI Edit Mode Toolbar & Subtool Controls
+    const btnTab2EditMidi = document.getElementById('btn-tab2-edit-midi');
+    const tab2MidiToolsBar = document.getElementById('tab2-midi-tools-bar');
+    const btnTab2ToolPencil = document.getElementById('btn-tab2-tool-pencil');
+    const btnTab2ToolEraser = document.getElementById('btn-tab2-tool-eraser');
+    const btnTab2ToolHand = document.getElementById('btn-tab2-tool-hand');
+    const btnTab2TrashMidi = document.getElementById('btn-tab2-trash-midi');
+
+    if (btnTab2EditMidi) {
+      btnTab2EditMidi.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const nextEdit = !this.chordAnalyzerTab2.isMidiEditMode;
+        this.chordAnalyzerTab2.isMidiEditMode = nextEdit;
+        btnTab2EditMidi.classList.toggle('active', nextEdit);
+        if (tab2MidiToolsBar) {
+          tab2MidiToolsBar.style.display = nextEdit ? 'flex' : 'none';
+        }
+        if (nextEdit) {
+          this.chordAnalyzerTab2.midiTool = 'PENCIL';
+          if (btnTab2ToolPencil) btnTab2ToolPencil.classList.add('active');
+          if (btnTab2ToolEraser) btnTab2ToolEraser.classList.remove('active');
+          if (btnTab2ToolHand) btnTab2ToolHand.classList.remove('active');
+          if (this.chordAnalyzerTab2.midiCanvas) this.chordAnalyzerTab2.midiCanvas.style.cursor = 'crosshair';
+        } else {
+          if (this.chordAnalyzerTab2.midiCanvas) this.chordAnalyzerTab2.midiCanvas.style.cursor = 'default';
+        }
+      });
+    }
+
+    const setMidiSubtool = (tool) => {
+      this.chordAnalyzerTab2.midiTool = tool;
+      if (btnTab2ToolPencil) btnTab2ToolPencil.classList.toggle('active', tool === 'PENCIL');
+      if (btnTab2ToolEraser) btnTab2ToolEraser.classList.toggle('active', tool === 'ERASER');
+      if (btnTab2ToolHand) btnTab2ToolHand.classList.toggle('active', tool === 'HAND');
+      if (this.chordAnalyzerTab2.midiCanvas) {
+        this.chordAnalyzerTab2.midiCanvas.style.cursor = (tool === 'PENCIL') ? 'crosshair' : (tool === 'ERASER') ? 'cell' : 'grab';
+      }
+    };
+
+    if (btnTab2ToolPencil) {
+      btnTab2ToolPencil.addEventListener('click', (e) => { e.stopPropagation(); setMidiSubtool('PENCIL'); });
+    }
+    if (btnTab2ToolEraser) {
+      btnTab2ToolEraser.addEventListener('click', (e) => { e.stopPropagation(); setMidiSubtool('ERASER'); });
+    }
+    if (btnTab2ToolHand) {
+      btnTab2ToolHand.addEventListener('click', (e) => { e.stopPropagation(); setMidiSubtool('HAND'); });
+    }
+
+    if (btnTab2TrashMidi) {
+      btnTab2TrashMidi.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this.midiPreviewer && this.midiPreviewer.isPlaying) {
+          this.midiPreviewer.stopAll();
+        }
+        this.chordAnalyzerTab2.midiNotes = null;
+        this.chordAnalyzerTab2.drawingMidiNote = null;
+        this.chordAnalyzerTab2.render();
+      });
+    }
+
     if (btnTab2Midi) {
       btnTab2Midi.addEventListener('click', () => {
         if (!this.chordAnalyzerTab2.data) {
@@ -5699,6 +5866,13 @@ class SpectroSubApp {
         }
 
         try {
+          // If tier is open and midiNotes was cleared by trash, regenerate from scratch immediately
+          if (this.chordAnalyzerTab2.isMidiVisible && (!this.chordAnalyzerTab2.midiNotes || this.chordAnalyzerTab2.midiNotes.length === 0)) {
+            this.chordAnalyzerTab2.transcribeMidiFromCqt();
+            this.chordAnalyzerTab2.render();
+            return;
+          }
+
           const nextVisible = !this.chordAnalyzerTab2.isMidiVisible;
           this.chordAnalyzerTab2.isMidiVisible = nextVisible;
 

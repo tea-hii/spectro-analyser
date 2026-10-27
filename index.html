@@ -41,7 +41,7 @@
     } catch (_) {}
   </script>
 
-  <link rel="stylesheet" href="./style.css?v=20261027_26">
+  <link rel="stylesheet" href="./style.css?v=20261027_27">
 </head>
 
 <body>
@@ -432,6 +432,7 @@
                   <option value="1_BAR" selected>1 Bar</option>
                   <option value="HALF_BAR">1/2 Bar</option>
                   <option value="QUARTER_BAR">1/4 Bar</option>
+                  <option value="EIGHTH_BAR">1/8 Bar</option>
                   <option value="OFF">Tắt lưới</option>
                 </select>
               </div>
@@ -502,54 +503,88 @@
             <!-- Tier MIDI: Piano Roll / Transcribed Notes (Between CQT & Chromagram) -->
             <div id="tab2-midi-container" class="midi-tier-container" style="display: none; height: 28%; min-height: 80px; position: relative;">
               <canvas id="midi-canvas" style="display: block; width: 100%; height: 100%; touch-action: none !important;"></canvas>
-              <div class="tier-label-overlay" style="display: flex; align-items: center; gap: 8px; padding: 3px 8px;">
-                <span id="tab2-midi-badge-text">MIDI Piano Roll</span>
-                <div style="display: flex; align-items: center; gap: 5px;">
-                  <button id="btn-tab2-play-midi" class="midi-play-btn icon-only" title="Phát thử nốt MIDI theo nhạc cụ (Tương tác vạch vàng)" type="button">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
-                  </button>
-                  <button id="btn-tab2-export-midi" class="midi-export-btn icon-only" title="Tải file .mid về máy (Standard MIDI File)" type="button">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  </button>
-                  <div class="dropdown-wrapper" id="tab2-midi-inst-wrapper" style="position: relative; pointer-events: auto;">
-                    <button id="btn-tab2-midi-inst" class="midi-inst-btn" title="Chọn nhạc cụ General MIDI phát thử" type="button">
-                      <span id="tab2-midi-inst-icon">🎹</span>
+              
+              <!-- Top-Right Controls Overlay with Actions & Expandable Edit Subtools -->
+              <div class="tier-label-overlay midi-tier-overlay" style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px; padding: 3px 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span id="tab2-midi-badge-text">MIDI Piano Roll</span>
+                  <div style="display: flex; align-items: center; gap: 5px;">
+                    <button id="btn-tab2-play-midi" class="midi-play-btn icon-only" title="Phát thử nốt MIDI theo nhạc cụ (Tương tác vạch vàng)" type="button">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
                     </button>
-                    <div id="tab2-midi-inst-menu" class="dropdown-menu midi-inst-dropdown-menu" style="display: none;">
-                      <button class="dropdown-item midi-inst-item active" data-inst="PIANO" data-icon="🎹" type="button">
-                        <span class="inst-icon">🎹</span>
-                        <span class="inst-name">Grand Piano</span>
-                        <span class="inst-check">✓</span>
+                    <button id="btn-tab2-export-midi" class="midi-export-btn icon-only" title="Tải file .mid về máy (Standard MIDI File)" type="button">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    </button>
+                    <div class="dropdown-wrapper" id="tab2-midi-inst-wrapper" style="position: relative; pointer-events: auto;">
+                      <button id="btn-tab2-midi-inst" class="midi-inst-btn" title="Chọn nhạc cụ General MIDI phát thử" type="button">
+                        <span id="tab2-midi-inst-icon">🎹</span>
                       </button>
-                      <button class="dropdown-item midi-inst-item" data-inst="EP" data-icon="🎹" type="button">
-                        <span class="inst-icon">🎹</span>
-                        <span class="inst-name">Rhodes EP</span>
-                        <span class="inst-check">✓</span>
-                      </button>
-                      <button class="dropdown-item midi-inst-item" data-inst="GUITAR" data-icon="🎸" type="button">
-                        <span class="inst-icon">🎸</span>
-                        <span class="inst-name">Guitar</span>
-                        <span class="inst-check">✓</span>
-                      </button>
-                      <button class="dropdown-item midi-inst-item" data-inst="STRINGS" data-icon="🎻" type="button">
-                        <span class="inst-icon">🎻</span>
-                        <span class="inst-name">Strings</span>
-                        <span class="inst-check">✓</span>
-                      </button>
-                      <button class="dropdown-item midi-inst-item" data-inst="SYNTH" data-icon="🎛️" type="button">
-                        <span class="inst-icon">🎛️</span>
-                        <span class="inst-name">Synth</span>
-                        <span class="inst-check">✓</span>
-                      </button>
-                      <button class="dropdown-item midi-inst-item" data-inst="MARIMBA" data-icon="🪵" type="button">
-                        <span class="inst-icon">🪵</span>
-                        <span class="inst-name">Marimba</span>
-                        <span class="inst-check">✓</span>
-                      </button>
+                      <div id="tab2-midi-inst-menu" class="dropdown-menu midi-inst-dropdown-menu" style="display: none;">
+                        <button class="dropdown-item midi-inst-item active" data-inst="PIANO" data-icon="🎹" type="button">
+                          <span class="inst-icon">🎹</span>
+                          <span class="inst-name">Grand Piano</span>
+                          <span class="inst-check">✓</span>
+                        </button>
+                        <button class="dropdown-item midi-inst-item" data-inst="EP" data-icon="🎹" type="button">
+                          <span class="inst-icon">🎹</span>
+                          <span class="inst-name">Rhodes EP</span>
+                          <span class="inst-check">✓</span>
+                        </button>
+                        <button class="dropdown-item midi-inst-item" data-inst="GUITAR" data-icon="🎸" type="button">
+                          <span class="inst-icon">🎸</span>
+                          <span class="inst-name">Guitar</span>
+                          <span class="inst-check">✓</span>
+                        </button>
+                        <button class="dropdown-item midi-inst-item" data-inst="STRINGS" data-icon="🎻" type="button">
+                          <span class="inst-icon">🎻</span>
+                          <span class="inst-name">Strings</span>
+                          <span class="inst-check">✓</span>
+                        </button>
+                        <button class="dropdown-item midi-inst-item" data-inst="SYNTH" data-icon="🎛️" type="button">
+                          <span class="inst-icon">🎛️</span>
+                          <span class="inst-name">Synth</span>
+                          <span class="inst-check">✓</span>
+                        </button>
+                        <button class="dropdown-item midi-inst-item" data-inst="MARIMBA" data-icon="🪵" type="button">
+                          <span class="inst-icon">🪵</span>
+                          <span class="inst-name">Marimba</span>
+                          <span class="inst-check">✓</span>
+                        </button>
+                      </div>
                     </div>
+                    <!-- Nút Edit: bên dưới/cạnh nút play midi -->
+                    <button id="btn-tab2-edit-midi" class="midi-edit-btn icon-only" title="Chế độ chỉnh sửa nốt MIDI (Bút chì, Tẩy, Bàn tay)" type="button">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                        <path d="M12 20h9"/>
+                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                      </svg>
+                    </button>
                   </div>
                 </div>
+
+                <!-- 3 Nút Công Cụ khi bấm Edit: Bút chì, Tẩy, Bàn tay -->
+                <div id="tab2-midi-tools-bar" class="midi-tools-bar" style="display: none; align-items: center; gap: 5px; padding-top: 2px;">
+                  <button id="btn-tab2-tool-pencil" class="midi-subtool-btn icon-only active" title="Bút chì: Vẽ thêm nốt MIDI (Kéo thả, bám theo lưới nhịp)" type="button">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                  </button>
+                  <button id="btn-tab2-tool-eraser" class="midi-subtool-btn icon-only" title="Tẩy: Bấm hoặc quét vào nốt MIDI để xóa" type="button">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 20H7L3 16c-.8-.8-.8-2 0-2.8L14 2.4c.8-.8 2-.8 2.8 0l4.8 4.8c.8.8.8 2 0 2.8L11 20"/><path d="m18 10-6-6"/></svg>
+                  </button>
+                  <button id="btn-tab2-tool-hand" class="midi-subtool-btn icon-only" title="Bàn tay: Kéo cuộn (Pan) và điều hướng dòng thời gian" type="button">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>
+                  </button>
+                </div>
               </div>
+
+              <!-- Nút Thùng Rác ở góc dưới bên phải của MIDI tier -->
+              <button id="btn-tab2-trash-midi" class="midi-trash-btn icon-only" title="Xóa bộ nhớ MIDI (Bấm lại nút MIDI trên thanh công cụ để tạo lại từ đầu)" type="button">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                  <line x1="10" y1="11" x2="10" y2="17"/>
+                  <line x1="14" y1="11" x2="14" y2="17"/>
+                </svg>
+              </button>
             </div>
 
             <!-- Draggable Horizontal Splitter between MIDI & Chromagram (when MIDI active) -->
@@ -743,6 +778,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261027_26"></script>
+  <script src="./app.js?v=20261027_27"></script>
 </body>
 </html>
