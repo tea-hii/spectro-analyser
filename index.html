@@ -41,7 +41,7 @@
     } catch (_) {}
   </script>
 
-  <link rel="stylesheet" href="./style.css?v=20261027_08">
+  <link rel="stylesheet" href="./style.css?v=20261027_09">
 </head>
 
 <body>
@@ -281,18 +281,38 @@
           <section class="subtitle-panel" style="height: 48%;">
             <div class="sub-header">
               <div class="sub-header-left">
-                <span id="cues-count-label" class="sub-title">Danh sách câu (0)</span>
+                <span id="cues-count-label" class="sub-title">D.s câu (0)</span>
 
-                <!-- Select All Cues Button -->
-                <button id="btn-select-all" class="cue-tool-btn" title="Chọn tất cả câu" type="button">
+                <!-- Move Selected Cues Up / Down Stacked Slim -->
+                <div class="cue-move-group" title="Di chuyển câu đã chọn lên / xuống">
+                  <button id="btn-move-up" class="cue-move-btn cue-move-up" title="Di chuyển các câu đã chọn lên trên" type="button">
+                    <svg width="10" height="7" viewBox="0 0 14 8" fill="currentColor">
+                      <polygon points="7,0 14,8 0,8"/>
+                    </svg>
+                  </button>
+                  <button id="btn-move-down" class="cue-move-btn cue-move-down" title="Di chuyển các câu đã chọn xuống dưới" type="button">
+                    <svg width="10" height="7" viewBox="0 0 14 8" fill="currentColor">
+                      <polygon points="0,0 14,0 7,8"/>
+                    </svg>
+                  </button>
+                </div>
+
+                <!-- Master Clock Mode Sync Button -->
+                <button id="btn-master-clock" class="master-clock-btn" data-state="SHOW_LOCKED" title="Đồng bộ chế độ đồng hồ tất cả các câu (Click để đổi chế độ)" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </button>
+              </div>
+
+              <!-- Right Actions: Select All & Delete (Only show when >= 1 cue selected) + Add (+) -->
+              <div class="sub-header-right">
+                <button id="btn-select-all" class="cue-tool-btn" title="Chọn tất cả câu" type="button" style="display: none;">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="9 11 12 14 22 4"/>
                     <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
                   </svg>
                 </button>
 
-                <!-- Delete Selected Cues Button -->
-                <button id="btn-delete-selected" class="cue-tool-btn cue-trash-btn" title="Xóa các câu đã chọn" type="button" disabled>
+                <button id="btn-delete-selected" class="cue-tool-btn cue-trash-btn" title="Xóa các câu đã chọn" type="button" style="display: none;" disabled>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="3 6 5 6 21 6"/>
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -301,27 +321,10 @@
                   </svg>
                 </button>
 
-                <!-- Move Selected Cues Up / Down -->
-                <button id="btn-move-up" class="cue-move-btn" title="Di chuyển các câu đã chọn lên trên" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="18 15 12 9 6 15"/>
-                  </svg>
-                </button>
-                <button id="btn-move-down" class="cue-move-btn" title="Di chuyển các câu đã chọn xuống dưới" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="6 9 12 15 18 9"/>
-                  </svg>
-                </button>
-
-                <button id="btn-master-clock" class="master-clock-btn" data-state="SHOW_LOCKED" title="Đồng bộ chế độ đồng hồ tất cả các câu (Click để đổi chế độ)" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <button id="btn-open-add-cues" class="tb-btn icon-only" style="background: #1e1b4b; border-color: #6366f1; color: #c7d2fe;" title="Thêm câu hoặc đoạn văn bản" type="button">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 </button>
               </div>
-
-              <button id="btn-open-add-cues" class="tb-btn" style="background: #1e1b4b; border-color: #6366f1; color: #c7d2fe;" type="button">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                <span>Thêm</span>
-              </button>
             </div>
 
             <div id="cues-list-container" class="cues-list-container">
@@ -614,6 +617,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261027_08"></script>
+  <script src="./app.js?v=20261027_09"></script>
 </body>
 </html>

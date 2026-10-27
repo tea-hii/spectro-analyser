@@ -3454,8 +3454,7 @@ class SpectroSubApp {
 
     const btnOpenAddCues = document.getElementById('btn-open-add-cues');
     if (btnOpenAddCues) {
-      const span = btnOpenAddCues.querySelector('span');
-      if (span) span.textContent = t('btn_add_cue');
+      btnOpenAddCues.title = t('modal_add_title');
     }
 
     // Tab 2 Toolbar elements
@@ -3685,7 +3684,142 @@ class SpectroSubApp {
     }
   }
 
+  initMobileLongPressTooltips() {
+    let tooltipToast = document.getElementById('mobile-tooltip-toast');
+    if (!tooltipToast) {
+      tooltipToast = document.createElement('div');
+      tooltipToast.id = 'mobile-tooltip-toast';
+      tooltipToast.className = 'mobile-tooltip-toast';
+      document.body.appendChild(tooltipToast);
+    }
+
+    let longPressTimer = null;
+    let isLongPressActive = false;
+    let suppressClickUntil = 0;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let targetEl = null;
+    let hideTimer = null;
+
+    const hideTooltip = () => {
+      clearTimeout(hideTimer);
+      if (tooltipToast) {
+        tooltipToast.classList.remove('visible');
+      }
+    };
+
+    const showTooltip = (text, clientX, clientY, targetRect) => {
+      if (!text || !tooltipToast) return;
+      clearTimeout(hideTimer);
+      tooltipToast.textContent = text;
+      tooltipToast.classList.add('visible');
+
+      const toastRect = tooltipToast.getBoundingClientRect();
+      const padding = 8;
+      let left = clientX - toastRect.width / 2;
+      let top = (targetRect ? targetRect.top : clientY) - toastRect.height - 8;
+
+      if (top < padding) {
+        top = (targetRect ? targetRect.bottom : clientY) + 8;
+      }
+
+      const maxLeft = window.innerWidth - toastRect.width - padding;
+      if (left < padding) left = padding;
+      if (left > maxLeft) left = maxLeft;
+
+      tooltipToast.style.left = `${Math.round(left)}px`;
+      tooltipToast.style.top = `${Math.round(top)}px`;
+
+      hideTimer = setTimeout(hideTooltip, 3000);
+    };
+
+    document.addEventListener('touchstart', (e) => {
+      clearTimeout(longPressTimer);
+      if (tooltipToast && tooltipToast.classList.contains('visible')) {
+        hideTooltip();
+      }
+      isLongPressActive = false;
+
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+
+      const el = e.target.closest('[title], [data-tooltip]');
+      if (!el) {
+        targetEl = null;
+        return;
+      }
+
+      const text = el.getAttribute('title') || el.getAttribute('data-tooltip');
+      if (!text || !text.trim()) {
+        targetEl = null;
+        return;
+      }
+
+      targetEl = el;
+
+      longPressTimer = setTimeout(() => {
+        isLongPressActive = true;
+        const rect = targetEl ? targetEl.getBoundingClientRect() : null;
+        showTooltip(text.trim(), touchStartX, touchStartY, rect);
+        if (navigator.vibrate) {
+          try { navigator.vibrate(25); } catch (_) {}
+        }
+      }, 380);
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+      if (!longPressTimer && !isLongPressActive) return;
+      if (e.touches.length > 0) {
+        const touch = e.touches[0];
+        const dist = Math.hypot(touch.clientX - touchStartX, touch.clientY - touchStartY);
+        if (dist > 10) {
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+          if (isLongPressActive) {
+            hideTooltip();
+            isLongPressActive = false;
+          }
+        }
+      }
+    }, { passive: true });
+
+    document.addEventListener('touchend', (e) => {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+
+      if (isLongPressActive) {
+        suppressClickUntil = Date.now() + 650;
+        isLongPressActive = false;
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+      }
+    }, { passive: false });
+
+    document.addEventListener('touchcancel', () => {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+      isLongPressActive = false;
+    }, { passive: true });
+
+    window.addEventListener('click', (e) => {
+      if (Date.now() < suppressClickUntil) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+      } else {
+        hideTooltip();
+      }
+    }, true);
+
+    window.addEventListener('scroll', hideTooltip, { passive: true });
+  }
+
   initUI() {
+    this.initMobileLongPressTooltips();
+
     // Language Toggle Buttons (Tab 1 & Tab 2)
     const btnLang1 = document.getElementById('btn-lang-tab1');
     const btnLang2 = document.getElementById('btn-lang-tab2');
@@ -4948,8 +5082,11 @@ class SpectroSubApp {
       countLabel.textContent = `${t('cues_count_prefix')}${this.cuesTab1.length})${selectedSuffix}`;
     }
 
+    const hasSelected = this.selectedCueIds.size > 0;
+
     const btnSelectAll = document.getElementById('btn-select-all');
     if (btnSelectAll) {
+      btnSelectAll.style.display = hasSelected ? 'inline-flex' : 'none';
       const allSelected = this.cuesTab1.length > 0 && this.selectedCueIds.size === this.cuesTab1.length;
       btnSelectAll.classList.toggle('active', allSelected);
       btnSelectAll.title = allSelected
@@ -4960,11 +5097,11 @@ class SpectroSubApp {
 
     const btnDeleteSelected = document.getElementById('btn-delete-selected');
     if (btnDeleteSelected) {
-      const hasTargets = this.selectedCueIds.size > 0 || (this.cuesTab1.length > 0 && this.activeCueTab1);
-      btnDeleteSelected.disabled = !hasTargets;
-      btnDeleteSelected.title = this.selectedCueIds.size > 0
+      btnDeleteSelected.style.display = hasSelected ? 'inline-flex' : 'none';
+      btnDeleteSelected.disabled = !hasSelected;
+      btnDeleteSelected.title = hasSelected
         ? t('delete_multiple_title', this.selectedCueIds.size)
-        : (this.activeCueTab1 ? t('delete_single_title') : t('delete_selected_title'));
+        : t('delete_selected_title');
     }
 
     const btnMoveUp = document.getElementById('btn-move-up');

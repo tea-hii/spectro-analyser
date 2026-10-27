@@ -838,7 +838,6 @@ input, textarea, button, select {
   box-shadow: 0 0 8px rgba(168, 85, 247, 0.4);
 }
 
-.cue-move-btn,
 .cue-tool-btn {
   width: 26px;
   height: 26px;
@@ -853,17 +852,53 @@ input, textarea, button, select {
   transition: all 0.15s ease;
 }
 
-.cue-move-btn:hover:not(:disabled),
-.cue-tool-btn:hover:not(:disabled) {
-  background: #334155;
-  border-color: var(--accent-cyan);
-  color: var(--accent-cyan);
+/* Stacked Slim Cue Move Buttons (Up / Down) */
+.cue-move-group {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
 }
 
-.cue-move-btn:disabled,
-.cue-tool-btn:disabled {
-  opacity: 0.35;
+.cue-move-btn {
+  width: 22px;
+  height: 12px;
+  min-height: 12px;
+  padding: 0;
+  border-radius: 3px;
+  border: 1px solid var(--border-color);
+  background: #1e293b;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.cue-move-btn svg {
+  display: block;
+}
+
+.cue-move-btn:hover:not(:disabled) {
+  background: #334155;
+  border-color: var(--accent-cyan);
+  color: #38bdf8;
+}
+
+.cue-move-btn:disabled {
+  opacity: 0.25;
   cursor: not-allowed;
+}
+
+.sub-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .cue-tool-btn.active {
@@ -1334,6 +1369,36 @@ input, textarea, button, select {
   transform: translateY(-2px);
 }
 
+/* Mobile Long-Press Tooltip Popover Toast */
+.mobile-tooltip-toast {
+  position: fixed;
+  z-index: 999999;
+  background: rgba(15, 23, 42, 0.96);
+  color: #f8fafc;
+  border: 1px solid rgba(56, 189, 248, 0.55);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.65), 0 0 14px rgba(56, 189, 248, 0.25);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  max-width: 84vw;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.92) translateY(4px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  display: none;
+  text-align: center;
+  word-break: break-word;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.mobile-tooltip-toast.visible {
+  display: block;
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
 /* Modals & Dialogs */
 .modal-overlay {
   position: fixed;
@@ -1606,7 +1671,15 @@ input, textarea, button, select {
   .sub-header-left {
     gap: 4px;
     min-width: 0;
-    overflow: hidden;
+  }
+  .sub-header-right {
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .cue-move-btn {
+    width: 20px;
+    height: 11px;
+    min-height: 11px;
   }
   .sub-title {
     font-size: 12px;
