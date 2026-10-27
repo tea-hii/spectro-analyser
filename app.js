@@ -1293,7 +1293,7 @@ class SpectrogramCanvasRenderer {
     this.selectionEndMs = 2100;
 
     this.rulerHeight = 28;
-    this.minimapHeight = 10;
+    this.minimapHeight = 24;
     this.subOverlayHeight = 28;
     this.isDraggingScrollbar = false;
 
@@ -1993,25 +1993,25 @@ class SpectrogramCanvasRenderer {
 
     // 2. Subtle groove line along center of track
     ctx.fillStyle = '#1e293b';
-    const grooveH = Math.max(2, Math.round(height * 0.3));
+    const grooveH = Math.max(4, Math.round(height * 0.35));
     const grooveY = y + Math.round((height - grooveH) / 2);
     ctx.fillRect(x, grooveY, width, grooveH);
 
-    // 3. Compact modern scrollbar thumb
+    // 3. Compact modern scrollbar thumb (enlarged for easy mobile touch)
     const visibleDurMs = width * this.msPerPixel;
     const thumbStartMs = Math.max(0, Math.min(durMs, this.scrollOffsetMs));
     const thumbEndMs = Math.max(0, Math.min(durMs, this.scrollOffsetMs + visibleDurMs));
     const thumbX = (thumbStartMs / durMs) * width;
-    const thumbW = Math.max(16, ((thumbEndMs - thumbStartMs) / durMs) * width);
+    const thumbW = Math.max(28, ((thumbEndMs - thumbStartMs) / durMs) * width);
 
-    const thumbPadY = 1;
-    const thumbH = Math.max(4, height - thumbPadY * 2);
+    const thumbPadY = 3;
+    const thumbH = Math.max(8, height - thumbPadY * 2);
     const thumbY = y + thumbPadY;
 
-    ctx.fillStyle = this.isDraggingScrollbar ? '#38bdf8' : 'rgba(56, 189, 248, 0.55)';
+    ctx.fillStyle = this.isDraggingScrollbar ? '#38bdf8' : 'rgba(56, 189, 248, 0.75)';
     if (ctx.roundRect) {
       ctx.beginPath();
-      ctx.roundRect(thumbX, thumbY, thumbW, thumbH, Math.min(3, thumbH / 2));
+      ctx.roundRect(thumbX, thumbY, thumbW, thumbH, Math.min(4, thumbH / 2));
       ctx.fill();
     } else {
       ctx.fillRect(thumbX, thumbY, thumbW, thumbH);
@@ -2173,7 +2173,9 @@ class SpectrogramCanvasRenderer {
       const rectH = c.getBoundingClientRect().height;
 
       // 1. Click / drag on slim bottom scrollbar (moves in swipe direction!)
-      if (dragStartY >= rectH - this.minimapHeight) {
+      const isTouch = (e.touches && e.touches.length > 0);
+      const scrollbarHitHeight = isTouch ? Math.max(36, this.minimapHeight + 12) : this.minimapHeight;
+      if (dragStartY >= rectH - scrollbarHitHeight) {
         dragTarget = 'SCROLLBAR';
         this.isDraggingScrollbar = true;
         c.style.cursor = 'grabbing';
@@ -2183,7 +2185,7 @@ class SpectrogramCanvasRenderer {
           const thumbStartMs = Math.max(0, this.scrollOffsetMs);
           const thumbEndMs = Math.min(durMs, this.scrollOffsetMs + visibleDurMs);
           const thumbX = (thumbStartMs / durMs) * this.width;
-          const thumbW = Math.max(16, ((thumbEndMs - thumbStartMs) / durMs) * this.width);
+          const thumbW = Math.max(28, ((thumbEndMs - thumbStartMs) / durMs) * this.width);
 
           // If clicked outside the current thumb, center thumb at click location
           if (dragStartX < thumbX || dragStartX > thumbX + thumbW) {
@@ -2355,7 +2357,7 @@ class SpectrogramCanvasRenderer {
       }
       const mouseX = e.clientX - c.getBoundingClientRect().left;
       const timeAtMouse = this.xToTime(mouseX);
-      const factor = e.deltaY < 0 ? 1.15 : (1.0 / 1.15);
+      const factor = e.deltaY < 0 ? 1.30 : (1.0 / 1.30);
       const newZoom = Math.max(0.05, Math.min(200, this.zoomFactor * factor));
       if (newZoom !== this.zoomFactor) {
         this.zoomFactor = newZoom;
@@ -3040,7 +3042,9 @@ class MusicalChordAnalyzer {
         const durMs = this.audio ? this.audio.durationMs : 0;
 
         // 1. Click / drag on slim bottom scrollbar (Chromagram bottom minimap)
-        if (canvas === this.chromaCanvas && dragStartY >= rectH - this.minimapHeight && dragStartX >= this.leftGutterWidth) {
+        const isTouchTab2 = (e.touches && e.touches.length > 0);
+        const tab2HitH = isTouchTab2 ? Math.max(36, this.minimapHeight + 12) : this.minimapHeight;
+        if (canvas === this.chromaCanvas && dragStartY >= rectH - tab2HitH && dragStartX >= this.leftGutterWidth) {
           dragTarget = 'SCROLLBAR';
           this.isDraggingScrollbar = true;
           canvas.style.cursor = 'grabbing';
@@ -3253,7 +3257,7 @@ class MusicalChordAnalyzer {
         } else {
           // --- ZOOM THEO CHIỀU NGANG (Trục thời gian X), tâm tại con trỏ mouseX ---
           const timeAtMouse = this.xToTime(mouseX);
-          const factor = e.deltaY < 0 ? 1.15 : (1.0 / 1.15);
+          const factor = e.deltaY < 0 ? 1.30 : (1.0 / 1.30);
           const newZoom = Math.max(0.05, Math.min(250, this.zoomFactor * factor));
           if (newZoom !== this.zoomFactor) {
             this.zoomFactor = newZoom;
@@ -5191,19 +5195,41 @@ class SpectroSubApp {
   }
 
   addTab1CuesFromText(rawText, position = 'AFTER_SELECTED') {
-    if (!rawText || typeof rawText !== 'string') return;
-    // Split sentences by newlines or sentence-ending punctuation (. ? !)
-    const sentences = rawText
-      .split(/(?<=[.!?])\s+|(?<=[.!?])(?=[A-Za-z\u00C0-\u024F])|\r?\n+/)
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
+    let sentences = [];
+    if (typeof rawText === 'string' && rawText.trim().length > 0) {
+      sentences = rawText
+        .split(/(?<=[.!?])\s+|(?<=[.!?])(?=[A-Za-z\u00C0-\u024F])|\r?\n+/)
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+    }
 
-    if (sentences.length === 0) return;
+    // Nếu không nhập nội dung gì, vẫn tạo 1 câu trống tương ứng hợp lệ
+    if (sentences.length === 0) {
+      sentences = [''];
+    }
+
     this.pushHistoryState();
-    let baseStart = this.rendererTab1.selectionEndMs || 0;
+
+    let baseStart = 0;
+    if (this.cuesTab1 && this.cuesTab1.length > 0) {
+      if (position === 'START_OF_LIST') {
+        baseStart = 0;
+      } else if (position === 'BEFORE_SELECTED' && this.activeCueTab1) {
+        baseStart = Math.max(0, this.activeCueTab1.startMs - 2500);
+      } else if (position === 'AFTER_SELECTED' && this.activeCueTab1) {
+        baseStart = this.activeCueTab1.endMs;
+      } else {
+        const lastCue = this.cuesTab1[this.cuesTab1.length - 1];
+        baseStart = lastCue ? lastCue.endMs : 0;
+      }
+    } else {
+      baseStart = this.audioTab1 ? this.audioTab1.getCurrentPosition() : 0;
+    }
+
+    const defaultDuration = 2500;
     const newCues = sentences.map((s, i) => new SubtitleCue({
-      startMs: baseStart + i * 2500,
-      endMs: baseStart + (i + 1) * 2500,
+      startMs: Math.round(baseStart + i * defaultDuration),
+      endMs: Math.round(baseStart + (i + 1) * defaultDuration),
       text: s,
       clockState: CueClockState.SHOW_LOCKED
     }));

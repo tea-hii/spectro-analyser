@@ -684,10 +684,16 @@ input, textarea, button, select {
   cursor: crosshair;
 }
 
-#spectrogram-canvas {
+#spectrogram-canvas,
+#cqt-canvas,
+#chroma-canvas {
   display: block;
   width: 100%;
   height: 100%;
+  touch-action: none !important;
+  -webkit-touch-callout: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
 
 /* Circular (i) Frequency Legend Button */
