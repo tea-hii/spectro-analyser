@@ -2114,6 +2114,7 @@ class MusicalChordAnalyzer {
     this.rulerHeight = 24;
     this.minimapHeight = 24;
     this.leftGutterWidth = 54;
+    this.isDraggingScrollbar = false;
 
     this.bpm = 120;
     this.barGridMode = '1_BAR'; // '1_BAR', 'HALF_BAR', 'QUARTER_BAR', 'OFF'
@@ -2597,8 +2598,16 @@ class MusicalChordAnalyzer {
   }
 
   drawMinimap(ctx, x, y, width, height) {
-    ctx.fillStyle = '#121212';
+    // 1. Sleek modern track background (clean, no waveform mirror)
+    ctx.fillStyle = '#080d1a';
     ctx.fillRect(x, y, width, height);
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + width, y);
+    ctx.stroke();
 
     const durMs = this.audio.durationMs;
     if (durMs <= 0) return;
@@ -2606,27 +2615,31 @@ class MusicalChordAnalyzer {
     const gutterW = this.leftGutterWidth;
     const plotW = width - gutterW;
 
-    const minP = this.audio.minPeaks, maxP = this.audio.maxPeaks;
-    if (minP && maxP && minP.length > 0) {
-      const centerY = y + height / 2;
-      const halfH = height / 2 - 2;
-      ctx.fillStyle = '#334155';
-      for (let px = 0; px < plotW; px++) {
-        const b = Math.floor((px / plotW) * minP.length);
-        const maxV = maxP[b], minV = minP[b];
-        ctx.fillRect(gutterW + px, centerY - maxV * halfH, 1, Math.max(1, (maxV - minV) * halfH));
-      }
-    }
+    // 2. Subtle groove line along center of track
+    ctx.fillStyle = '#1e293b';
+    const grooveH = Math.max(2, Math.round(height * 0.28));
+    const grooveY = y + Math.round((height - grooveH) / 2);
+    ctx.fillRect(gutterW, grooveY, plotW, grooveH);
 
-    const thumbStartMs = Math.max(0, this.scrollOffsetMs);
-    const thumbEndMs = Math.min(durMs, this.scrollOffsetMs + plotW * this.msPerPixel);
+    // 3. Compact modern scrollbar thumb (violet theme for Tab 2)
+    const visibleDurMs = plotW * this.msPerPixel;
+    const thumbStartMs = Math.max(0, Math.min(durMs, this.scrollOffsetMs));
+    const thumbEndMs = Math.max(0, Math.min(durMs, this.scrollOffsetMs + visibleDurMs));
     const thumbX = gutterW + (thumbStartMs / durMs) * plotW;
-    const thumbW = Math.max(14, ((thumbEndMs - thumbStartMs) / durMs) * plotW);
+    const thumbW = Math.max(16, ((thumbEndMs - thumbStartMs) / durMs) * plotW);
 
-    ctx.fillStyle = 'rgba(168, 85, 247, 0.25)';
-    ctx.fillRect(thumbX, y, thumbW, height);
-    ctx.strokeStyle = '#a855f7';
-    ctx.strokeRect(thumbX, y, thumbW, height);
+    const thumbPadY = 2;
+    const thumbH = Math.max(4, height - thumbPadY * 2);
+    const thumbY = y + thumbPadY;
+
+    ctx.fillStyle = this.isDraggingScrollbar ? '#c084fc' : 'rgba(168, 85, 247, 0.65)';
+    if (ctx.roundRect) {
+      ctx.beginPath();
+      ctx.roundRect(thumbX, thumbY, thumbW, thumbH, Math.min(3, thumbH / 2));
+      ctx.fill();
+    } else {
+      ctx.fillRect(thumbX, thumbY, thumbW, thumbH);
+    }
   }
 
   updateCurrentChordIndicator() {
@@ -2641,17 +2654,45 @@ class MusicalChordAnalyzer {
   initEvents() {
     const bindCanvasGestures = (canvas) => {
       if (!canvas) return;
-      let isDragging = false, dragStartX = 0, dragStartY = 0, dragStartScrollMs = 0;
+      let isDragging = false, dragTarget = 'PAN';
+      let dragStartX = 0, dragStartY = 0, dragStartScrollMs = 0;
       let dragStartMinMidi = 0, dragStartMaxMidi = 0;
 
-      const getX = (e) => (e.touches ? e.touches[0].clientX : e.clientX) - canvas.getBoundingClientRect().left;
-      const getY = (e) => (e.touches ? e.touches[0].clientY : e.clientY) - canvas.getBoundingClientRect().top;
+      // Pinch-to-zoom tracking for mobile / multi-touch
+      let isPinching = false;
+      let pinchStartDistX = 0, pinchStartDistY = 0;
+      let pinchStartZoom = this.zoomFactor;
+      let pinchStartSpan = 0;
+      let pinchCenterTime = 0;
+      let pinchCenterFracY = 0;
+      let pinchCenterNote = 0;
+      let pinchLockedAxis = null; // 'X' (horizontal time zoom) or 'Y' (vertical pitch zoom)
+
+      const getCanvasPos = (touchOrMouse) => {
+        const rect = canvas.getBoundingClientRect();
+        return {
+          x: touchOrMouse.clientX - rect.left,
+          y: touchOrMouse.clientY - rect.top
+        };
+      };
+
+      const getX = (e) => (e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX) - canvas.getBoundingClientRect().left;
+      const getY = (e) => (e.touches && e.touches.length > 0 ? e.touches[0].clientY : e.clientY) - canvas.getBoundingClientRect().top;
 
       canvas.addEventListener('mousemove', (e) => {
         if (isDragging) return;
         const curX = getX(e);
+        const curY = getY(e);
+        const rectH = canvas.getBoundingClientRect().height;
+
+        // Minimap scrollbar hover on bottom of chroma
+        if (canvas === this.chromaCanvas && curY >= rectH - this.minimapHeight && curX >= this.leftGutterWidth) {
+          canvas.style.cursor = 'pointer';
+          return;
+        }
+
         const playheadX = this.timeToX(this.audio.getCurrentPosition());
-        if (Math.abs(curX - playheadX) <= 8) {
+        if (Math.abs(curX - playheadX) <= 8 && curX >= this.leftGutterWidth) {
           canvas.style.cursor = 'ew-resize';
         } else {
           canvas.style.cursor = 'default';
@@ -2663,47 +2704,171 @@ class MusicalChordAnalyzer {
       });
 
       const onStart = (e) => {
+        // Multi-touch pinch-to-zoom detection (Mobile)
+        if (e.touches && e.touches.length >= 2) {
+          isPinching = true;
+          isDragging = false;
+          dragTarget = null;
+          this.isDraggingScrollbar = false;
+
+          const p1 = getCanvasPos(e.touches[0]);
+          const p2 = getCanvasPos(e.touches[1]);
+
+          pinchStartDistX = Math.abs(p1.x - p2.x);
+          pinchStartDistY = Math.abs(p1.y - p2.y);
+          pinchStartZoom = this.zoomFactor;
+          pinchStartSpan = Math.max(6, this.activeMaxMidi - this.activeMinMidi);
+
+          const midX = (p1.x + p2.x) / 2;
+          const midY = (p1.y + p2.y) / 2;
+          pinchCenterTime = this.xToTime(midX);
+
+          if (canvas === this.cqtCanvas && this.cqtHeight > this.rulerHeight) {
+            const rulerH = this.rulerHeight;
+            const graphH = this.cqtHeight - rulerH;
+            const clampedY = Math.max(rulerH, Math.min(this.cqtHeight, midY));
+            pinchCenterFracY = Math.max(0, Math.min(1, (clampedY - rulerH) / Math.max(1, graphH)));
+            pinchCenterNote = this.activeMaxMidi - pinchCenterFracY * pinchStartSpan;
+          }
+
+          // Separate horizontal from vertical zoom by analyzing primary pinch direction
+          pinchLockedAxis = pinchStartDistY > pinchStartDistX * 1.35 ? 'Y' : 'X';
+          return;
+        }
+
         isDragging = true;
         dragStartX = getX(e);
         dragStartY = getY(e);
         dragStartScrollMs = this.scrollOffsetMs;
         dragStartMinMidi = this.activeMinMidi;
         dragStartMaxMidi = this.activeMaxMidi;
+
+        const rectH = canvas.getBoundingClientRect().height;
+        const durMs = this.audio ? this.audio.durationMs : 0;
+
+        // 1. Click / drag on slim bottom scrollbar (Chromagram bottom minimap)
+        if (canvas === this.chromaCanvas && dragStartY >= rectH - this.minimapHeight && dragStartX >= this.leftGutterWidth) {
+          dragTarget = 'SCROLLBAR';
+          this.isDraggingScrollbar = true;
+          canvas.style.cursor = 'grabbing';
+          if (durMs > 0) {
+            const plotW = Math.max(1, this.chromaWidth - this.leftGutterWidth);
+            const clickFrac = Math.max(0, Math.min(1, (dragStartX - this.leftGutterWidth) / plotW));
+            const targetMs = clickFrac * durMs;
+            const visibleDurMs = plotW * this.msPerPixel;
+            this.scrollOffsetMs = targetMs - visibleDurMs * 0.5;
+            this.clampScroll();
+            dragStartScrollMs = this.scrollOffsetMs;
+            this.render();
+          }
+          return;
+        }
+
         const curTime = this.xToTime(dragStartX);
         const playheadX = this.timeToX(this.audio.getCurrentPosition());
 
-        if (Math.abs(dragStartX - playheadX) <= 10) {
+        if (Math.abs(dragStartX - playheadX) <= 10 && dragStartX >= this.leftGutterWidth) {
+          dragTarget = 'PLAYHEAD';
           this.audio.seek(Math.max(0, Math.min(this.audio.durationMs, curTime)));
         } else if (dragStartX > this.leftGutterWidth) {
+          dragTarget = 'PAN';
           this.audio.seek(Math.max(0, Math.min(this.audio.durationMs, curTime)));
+        } else {
+          dragTarget = 'PAN';
         }
       };
 
       const onMove = (e) => {
-        if (!isDragging) return;
-        const curX = getX(e);
-        this.scrollOffsetMs = dragStartScrollMs - (curX - dragStartX) * this.msPerPixel;
+        // Multi-touch pinch handling (Mobile)
+        if (isPinching && e.touches && e.touches.length >= 2) {
+          if (e.cancelable) e.preventDefault();
+          const p1 = getCanvasPos(e.touches[0]);
+          const p2 = getCanvasPos(e.touches[1]);
 
-        // Kéo chuột theo chiều dọc trên CQT Canvas để cuộn dải nốt (Vertical Pitch Pan)
-        if (canvas === this.cqtCanvas && this.cqtHeight > this.rulerHeight) {
-          const curY = getY(e);
-          const graphH = this.cqtHeight - this.rulerHeight;
-          const currentSpan = dragStartMaxMidi - dragStartMinMidi + 1;
-          const semitoneH = graphH / Math.max(1, currentSpan);
-          const deltaNotes = Math.round((curY - dragStartY) / semitoneH);
+          const curDistX = Math.abs(p1.x - p2.x);
+          const curDistY = Math.abs(p1.y - p2.y);
+          const midX = (p1.x + p2.x) / 2;
 
-          if (deltaNotes !== 0) {
-            const span = dragStartMaxMidi - dragStartMinMidi;
-            let newMin = dragStartMinMidi + deltaNotes;
-            let newMax = dragStartMaxMidi + deltaNotes;
+          // Determine/confirm axis of zoom gesture
+          if (!pinchLockedAxis) {
+            if (curDistY > curDistX * 1.35) pinchLockedAxis = 'Y';
+            else if (curDistX > curDistY * 1.35) pinchLockedAxis = 'X';
+          }
+
+          if (pinchLockedAxis === 'Y' && canvas === this.cqtCanvas && this.cqtHeight > this.rulerHeight) {
+            // Zoom theo chiều dọc (Dải cao độ nốt)
+            const scaleY = pinchStartDistY > 0 ? curDistY / pinchStartDistY : 1.0;
+            // scaleY > 1: tách 2 ngón ra xa theo chiều dọc -> Zoom in (thu hẹp dải nốt)
+            let newSpan = Math.round(pinchStartSpan / Math.max(0.1, scaleY));
+            newSpan = Math.max(8, Math.min(88, newSpan));
+
+            let newMaxMidi = Math.round(pinchCenterNote + pinchCenterFracY * newSpan);
+            let newMinMidi = newMaxMidi - newSpan;
             const globalMin = 21, globalMax = 108;
-            if (newMin < globalMin) { newMin = globalMin; newMax = globalMin + span; }
-            if (newMax > globalMax) { newMax = globalMax; newMin = globalMax - span; }
-            if (newMin !== this.activeMinMidi || newMax !== this.activeMaxMidi) {
-              this.activeMinMidi = newMin;
-              this.activeMaxMidi = newMax;
+            if (newMinMidi < globalMin) { newMinMidi = globalMin; newMaxMidi = Math.min(globalMax, globalMin + newSpan); }
+            if (newMaxMidi > globalMax) { newMaxMidi = globalMax; newMinMidi = Math.max(globalMin, globalMax - newSpan); }
+
+            if (newMinMidi !== this.activeMinMidi || newMaxMidi !== this.activeMaxMidi) {
+              this.activeMinMidi = newMinMidi;
+              this.activeMaxMidi = newMaxMidi;
               this.offscreenValid = false;
               this.buildOffscreenCanvases();
+            }
+          } else {
+            // Zoom theo chiều ngang (Trục thời gian)
+            const scaleX = pinchStartDistX > 0 ? curDistX / pinchStartDistX : 1.0;
+            const newZoom = Math.max(5, Math.min(250, pinchStartZoom * scaleX));
+            if (newZoom !== this.zoomFactor) {
+              this.zoomFactor = newZoom;
+              this.scrollOffsetMs = pinchCenterTime - (midX - this.leftGutterWidth) * this.msPerPixel;
+              this.clampScroll();
+            }
+          }
+
+          this.render();
+          return;
+        }
+
+        if (!isDragging) return;
+        const curX = getX(e);
+        const durMs = this.audio ? this.audio.durationMs : 0;
+
+        if (dragTarget === 'SCROLLBAR') {
+          if (durMs > 0) {
+            const plotW = Math.max(1, this.chromaWidth - this.leftGutterWidth);
+            const deltaX = curX - dragStartX;
+            const msPerScrollbarPixel = durMs / plotW;
+            // Positive deltaX (drag right) moves forward in time (+ deltaMs)
+            this.scrollOffsetMs = dragStartScrollMs + deltaX * msPerScrollbarPixel;
+            this.clampScroll();
+          }
+          canvas.style.cursor = 'grabbing';
+        } else {
+          // Standard pan across spectrogram
+          this.scrollOffsetMs = dragStartScrollMs - (curX - dragStartX) * this.msPerPixel;
+          this.clampScroll();
+
+          // Kéo chuột theo chiều dọc trên CQT Canvas để cuộn dải nốt (Vertical Pitch Pan)
+          if (canvas === this.cqtCanvas && this.cqtHeight > this.rulerHeight) {
+            const curY = getY(e);
+            const graphH = this.cqtHeight - this.rulerHeight;
+            const currentSpan = dragStartMaxMidi - dragStartMinMidi + 1;
+            const semitoneH = graphH / Math.max(1, currentSpan);
+            const deltaNotes = Math.round((curY - dragStartY) / semitoneH);
+
+            if (deltaNotes !== 0) {
+              const span = dragStartMaxMidi - dragStartMinMidi;
+              let newMin = dragStartMinMidi + deltaNotes;
+              let newMax = dragStartMaxMidi + deltaNotes;
+              const globalMin = 21, globalMax = 108;
+              if (newMin < globalMin) { newMin = globalMin; newMax = globalMin + span; }
+              if (newMax > globalMax) { newMax = globalMax; newMin = globalMax - span; }
+              if (newMin !== this.activeMinMidi || newMax !== this.activeMaxMidi) {
+                this.activeMinMidi = newMin;
+                this.activeMaxMidi = newMax;
+                this.offscreenValid = false;
+                this.buildOffscreenCanvases();
+              }
             }
           }
         }
@@ -2711,36 +2876,49 @@ class MusicalChordAnalyzer {
         this.render();
       };
 
-      const onEnd = () => {
+      const onEnd = (e) => {
+        if (isPinching) {
+          if (e.touches && e.touches.length < 2) {
+            isPinching = false;
+            pinchLockedAxis = null;
+          }
+        }
         isDragging = false;
+        dragTarget = null;
+        this.isDraggingScrollbar = false;
         this.render();
       };
 
       canvas.addEventListener('mousedown', onStart);
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onEnd);
-      canvas.addEventListener('touchstart', onStart, { passive: true });
-      window.addEventListener('touchmove', onMove, { passive: true });
+      canvas.addEventListener('touchstart', onStart, { passive: false });
+      window.addEventListener('touchmove', onMove, { passive: false });
       window.addEventListener('touchend', onEnd);
+      window.addEventListener('touchcancel', onEnd);
 
-      // 2D Zoom: Trỏ chuột tới đâu cuộn chuột sẽ Zoom cả chiều ngang (Thời gian) và chiều dọc (Cao độ nốt)
+      // Mouse & Trackpad Zoom / Scroll (Tách riêng Zoom dọc và Zoom ngang)
       canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
         const rect = canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
 
-        // 1. Zoom theo chiều ngang (Trục thời gian X), tâm tại con trỏ mouseX:
-        const timeAtMouse = this.xToTime(mouseX);
-        const deltaX = e.deltaY < 0 ? 8 : -8;
-        const newZoom = Math.max(5, Math.min(250, this.zoomFactor + deltaX));
-        if (newZoom !== this.zoomFactor) {
-          this.zoomFactor = newZoom;
-          this.scrollOffsetMs = timeAtMouse - (mouseX - this.leftGutterWidth) * this.msPerPixel;
+        // Cuộn ngang 2 ngón trackpad thông thường: cuộn dòng thời gian
+        if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+          this.scrollOffsetMs += e.deltaX * this.msPerPixel * 0.8;
+          this.clampScroll();
+          this.render();
+          return;
         }
 
-        // 2. Zoom theo chiều dọc (Trục nốt / cao độ Y trên CQT Spectrogram), tâm tại con trỏ mouseY:
-        if (canvas === this.cqtCanvas && this.cqtHeight > this.rulerHeight) {
+        // Tách Zoom dọc và Zoom ngang:
+        // - Shift + Wheel (hoặc con trỏ rê ở cột nốt bên trái piano): Zoom THEO CHIỀU DỌC (Cao độ nốt)
+        // - Cuộn bánh xe thông thường: Zoom THEO CHIỀU NGANG (Thời gian)
+        const isVerticalZoomIntent = e.shiftKey || (mouseX < this.leftGutterWidth && canvas === this.cqtCanvas);
+
+        if (isVerticalZoomIntent && canvas === this.cqtCanvas && this.cqtHeight > this.rulerHeight) {
+          // --- ZOOM THEO CHIỀU DỌC (Cao độ nốt CQT) ---
           const rulerH = this.rulerHeight;
           const graphH = this.cqtHeight - rulerH;
           const currentSpan = Math.max(6, this.activeMaxMidi - this.activeMinMidi);
@@ -2750,9 +2928,8 @@ class MusicalChordAnalyzer {
           const fracY = Math.max(0, Math.min(1, (clampedMouseY - rulerH) / graphH));
           const noteAtMouse = this.activeMaxMidi - fracY * currentSpan;
 
-          // e.deltaY < 0: Cuộn lên -> Zoom in (thu hẹp dải bán âm để phóng to nốt)
-          // e.deltaY > 0: Cuộn xuống -> Zoom out (mở rộng dải nốt)
-          const zoomFactorY = e.deltaY < 0 ? 0.85 : 1.18;
+          const wheelDelta = e.deltaY !== 0 ? e.deltaY : e.deltaX;
+          const zoomFactorY = wheelDelta < 0 ? 0.85 : 1.18;
           let newSpan = Math.round(currentSpan * zoomFactorY);
           newSpan = Math.max(8, Math.min(88, newSpan)); // Tối thiểu 8 nốt, tối đa 88 nốt piano
 
@@ -2778,6 +2955,16 @@ class MusicalChordAnalyzer {
               this.offscreenValid = false;
               this.buildOffscreenCanvases();
             }
+          }
+        } else {
+          // --- ZOOM THEO CHIỀU NGANG (Trục thời gian X), tâm tại con trỏ mouseX ---
+          const timeAtMouse = this.xToTime(mouseX);
+          const deltaX = e.deltaY < 0 ? 8 : -8;
+          const newZoom = Math.max(5, Math.min(250, this.zoomFactor + deltaX));
+          if (newZoom !== this.zoomFactor) {
+            this.zoomFactor = newZoom;
+            this.scrollOffsetMs = timeAtMouse - (mouseX - this.leftGutterWidth) * this.msPerPixel;
+            this.clampScroll();
           }
         }
 
@@ -3946,29 +4133,52 @@ class SpectroSubApp {
       });
     }
 
-    const selPalette = document.getElementById('select-tab2-palette');
-    if (selPalette) {
-      selPalette.addEventListener('change', (e) => {
-        this.chordAnalyzerTab2.paletteKey = e.target.value;
-        this.chordAnalyzerTab2.offscreenValid = false;
-        this.chordAnalyzerTab2.buildOffscreenCanvases();
-        this.chordAnalyzerTab2.render();
+    // Tab 2 Unified Load Dropdown
+    const btnTab2Load = document.getElementById('btn-tab2-load');
+    const tab2LoadDropdown = document.getElementById('tab2-load-dropdown-menu');
+    if (btnTab2Load && tab2LoadDropdown) {
+      btnTab2Load.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = tab2LoadDropdown.classList.contains('show');
+        if (isOpen) {
+          tab2LoadDropdown.classList.remove('show');
+          tab2LoadDropdown.style.display = 'none';
+        } else {
+          tab2LoadDropdown.classList.add('show');
+          tab2LoadDropdown.style.display = 'flex';
+        }
+      });
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('#tab2-load-dropdown-wrapper')) {
+          tab2LoadDropdown.classList.remove('show');
+          tab2LoadDropdown.style.display = 'none';
+        }
       });
     }
 
-    const btnTab2Preset = document.getElementById('btn-tab2-preset');
-    if (btnTab2Preset) {
-      btnTab2Preset.addEventListener('click', () => {
+    const btnTab2LoadSample1 = document.getElementById('btn-tab2-load-sample1');
+    if (btnTab2LoadSample1) {
+      btnTab2LoadSample1.addEventListener('click', () => {
+        if (tab2LoadDropdown) {
+          tab2LoadDropdown.classList.remove('show');
+          tab2LoadDropdown.style.display = 'none';
+        }
         this.loadTab2Preset(1);
       });
     }
 
-    const btnTab2Choose = document.getElementById('btn-tab2-choose-file');
+    const btnTab2LoadLocal = document.getElementById('btn-tab2-load-local');
     const btnTab2Select = document.getElementById('btn-tab2-select-file');
     const inputTab2 = document.getElementById('input-audio-tab2');
 
-    if (btnTab2Choose && inputTab2) {
-      btnTab2Choose.addEventListener('click', () => inputTab2.click());
+    if (btnTab2LoadLocal && inputTab2) {
+      btnTab2LoadLocal.addEventListener('click', () => {
+        if (tab2LoadDropdown) {
+          tab2LoadDropdown.classList.remove('show');
+          tab2LoadDropdown.style.display = 'none';
+        }
+        inputTab2.click();
+      });
     }
     if (btnTab2Select && inputTab2) {
       btnTab2Select.addEventListener('click', () => inputTab2.click());
