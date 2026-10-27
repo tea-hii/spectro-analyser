@@ -747,6 +747,7 @@ input, textarea, button, select {
   justify-content: center;
   transition: background 0.15s ease;
   z-index: 12;
+  touch-action: none;
 }
 
 .pane-splitter:hover, .pane-splitter.dragging {
@@ -1652,6 +1653,22 @@ input, textarea, button, select {
   }
   .chord-name-val {
     font-size: 15px;
+  }
+
+  /* 5. Mobile Splitter Touch Target & Ease of Dragging */
+  .pane-splitter {
+    height: 12px;
+    min-height: 12px;
+    touch-action: none;
+  }
+  .pane-splitter::before {
+    content: '';
+    position: absolute;
+    top: -12px;
+    bottom: -12px;
+    left: 0;
+    right: 0;
+    z-index: 10;
   }
 }
 

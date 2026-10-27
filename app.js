@@ -81,8 +81,8 @@ const I18N_LOCALES = {
     pos_before: 'Trước câu đang chọn',
     pos_start: 'Đầu danh sách',
     pos_end: 'Cuối danh sách',
-    content_lines_label: 'Nội dung (mỗi dòng sẽ tạo một câu riêng):',
-    content_placeholder: 'Dán văn bản hoặc các câu tiếng Pháp vào đây...',
+    content_lines_label: 'Nội dung (mỗi dòng hoặc ngắt bởi dấu chấm sẽ tạo một câu riêng):',
+    content_placeholder: 'Dán văn bản hoặc các câu tiếng Pháp vào đây (tách theo dòng hoặc dấu chấm)...',
     btn_cancel: 'Hủy',
     btn_confirm_add: 'Xác nhận Thêm',
     modal_freq_title: 'Chú Giải Dải Tần Số Ngữ Âm (Speech Spectrogram)',
@@ -165,8 +165,8 @@ const I18N_LOCALES = {
     pos_before: 'Before selected line',
     pos_start: 'Start of list',
     pos_end: 'End of list',
-    content_lines_label: 'Content (each line creates a separate cue):',
-    content_placeholder: 'Paste text or sentences here...',
+    content_lines_label: 'Content (each line or period-separated sentence will create a cue):',
+    content_placeholder: 'Paste text or sentences here (separated by lines or periods)...',
     btn_cancel: 'Cancel',
     btn_confirm_add: 'Confirm & Add',
     modal_freq_title: 'Phonetic Frequency Guide (Speech Spectrogram)',
@@ -1990,8 +1990,22 @@ class SpectrogramCanvasRenderer {
     let dragWordInfo = null;
     let dragCueEdgeInfo = null;
 
-    const getX = (e) => (e.touches ? e.touches[0].clientX : e.clientX) - c.getBoundingClientRect().left;
-    const getY = (e) => (e.touches ? e.touches[0].clientY : e.clientY) - c.getBoundingClientRect().top;
+    // Mobile Pinch-to-zoom tracking for Tab 1
+    let isPinching = false;
+    let pinchStartDistX = 0;
+    let pinchStartZoom = this.zoomFactor;
+    let pinchCenterTime = 0;
+
+    const getCanvasPos = (touchOrMouse) => {
+      const rect = c.getBoundingClientRect();
+      return {
+        x: touchOrMouse.clientX - rect.left,
+        y: touchOrMouse.clientY - rect.top
+      };
+    };
+
+    const getX = (e) => (e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX) - c.getBoundingClientRect().left;
+    const getY = (e) => (e.touches && e.touches.length > 0 ? e.touches[0].clientY : e.clientY) - c.getBoundingClientRect().top;
 
     const findWordHandleAt = (mouseX, mouseY) => {
       const rectH = c.getBoundingClientRect().height;
@@ -2097,6 +2111,22 @@ class SpectrogramCanvasRenderer {
     });
 
     const onStart = (e) => {
+      // Multi-touch pinch detection for horizontal zoom (Mobile)
+      if (e.touches && e.touches.length >= 2) {
+        isPinching = true;
+        isDragging = false;
+        dragTarget = null;
+        this.isDraggingScrollbar = false;
+
+        const p1 = getCanvasPos(e.touches[0]);
+        const p2 = getCanvasPos(e.touches[1]);
+        pinchStartDistX = Math.max(10, Math.abs(p1.x - p2.x));
+        pinchStartZoom = this.zoomFactor;
+        const midX = (p1.x + p2.x) / 2;
+        pinchCenterTime = this.xToTime(midX);
+        return;
+      }
+
       isDragging = true;
       dragStartX = getX(e);
       const dragStartY = getY(e);
@@ -2177,6 +2207,25 @@ class SpectrogramCanvasRenderer {
     };
 
     const onMove = (e) => {
+      // Multi-touch pinch-to-zoom handling (Mobile)
+      if (isPinching && e.touches && e.touches.length >= 2) {
+        if (e.cancelable) e.preventDefault();
+        const p1 = getCanvasPos(e.touches[0]);
+        const p2 = getCanvasPos(e.touches[1]);
+        const curDistX = Math.abs(p1.x - p2.x);
+        const midX = (p1.x + p2.x) / 2;
+
+        const scaleX = pinchStartDistX > 0 ? curDistX / pinchStartDistX : 1.0;
+        const newZoom = Math.max(5, Math.min(200, pinchStartZoom * scaleX));
+        if (newZoom !== this.zoomFactor) {
+          this.zoomFactor = newZoom;
+          this.scrollOffsetMs = pinchCenterTime - midX * this.msPerPixel;
+          this.clampScroll();
+        }
+        this.render();
+        return;
+      }
+
       if (!isDragging) return;
       const curX = getX(e);
       const curTime = this.xToTime(curX);
@@ -2231,6 +2280,11 @@ class SpectrogramCanvasRenderer {
     };
 
     const onEnd = (e) => {
+      if (isPinching) {
+        if (!e.touches || e.touches.length < 2) {
+          isPinching = false;
+        }
+      }
       if (isDragging && dragTarget === 'PAN') {
         const curX = (e.changedTouches ? e.changedTouches[0].clientX : e.clientX) - c.getBoundingClientRect().left;
         if (Math.abs(curX - dragStartX) < 5) {
@@ -2248,9 +2302,10 @@ class SpectrogramCanvasRenderer {
     c.addEventListener('mousedown', onStart);
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onEnd);
-    c.addEventListener('touchstart', onStart, { passive: true });
-    window.addEventListener('touchmove', onMove, { passive: true });
+    c.addEventListener('touchstart', onStart, { passive: false });
+    window.addEventListener('touchmove', onMove, { passive: false });
     window.addEventListener('touchend', onEnd);
+    window.addEventListener('touchcancel', onEnd);
 
     c.addEventListener('wheel', (e) => {
       e.preventDefault();
@@ -3456,6 +3511,9 @@ class SpectroSubApp {
       if (selInsertPos.options[3]) selInsertPos.options[3].textContent = t('pos_end');
     }
 
+    const contentLinesLabel = document.getElementById('label-add-cues-content') || document.querySelector('#modal-add-cues label:nth-of-type(2)');
+    if (contentLinesLabel) contentLinesLabel.textContent = t('content_lines_label');
+
     const textareaAdd = document.getElementById('textarea-add-cues');
     if (textareaAdd) textareaAdd.placeholder = t('content_placeholder');
 
@@ -4260,34 +4318,60 @@ class SpectroSubApp {
       });
     });
 
-    // Pane Splitter resizing
+    // Pane Splitter resizing (Tab 1)
     const splitter = document.getElementById('pane-splitter');
     const canvasPanel = document.getElementById('canvas-panel');
     if (splitter && canvasPanel) {
       let isDraggingSplitter = false, startY = 0, startHeight = 0;
-      splitter.addEventListener('mousedown', (e) => {
+
+      const onSplitterStart = (clientY) => {
         isDraggingSplitter = true;
-        startY = e.clientY;
+        startY = clientY;
         startHeight = canvasPanel.getBoundingClientRect().height;
         splitter.classList.add('dragging');
-      });
-      window.addEventListener('mousemove', (e) => {
+        document.body.style.cursor = 'row-resize';
+      };
+
+      const onSplitterMove = (clientY) => {
         if (!isDraggingSplitter) return;
-        const delta = e.clientY - startY;
+        const delta = clientY - startY;
         const totalH = window.innerHeight;
-        const newPct = Math.max(25, Math.min(75, ((startHeight + delta) / totalH) * 100));
+        const newPct = Math.max(20, Math.min(80, ((startHeight + delta) / totalH) * 100));
         canvasPanel.style.height = `${newPct}%`;
         const subPanel = document.querySelector('.subtitle-panel');
         if (subPanel) subPanel.style.height = `${100 - newPct}%`;
         this.rendererTab1.resize();
-      });
-      window.addEventListener('mouseup', () => {
+      };
+
+      const onSplitterEnd = () => {
         if (isDraggingSplitter) {
           isDraggingSplitter = false;
           splitter.classList.remove('dragging');
+          document.body.style.cursor = '';
           this.rendererTab1.resize();
         }
-      });
+      };
+
+      splitter.addEventListener('mousedown', (e) => onSplitterStart(e.clientY));
+      window.addEventListener('mousemove', (e) => onSplitterMove(e.clientY));
+      window.addEventListener('mouseup', onSplitterEnd);
+
+      splitter.addEventListener('touchstart', (e) => {
+        if (e.touches && e.touches.length > 0) {
+          onSplitterStart(e.touches[0].clientY);
+        }
+      }, { passive: true });
+
+      window.addEventListener('touchmove', (e) => {
+        if (!isDraggingSplitter) return;
+        if (e.cancelable) e.preventDefault();
+        if (e.touches && e.touches.length > 0) {
+          onSplitterMove(e.touches[0].clientY);
+        }
+      }, { passive: false });
+
+      window.addEventListener('touchend', onSplitterEnd);
+      window.addEventListener('touchcancel', onSplitterEnd);
     }
 
     // Tab 2 Horizontal Splitter resizing between CQT and Chromagram
@@ -4298,31 +4382,52 @@ class SpectroSubApp {
     if (tab2Splitter && tab2CqtContainer && stackedViewports) {
       let isDraggingTab2Splitter = false, tab2StartY = 0, tab2StartHeight = 0;
 
-      tab2Splitter.addEventListener('mousedown', (e) => {
+      const onTab2SplitterStart = (clientY) => {
         isDraggingTab2Splitter = true;
-        tab2StartY = e.clientY;
+        tab2StartY = clientY;
         tab2StartHeight = tab2CqtContainer.getBoundingClientRect().height;
         tab2Splitter.classList.add('dragging');
         document.body.style.cursor = 'row-resize';
-      });
+      };
 
-      window.addEventListener('mousemove', (e) => {
+      const onTab2SplitterMove = (clientY) => {
         if (!isDraggingTab2Splitter) return;
-        const delta = e.clientY - tab2StartY;
+        const delta = clientY - tab2StartY;
         const totalH = stackedViewports.getBoundingClientRect().height || 500;
         const newPct = Math.max(18, Math.min(82, ((tab2StartHeight + delta) / totalH) * 100));
         tab2CqtContainer.style.height = `${newPct}%`;
         this.chordAnalyzerTab2.resize();
-      });
+      };
 
-      window.addEventListener('mouseup', () => {
+      const onTab2SplitterEnd = () => {
         if (isDraggingTab2Splitter) {
           isDraggingTab2Splitter = false;
           tab2Splitter.classList.remove('dragging');
           document.body.style.cursor = '';
           this.chordAnalyzerTab2.resize();
         }
-      });
+      };
+
+      tab2Splitter.addEventListener('mousedown', (e) => onTab2SplitterStart(e.clientY));
+      window.addEventListener('mousemove', (e) => onTab2SplitterMove(e.clientY));
+      window.addEventListener('mouseup', onTab2SplitterEnd);
+
+      tab2Splitter.addEventListener('touchstart', (e) => {
+        if (e.touches && e.touches.length > 0) {
+          onTab2SplitterStart(e.touches[0].clientY);
+        }
+      }, { passive: true });
+
+      window.addEventListener('touchmove', (e) => {
+        if (!isDraggingTab2Splitter) return;
+        if (e.cancelable) e.preventDefault();
+        if (e.touches && e.touches.length > 0) {
+          onTab2SplitterMove(e.touches[0].clientY);
+        }
+      }, { passive: false });
+
+      window.addEventListener('touchend', onTab2SplitterEnd);
+      window.addEventListener('touchcancel', onTab2SplitterEnd);
     }
 
     // Drag and Drop on Spectrogram Canvas Panel (Audio or Subtitle)
@@ -4791,14 +4896,20 @@ class SpectroSubApp {
   }
 
   addTab1CuesFromText(rawText, position = 'AFTER_SELECTED') {
-    const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
-    if (lines.length === 0) return;
+    if (!rawText || typeof rawText !== 'string') return;
+    // Split sentences by newlines or sentence-ending punctuation (. ? !)
+    const sentences = rawText
+      .split(/(?<=[.!?])\s+|(?<=[.!?])(?=[A-Za-z\u00C0-\u024F])|\r?\n+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    if (sentences.length === 0) return;
     this.pushHistoryState();
     let baseStart = this.rendererTab1.selectionEndMs || 0;
-    const newCues = lines.map((l, i) => new SubtitleCue({
+    const newCues = sentences.map((s, i) => new SubtitleCue({
       startMs: baseStart + i * 2500,
       endMs: baseStart + (i + 1) * 2500,
-      text: l,
+      text: s,
       clockState: CueClockState.SHOW_LOCKED
     }));
 
