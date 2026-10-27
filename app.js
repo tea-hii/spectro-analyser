@@ -3604,23 +3604,14 @@ class SpectroSubApp {
     const drawer = document.getElementById('tab-drawer-overlay');
     if (drawer) drawer.style.display = 'none';
 
-    const tabDropdown = document.getElementById('tab-dropdown-menu');
-    if (tabDropdown) {
-      tabDropdown.classList.remove('show');
-      tabDropdown.style.display = 'none';
-    }
-
-    const tab2Dropdown = document.getElementById('tab2-tab-dropdown-menu');
-    if (tab2Dropdown) {
-      tab2Dropdown.classList.remove('show');
-      tab2Dropdown.style.display = 'none';
-    }
-
-    const fileDropdown = document.getElementById('file-dropdown-menu');
-    if (fileDropdown) {
-      fileDropdown.classList.remove('show');
-      fileDropdown.style.display = 'none';
-    }
+    // Close all open dropdown menus when switching tabs
+    ['tab-dropdown-menu', 'tab2-tab-dropdown-menu', 'file-dropdown-menu', 'tab2-load-dropdown-menu'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.remove('show');
+        el.style.display = 'none';
+      }
+    });
 
     const tab2Item1 = document.getElementById('tab2-menu-item-tab-1');
     const tab2Item2 = document.getElementById('tab2-menu-item-tab-2');
@@ -3654,6 +3645,46 @@ class SpectroSubApp {
     }
     this.updateLanguage(CURRENT_LANG);
 
+    // Helpers for responsive, unclipped dropdown positioning
+    const closeAllDropdowns = () => {
+      ['tab-dropdown-menu', 'tab2-tab-dropdown-menu', 'file-dropdown-menu', 'tab2-load-dropdown-menu'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.classList.remove('show');
+          el.style.display = 'none';
+        }
+      });
+    };
+
+    const openDropdown = (dropdownEl, triggerEl, align = 'left') => {
+      if (!dropdownEl || !triggerEl) return;
+      closeAllDropdowns();
+      const rect = triggerEl.getBoundingClientRect();
+      dropdownEl.style.position = 'fixed';
+      dropdownEl.style.top = `${Math.round(rect.bottom + 4)}px`;
+      if (align === 'right') {
+        const rightOffset = Math.max(8, window.innerWidth - rect.right);
+        dropdownEl.style.right = `${rightOffset}px`;
+        dropdownEl.style.left = 'auto';
+      } else {
+        const leftOffset = Math.max(8, Math.min(rect.left, window.innerWidth - 260));
+        dropdownEl.style.left = `${leftOffset}px`;
+        dropdownEl.style.right = 'auto';
+      }
+      dropdownEl.style.zIndex = '99999';
+      dropdownEl.classList.add('show');
+      dropdownEl.style.display = 'flex';
+    };
+
+    const closeDropdown = (dropdownEl) => {
+      if (!dropdownEl) return;
+      dropdownEl.classList.remove('show');
+      dropdownEl.style.display = 'none';
+    };
+
+    // Close any dropdown when viewport resizes or scrolls
+    window.addEventListener('resize', closeAllDropdowns);
+
     // 3-Lines Hamburger Menu Button & Dropdown for Tab Switching (Tab 1)
     const btnHam = document.getElementById('btn-hamburger');
     const tabDropdown = document.getElementById('tab-dropdown-menu');
@@ -3662,22 +3693,16 @@ class SpectroSubApp {
         e.stopPropagation();
         const isOpen = tabDropdown.classList.contains('show');
         if (isOpen) {
-          tabDropdown.classList.remove('show');
-          tabDropdown.style.display = 'none';
+          closeDropdown(tabDropdown);
         } else {
-          const fileDropdown = document.getElementById('file-dropdown-menu');
-          if (fileDropdown) {
-            fileDropdown.classList.remove('show');
-            fileDropdown.style.display = 'none';
-          }
+          openDropdown(tabDropdown, btnHam, 'left');
           tabDropdown.classList.add('show');
           tabDropdown.style.display = 'flex';
         }
       });
       document.addEventListener('click', (e) => {
-        if (!e.target.closest('#hamburger-dropdown-wrapper')) {
-          tabDropdown.classList.remove('show');
-          tabDropdown.style.display = 'none';
+        if (!e.target.closest('#hamburger-dropdown-wrapper') && !e.target.closest('#tab-dropdown-menu')) {
+          closeDropdown(tabDropdown);
         }
       });
     }
@@ -3687,20 +3712,14 @@ class SpectroSubApp {
     if (itemTab1) {
       itemTab1.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (tabDropdown) {
-          tabDropdown.classList.remove('show');
-          tabDropdown.style.display = 'none';
-        }
+        closeDropdown(tabDropdown);
         this.switchTab('tab1');
       });
     }
     if (itemTab2) {
       itemTab2.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (tabDropdown) {
-          tabDropdown.classList.remove('show');
-          tabDropdown.style.display = 'none';
-        }
+        closeDropdown(tabDropdown);
         this.switchTab('tab2');
       });
     }
@@ -3713,17 +3732,16 @@ class SpectroSubApp {
         e.stopPropagation();
         const isOpen = tab2Dropdown.classList.contains('show');
         if (isOpen) {
-          tab2Dropdown.classList.remove('show');
-          tab2Dropdown.style.display = 'none';
+          closeDropdown(tab2Dropdown);
         } else {
+          openDropdown(tab2Dropdown, btnHam2, 'left');
           tab2Dropdown.classList.add('show');
           tab2Dropdown.style.display = 'flex';
         }
       });
       document.addEventListener('click', (e) => {
-        if (!e.target.closest('#tab2-hamburger-dropdown-wrapper')) {
-          tab2Dropdown.classList.remove('show');
-          tab2Dropdown.style.display = 'none';
+        if (!e.target.closest('#tab2-hamburger-dropdown-wrapper') && !e.target.closest('#tab2-tab-dropdown-menu')) {
+          closeDropdown(tab2Dropdown);
         }
       });
     }
@@ -3733,20 +3751,14 @@ class SpectroSubApp {
     if (tab2Item1) {
       tab2Item1.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (tab2Dropdown) {
-          tab2Dropdown.classList.remove('show');
-          tab2Dropdown.style.display = 'none';
-        }
+        closeDropdown(tab2Dropdown);
         this.switchTab('tab1');
       });
     }
     if (tab2Item2) {
       tab2Item2.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (tab2Dropdown) {
-          tab2Dropdown.classList.remove('show');
-          tab2Dropdown.style.display = 'none';
-        }
+        closeDropdown(tab2Dropdown);
         this.switchTab('tab2');
       });
     }
@@ -3759,21 +3771,16 @@ class SpectroSubApp {
         e.stopPropagation();
         const isOpen = fileDropdown.classList.contains('show');
         if (isOpen) {
-          fileDropdown.classList.remove('show');
-          fileDropdown.style.display = 'none';
+          closeDropdown(fileDropdown);
         } else {
-          if (tabDropdown) {
-            tabDropdown.classList.remove('show');
-            tabDropdown.style.display = 'none';
-          }
+          openDropdown(fileDropdown, btnFileMenu, 'left');
           fileDropdown.classList.add('show');
           fileDropdown.style.display = 'flex';
         }
       });
       document.addEventListener('click', (e) => {
-        if (!e.target.closest('#file-menu-dropdown-wrapper')) {
-          fileDropdown.classList.remove('show');
-          fileDropdown.style.display = 'none';
+        if (!e.target.closest('#file-menu-dropdown-wrapper') && !e.target.closest('#file-dropdown-menu')) {
+          closeDropdown(fileDropdown);
         }
       });
     }
@@ -4510,17 +4517,16 @@ class SpectroSubApp {
         e.stopPropagation();
         const isOpen = tab2LoadDropdown.classList.contains('show');
         if (isOpen) {
-          tab2LoadDropdown.classList.remove('show');
-          tab2LoadDropdown.style.display = 'none';
+          closeDropdown(tab2LoadDropdown);
         } else {
+          openDropdown(tab2LoadDropdown, btnTab2Load, 'right');
           tab2LoadDropdown.classList.add('show');
           tab2LoadDropdown.style.display = 'flex';
         }
       });
       document.addEventListener('click', (e) => {
-        if (!e.target.closest('#tab2-load-dropdown-wrapper')) {
-          tab2LoadDropdown.classList.remove('show');
-          tab2LoadDropdown.style.display = 'none';
+        if (!e.target.closest('#tab2-load-dropdown-wrapper') && !e.target.closest('#tab2-load-dropdown-menu')) {
+          closeDropdown(tab2LoadDropdown);
         }
       });
     }
@@ -4528,10 +4534,7 @@ class SpectroSubApp {
     const btnTab2LoadSample1 = document.getElementById('btn-tab2-load-sample1');
     if (btnTab2LoadSample1) {
       btnTab2LoadSample1.addEventListener('click', () => {
-        if (tab2LoadDropdown) {
-          tab2LoadDropdown.classList.remove('show');
-          tab2LoadDropdown.style.display = 'none';
-        }
+        closeDropdown(tab2LoadDropdown);
         this.loadTab2Preset(1);
       });
     }
@@ -4542,10 +4545,7 @@ class SpectroSubApp {
 
     if (btnTab2LoadLocal && inputTab2) {
       btnTab2LoadLocal.addEventListener('click', () => {
-        if (tab2LoadDropdown) {
-          tab2LoadDropdown.classList.remove('show');
-          tab2LoadDropdown.style.display = 'none';
-        }
+        closeDropdown(tab2LoadDropdown);
         inputTab2.click();
       });
     }

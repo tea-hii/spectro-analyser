@@ -41,7 +41,7 @@
     } catch (_) {}
   </script>
 
-  <link rel="stylesheet" href="./style.css?v=20261027_05">
+  <link rel="stylesheet" href="./style.css?v=20261027_07">
 </head>
 
 <body>
@@ -142,116 +142,122 @@
         <!-- Aegisub Toolbar for Tab 1 -->
         <nav class="aegisub-toolbar">
           <div class="toolbar-row">
-            <!-- 3-Lines Hamburger Menu Button & Dropdown for Tab Switching -->
-            <div class="dropdown-wrapper" id="hamburger-dropdown-wrapper" style="position: relative;">
-              <button id="btn-hamburger" class="tb-btn icon-only" title="Chuyển Tab (Tab 1: Speech Spectrogram / Tab 2: Chord Analyser)" type="button">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-              </button>
-              <div id="tab-dropdown-menu" class="dropdown-menu dropdown-left" style="min-width: 250px; top: 100%; left: 0; margin-top: 4px;">
-                <button id="menu-item-tab-1" class="dropdown-item active-tab-item" type="button">
-                  <span style="font-size: 16px;">🗣️</span>
-                  <div style="display: flex; flex-direction: column; text-align: left;">
-                    <span style="font-weight: 700; color: #f8fafc;" data-i18n="tab1_title">Tab 1: Speech Spectrogram</span>
-                    <span style="font-size: 11px; color: #94a3b8;" data-i18n="tab1_subtitle">Phân tích ngữ âm &amp; phụ đề</span>
-                  </div>
+            <!-- Pinned Left Navigation Group -->
+            <div class="toolbar-nav-group">
+              <!-- 3-Lines Hamburger Menu Button & Dropdown for Tab Switching -->
+              <div class="dropdown-wrapper" id="hamburger-dropdown-wrapper" style="position: relative;">
+                <button id="btn-hamburger" class="tb-btn icon-only" title="Chuyển Tab (Tab 1: Speech Spectrogram / Tab 2: Chord Analyser)" type="button">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                 </button>
-                <button id="menu-item-tab-2" class="dropdown-item" type="button">
-                  <span style="font-size: 16px;">🎹</span>
-                  <div style="display: flex; flex-direction: column; text-align: left;">
-                    <span style="font-weight: 700; color: #f8fafc;" data-i18n="tab2_title">Tab 2: Chord Analyser</span>
-                    <span style="font-size: 11px; color: #94a3b8;" data-i18n="tab2_subtitle">Phân tích hợp âm</span>
-                  </div>
-                </button>
+                <div id="tab-dropdown-menu" class="dropdown-menu dropdown-left" style="min-width: 250px; top: 100%; left: 0; margin-top: 4px;">
+                  <button id="menu-item-tab-1" class="dropdown-item active-tab-item" type="button">
+                    <span style="font-size: 16px;">🗣️</span>
+                    <div style="display: flex; flex-direction: column; text-align: left;">
+                      <span style="font-weight: 700; color: #f8fafc;" data-i18n="tab1_title">Tab 1: Speech Spectrogram</span>
+                      <span style="font-size: 11px; color: #94a3b8;" data-i18n="tab1_subtitle">Phân tích ngữ âm &amp; phụ đề</span>
+                    </div>
+                  </button>
+                  <button id="menu-item-tab-2" class="dropdown-item" type="button">
+                    <span style="font-size: 16px;">🎹</span>
+                    <div style="display: flex; flex-direction: column; text-align: left;">
+                      <span style="font-weight: 700; color: #f8fafc;" data-i18n="tab2_title">Tab 2: Chord Analyser</span>
+                      <span style="font-size: 11px; color: #94a3b8;" data-i18n="tab2_subtitle">Phân tích hợp âm</span>
+                    </div>
+                  </button>
+                </div>
               </div>
+
+              <!-- Language Toggle Button (VI / EN) -->
+              <button id="btn-lang-tab1" class="tb-btn lang-btn" title="Đổi ngôn ngữ giao diện (VI / EN)" type="button">VI</button>
             </div>
 
-            <!-- Language Toggle Button (VI / EN) -->
-            <button id="btn-lang-tab1" class="tb-btn lang-btn" title="Đổi ngôn ngữ giao diện (VI / EN)" type="button">VI</button>
-
-            <button id="btn-play" class="tb-btn play-main icon-only" title="Phát / Dừng (Phím Space)">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
-            </button>
-
-            <button id="btn-play-line" class="tb-btn play-selection icon-only" title="Phát câu đang chọn (Phím S)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
-            </button>
-
-            <button id="btn-play-word" class="tb-btn play-word icon-only" title="Phát từ tại con trỏ (Phím W) - Chỉ phát từ mà thanh vàng đang ở đó">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16"/></svg>
-            </button>
-
-            <button id="btn-loop" class="tb-btn icon-only" title="Bật/Tắt Lặp đoạn (Phím L)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-            </button>
-
-            <button id="btn-undo" class="tb-btn icon-only" title="Hoàn tác - Undo (Ctrl+Z, tối đa 5 bước)" disabled style="opacity: 0.35;">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
-            </button>
-
-            <button id="btn-redo" class="tb-btn icon-only" title="Làm lại - Forward / Redo (Ctrl+Y, tối đa 5 bước)" disabled style="opacity: 0.35;">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>
-            </button>
-
-            <div style="width: 1px; height: 20px; background: var(--border-color); margin: 0 2px;"></div>
-
-            <!-- Nút File Logo Dropdown (Up File & Save Script) -->
-            <div class="dropdown-wrapper" id="file-menu-dropdown-wrapper" style="position: relative;">
-              <button id="btn-file-menu" class="tb-btn icon-only" title="File (Up File &amp; Save Script)" type="button">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <!-- Scrollable Tools Group -->
+            <div class="toolbar-tools-group">
+              <button id="btn-play" class="tb-btn play-main icon-only" title="Phát / Dừng (Phím Space)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
               </button>
-              <div id="file-dropdown-menu" class="dropdown-menu" style="min-width: 250px; top: 100%; left: 0; margin-top: 4px;">
-                <div style="padding: 6px 12px 2px; font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">📁 Up File</div>
-                <button id="btn-file-upload-audio" class="dropdown-item" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-                  <span>Tải file Audio (mp3, wav...)</span>
+
+              <button id="btn-play-line" class="tb-btn play-selection icon-only" title="Phát câu đang chọn (Phím S)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+              </button>
+
+              <button id="btn-play-word" class="tb-btn play-word icon-only" title="Phát từ tại con trỏ (Phím W) - Chỉ phát từ mà thanh vàng đang ở đó">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16"/></svg>
+              </button>
+
+              <button id="btn-loop" class="tb-btn icon-only" title="Bật/Tắt Lặp đoạn (Phím L)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+              </button>
+
+              <button id="btn-undo" class="tb-btn icon-only" title="Hoàn tác - Undo (Ctrl+Z, tối đa 5 bước)" disabled style="opacity: 0.35;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+              </button>
+
+              <button id="btn-redo" class="tb-btn icon-only" title="Làm lại - Forward / Redo (Ctrl+Y, tối đa 5 bước)" disabled style="opacity: 0.35;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>
+              </button>
+
+              <div style="width: 1px; height: 20px; background: var(--border-color); margin: 0 2px;"></div>
+
+              <!-- Nút File Logo Dropdown (Up File & Save Script) -->
+              <div class="dropdown-wrapper" id="file-menu-dropdown-wrapper" style="position: relative;">
+                <button id="btn-file-menu" class="tb-btn icon-only" title="File (Up File &amp; Save Script)" type="button">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                 </button>
-                <button id="btn-file-upload-sub" class="dropdown-item" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                  <span>Tải phụ đề / kịch bản (.ass, .srt, .json)</span>
-                </button>
-                <button id="btn-file-load-sample" class="dropdown-item" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21"/></svg>
-                  <span>Ví dụ 1 (Mẫu Pháp)</span>
-                </button>
-                <div style="height: 1px; background: var(--border-color); margin: 4px 0;"></div>
-                <div style="padding: 6px 12px 2px; font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">💾 Save Script</div>
-                <button id="btn-file-save-script" class="dropdown-item" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                  <span style="font-weight: 600; color: #38bdf8;">Lưu / Xuất Kịch Bản (.ass, .srt)</span>
-                </button>
+                <div id="file-dropdown-menu" class="dropdown-menu" style="min-width: 250px; top: 100%; left: 0; margin-top: 4px;">
+                  <div style="padding: 6px 12px 2px; font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">📁 Up File</div>
+                  <button id="btn-file-upload-audio" class="dropdown-item" type="button">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                    <span>Tải file Audio (mp3, wav...)</span>
+                  </button>
+                  <button id="btn-file-upload-sub" class="dropdown-item" type="button">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    <span>Tải phụ đề / kịch bản (.ass, .srt, .json)</span>
+                  </button>
+                  <button id="btn-file-load-sample" class="dropdown-item" type="button">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21"/></svg>
+                    <span>Ví dụ 1 (Mẫu Pháp)</span>
+                  </button>
+                  <div style="height: 1px; background: var(--border-color); margin: 4px 0;"></div>
+                  <div style="padding: 6px 12px 2px; font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">💾 Save Script</div>
+                  <button id="btn-file-save-script" class="dropdown-item" type="button">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    <span style="font-weight: 600; color: #38bdf8;">Lưu / Xuất Kịch Bản (.ass, .srt)</span>
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <div style="width: 1px; height: 20px; background: var(--border-color); margin: 0 2px;"></div>
+              <div style="width: 1px; height: 20px; background: var(--border-color); margin: 0 2px;"></div>
 
-            <select id="select-speed" class="tb-select mono-font" title="Tốc độ phát Tab 1">
-              <option value="0.5">0.5x</option>
-              <option value="0.75">0.75x</option>
-              <option value="1.0" selected>1.0x</option>
-              <option value="1.25">1.25x</option>
-              <option value="1.5">1.5x</option>
-            </select>
+              <select id="select-speed" class="tb-select mono-font" title="Tốc độ phát Tab 1">
+                <option value="0.5">0.5x</option>
+                <option value="0.75">0.75x</option>
+                <option value="1.0" selected>1.0x</option>
+                <option value="1.25">1.25x</option>
+                <option value="1.5">1.5x</option>
+              </select>
 
-            <div style="width: 1px; height: 20px; background: var(--border-color); margin: 0 2px;"></div>
+              <div style="width: 1px; height: 20px; background: var(--border-color); margin: 0 2px;"></div>
 
-            <!-- Eye Icon Button: CHỈ HIỆN LOGO MẮT (icon-only), không chữ -->
-            <button id="btn-view-mode" class="tb-btn icon-only" type="button" title="Chế độ hiển thị: Dual (Bấm để đổi: Spectro → Waveform → Dual)" style="border-color: #38bdf8; color: #38bdf8; background: rgba(56, 189, 248, 0.14);">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                <circle cx="12" cy="12" r="3"/>
-              </svg>
-            </button>
+              <!-- Eye Icon Button: CHỈ HIỆN LOGO MẮT (icon-only), không chữ -->
+              <button id="btn-view-mode" class="tb-btn icon-only" type="button" title="Chế độ hiển thị: Dual (Bấm để đổi: Spectro → Waveform → Dual)" style="border-color: #38bdf8; color: #38bdf8; background: rgba(56, 189, 248, 0.14);">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
 
-            <div style="width: 1px; height: 20px; background: var(--border-color); margin: 0 2px;"></div>
+              <div style="width: 1px; height: 20px; background: var(--border-color); margin: 0 2px;"></div>
 
-            <!-- Audio Latency Offset Input (Bù trễ âm thanh thủ công ms) -->
-            <div class="latency-control-group" title="Bù trễ âm thanh thủ công (ms): Nhập số dương (+) để vạch vàng lùi lại khớp với âm thanh phát ra loa; nhập số âm (-) để vạch vàng tiến nhanh hơn. Luôn đảm bảo vạch vàng chạy tới cuối từ hoặc câu.">
-              <span class="latency-label">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                <span>Bù trễ:</span>
-              </span>
-              <input id="input-latency-offset" type="number" step="5" min="-200" max="400" value="65" class="latency-input mono-font">
-              <span class="latency-unit">ms</span>
+              <!-- Audio Latency Offset Input (Bù trễ âm thanh thủ công ms) -->
+              <div class="latency-control-group" title="Bù trễ âm thanh thủ công (ms): Nhập số dương (+) để vạch vàng lùi lại khớp với âm thanh phát ra loa; nhập số âm (-) để vạch vàng tiến nhanh hơn. Luôn đảm bảo vạch vàng chạy tới cuối từ hoặc câu.">
+                <span class="latency-label">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  <span>Bù trễ:</span>
+                </span>
+                <input id="input-latency-offset" type="number" step="5" min="-200" max="400" value="65" class="latency-input mono-font">
+                <span class="latency-unit">ms</span>
+              </div>
             </div>
           </div>
         </nav>
@@ -332,7 +338,8 @@
         <div class="chord-analyzer-container" style="display: flex; flex-direction: column; height: 100%; overflow: hidden;">
           <!-- Tab 2 Control Bar -->
           <div class="chord-toolbar">
-            <div class="chord-toolbar-group">
+            <!-- Pinned Left Navigation Group -->
+            <div class="chord-nav-group">
               <!-- 3-Lines Hamburger Menu Button & Dropdown for Tab Switching in Tab 2 -->
               <div class="dropdown-wrapper" id="tab2-hamburger-dropdown-wrapper" style="position: relative;">
                 <button id="btn-tab2-hamburger" class="tb-btn icon-only" title="Chuyển Tab (Tab 1: Speech Spectrogram / Tab 2: Chord Analyser)" type="button">
@@ -358,7 +365,10 @@
 
               <!-- Language Toggle Button (VI / EN) for Tab 2 -->
               <button id="btn-lang-tab2" class="tb-btn lang-btn" title="Đổi ngôn ngữ giao diện (VI / EN)" type="button">VI</button>
+            </div>
 
+            <!-- Scrollable Chord Controls -->
+            <div class="chord-tools-group">
               <button id="btn-tab2-play" class="tb-btn play-main icon-only" title="Phát / Dừng Tab 2 (Phím Space)">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
               </button>
@@ -402,7 +412,7 @@
             </div>
 
             <!-- Detected Chord Hero Display & Load Audio Dropdown -->
-            <div class="chord-toolbar-group">
+            <div class="chord-actions-group">
               <div class="detected-chord-badge">
                 <span class="chord-label-sub">Chord:</span>
                 <span id="tab2-detected-chord" class="chord-name-val mono-font">--</span>
@@ -604,6 +614,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261027_05"></script>
+  <script src="./app.js?v=20261027_07"></script>
 </body>
 </html>

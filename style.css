@@ -181,7 +181,7 @@ input, textarea, button, select {
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55), 0 4px 10px rgba(0, 0, 0, 0.4);
   padding: 6px;
   min-width: 175px;
-  z-index: 1000;
+  z-index: 99999;
   display: none;
   flex-direction: column;
   gap: 4px;
@@ -435,6 +435,30 @@ input, textarea, button, select {
 }
 
 .toolbar-row::-webkit-scrollbar {
+  display: none;
+}
+
+.toolbar-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  overflow: visible;
+  position: relative;
+  z-index: 100;
+}
+
+.toolbar-tools-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow: visible;
+  flex-wrap: wrap;
+}
+
+.toolbar-tools-group::-webkit-scrollbar {
   display: none;
 }
 
@@ -1167,6 +1191,39 @@ input, textarea, button, select {
   gap: 8px;
 }
 
+.chord-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  overflow: visible;
+  position: relative;
+  z-index: 100;
+}
+
+.chord-tools-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow: visible;
+}
+
+.chord-tools-group::-webkit-scrollbar {
+  display: none;
+}
+
+.chord-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  overflow: visible;
+  position: relative;
+  z-index: 100;
+}
+
 /* Detected Chord Hero Badge */
 .detected-chord-badge {
   display: inline-flex;
@@ -1402,39 +1459,100 @@ input, textarea, button, select {
     padding: 4px 6px;
     background: #0f172a;
     border-bottom: 1px solid var(--border-color);
+    overflow: visible !important;
   }
 
   .toolbar-row {
+    display: flex;
+    align-items: center;
     flex-wrap: nowrap !important;
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 3px;
+    overflow: visible !important;
     gap: 4px;
+    padding-bottom: 2px;
   }
 
-  .toolbar-row::-webkit-scrollbar {
+  .toolbar-nav-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    overflow: visible;
+    position: relative;
+    z-index: 100;
+  }
+
+  .toolbar-tools-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+
+  .toolbar-tools-group::-webkit-scrollbar {
     height: 3px;
     display: block;
   }
-  .toolbar-row::-webkit-scrollbar-thumb {
+  .toolbar-tools-group::-webkit-scrollbar-thumb {
     background: rgba(56, 189, 248, 0.35);
     border-radius: 2px;
   }
 
   .chord-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
     padding: 4px 6px;
     flex-wrap: nowrap !important;
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
-    gap: 6px;
+    overflow: visible !important;
+    gap: 4px;
   }
-  .chord-toolbar::-webkit-scrollbar {
+
+  .chord-nav-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    overflow: visible;
+    position: relative;
+    z-index: 100;
+  }
+
+  .chord-tools-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+
+  .chord-tools-group::-webkit-scrollbar {
     height: 3px;
     display: block;
   }
-  .chord-toolbar::-webkit-scrollbar-thumb {
+  .chord-tools-group::-webkit-scrollbar-thumb {
     background: rgba(168, 85, 247, 0.35);
     border-radius: 2px;
+  }
+
+  .chord-actions-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    overflow: visible;
+    position: relative;
+    z-index: 100;
   }
 
   .chord-toolbar-group {
@@ -1525,6 +1643,7 @@ input, textarea, button, select {
   }
   .dropdown-menu {
     max-width: 88vw;
+    z-index: 99999 !important;
   }
   .detected-chord-badge {
     padding: 2px 8px;
