@@ -2969,18 +2969,10 @@ class MusicalChordAnalyzer {
         const noteW = Math.max(3.5, x2 - x1);
         const noteH = Math.max(3, semitoneH - 1.5);
 
-        // Color coding:
-        // Root tone -> Gold/Amber
-        // Chord constituent (3rd, 5th) -> Emerald/Cyan
-        // Melody / non-chord -> Purple/Violet
-        let gradTop = '#10b981', gradBottom = '#059669', strokeCol = '#34d399';
-        if (note.isRoot) {
-          gradTop = '#f59e0b'; gradBottom = '#d97706'; strokeCol = '#fde68a';
-        } else if (note.isChordTone) {
-          gradTop = '#06b6d4'; gradBottom = '#0284c7'; strokeCol = '#67e8f9';
-        } else {
-          gradTop = '#a855f7'; gradBottom = '#7c3aed'; strokeCol = '#d8b4fe';
-        }
+        // Unified clean MIDI note color (all notes share the same aesthetic)
+        const gradTop = '#38bdf8';
+        const gradBottom = '#0284c7';
+        const strokeCol = '#7dd3fc';
 
         const grad = ctx.createLinearGradient(x1, noteY, x1, noteY + noteH);
         grad.addColorStop(0, gradTop);
@@ -3041,6 +3033,7 @@ class MusicalChordAnalyzer {
     const numFrames = spec.numFrames;
     const totalBins = spec.numSemitones;
     const globalMinM = spec.minMidi;
+    const globalMaxM = spec.maxMidi;
     const timeResMs = spec.timeResolutionMs || 20.0;
     const detectedChords = spec.detectedChords || [];
 
@@ -3065,148 +3058,92 @@ class MusicalChordAnalyzer {
     };
 
     const notes = [];
-    const activeTracks = new Map(); // pitch -> { startFrame, lastFrame, maxVal, sumVal, count, chord }
+    const activeTracks = new Map(); // pitch -> { startFrame, lastFrame, lastVal, maxVal, chord }
 
     for (let f = 0; f < numFrames; f++) {
       const frameBase = f * totalBins;
       const chord = detectedChords[f] || '';
       const chordPcs = CHORD_NOTES_MAP[chord] || null;
-      const rootPc = chordPcs ? chordPcs[0] : null;
 
-      const currentFramePeaks = new Map();
+      // Nếu frame không nhận diện được hợp âm hợp lệ thì bỏ qua
+      if (!chordPcs || chordPcs.length === 0) continue;
 
-      // Find local peaks along semitone dimension
-      for (let s = 1; s < totalBins - 1; s++) {
-        const val = cqtMatrix[frameBase + s];
-        if (val < 36) continue;
+      const currentFramePitches = new Map();
 
-        const valPrev = cqtMatrix[frameBase + s - 1];
-        const valNext = cqtMatrix[frameBase + s + 1];
-        if (val < valPrev || val < valNext) continue;
-
-        const m = globalMinM + s;
+      // Chỉ xét các nốt thuộc hợp âm đã nhận diện (ví dụ G -> G, B, D) trên toàn bộ dải cao độ CQT
+      for (let m = globalMinM; m <= globalMaxM; m++) {
         const pc = m % 12;
+        if (!chordPcs.includes(pc)) continue; // Lọc sạch mọi nốt không thuộc hợp âm
 
-        let isChordTone = false;
-        let isRoot = false;
-        let effectiveVal = val;
+        const s = m - globalMinM;
+        if (s < 0 || s >= totalBins) continue;
 
-        if (chordPcs) {
-          isChordTone = chordPcs.includes(pc);
-          isRoot = (pc === rootPc);
+        const val = cqtMatrix[frameBase + s];
+        const valPrev = (s > 0) ? cqtMatrix[frameBase + s - 1] : 0;
+        const valNext = (s < totalBins - 1) ? cqtMatrix[frameBase + s + 1] : 0;
 
-          if (isChordTone) {
-            // Chord tone: reward & prioritize
-            effectiveVal = Math.min(255, val * (isRoot ? 1.25 : 1.12));
-          } else {
-            // Non-chord tone:
-            // 1. Spectral leakage check: if neighbor is chord tone and active, suppress leakage
-            const prevPc = (m - 1) % 12;
-            const nextPc = (m + 1) % 12;
-            const neighborIsChord = (chordPcs.includes(prevPc) && valPrev >= val * 0.72) ||
-                                    (chordPcs.includes(nextPc) && valNext >= val * 0.72);
-            if (neighborIsChord) {
-              continue; // Spectral leakage filtered!
-            }
-
-            // 2. Harmonic overtone check: if lower root is present (octave or fifth), penalize
-            let isOvertone = false;
-            for (let lowerS = 0; lowerS < s; lowerS++) {
-              const lowerM = globalMinM + lowerS;
-              const lowerDiff = m - lowerM;
-              if (lowerDiff === 12 || lowerDiff === 19 || lowerDiff === 24 || lowerDiff === 28) {
-                if (cqtMatrix[frameBase + lowerS] > 70) {
-                  isOvertone = true;
-                  break;
-                }
-              }
-            }
-            if (isOvertone) {
-              effectiveVal *= 0.55;
-            }
-
-            // High threshold for passing / melody non-chord tones
-            if (effectiveVal < 95) continue;
+        // Đối chiếu lại với CQT để xem cao độ đó có thực sự phát ra âm thanh không
+        const peakEnergy = Math.max(val, valPrev, valNext);
+        if (peakEnergy >= 36) {
+          if (val >= 34 && (val >= valPrev * 0.90 || val >= valNext * 0.90)) {
+            currentFramePitches.set(m, {
+              val: peakEnergy,
+              chord
+            });
           }
-        } else {
-          // No chord recognized: accept strong peaks
-          if (val < 50) continue;
         }
-
-        currentFramePeaks.set(m, {
-          val: effectiveVal,
-          isChordTone,
-          isRoot,
-          chord
-        });
       }
 
-      // Update active tracks
-      for (const [m, peakData] of currentFramePeaks) {
+      // Cập nhật các note tracks liên tục theo thời gian
+      for (const [m, pData] of currentFramePitches) {
         if (activeTracks.has(m)) {
           const track = activeTracks.get(m);
-          // Onset detection: sudden spike in energy -> re-trigger new note
-          if (peakData.val > track.lastVal + 40 && (f - track.startFrame) >= 4) {
-            // Finalize previous note
+          // Onset detection: nếu năng lượng tăng vọt đột ngột (+40) sau một khoảng thời gian -> ngắt note cũ và gõ lại note mới
+          if (pData.val > track.lastVal + 40 && (f - track.startFrame) >= 5) {
             const durFrames = track.lastFrame - track.startFrame + 1;
             if (durFrames >= 3) {
               notes.push({
                 pitch: m,
                 startMs: Math.round(track.startFrame * timeResMs),
                 endMs: Math.round((track.lastFrame + 1) * timeResMs),
-                velocity: Math.min(127, Math.max(45, Math.round(38 + (track.maxVal / 255) * 85))),
-                isChordTone: track.isChordTone,
-                isRoot: track.isRoot,
+                velocity: Math.min(127, Math.max(50, Math.round(40 + (track.maxVal / 255) * 85))),
                 chordName: track.chord
               });
             }
-            // Start new note
             activeTracks.set(m, {
               startFrame: f,
               lastFrame: f,
-              lastVal: peakData.val,
-              maxVal: peakData.val,
-              sumVal: peakData.val,
-              count: 1,
-              isChordTone: peakData.isChordTone,
-              isRoot: peakData.isRoot,
-              chord: peakData.chord
+              lastVal: pData.val,
+              maxVal: pData.val,
+              chord: pData.chord
             });
           } else {
             track.lastFrame = f;
-            track.lastVal = peakData.val;
-            track.maxVal = Math.max(track.maxVal, peakData.val);
-            track.sumVal += peakData.val;
-            track.count++;
+            track.lastVal = pData.val;
+            track.maxVal = Math.max(track.maxVal, pData.val);
           }
         } else {
           activeTracks.set(m, {
             startFrame: f,
             lastFrame: f,
-            lastVal: peakData.val,
-            maxVal: peakData.val,
-            sumVal: peakData.val,
-            count: 1,
-            isChordTone: peakData.isChordTone,
-            isRoot: peakData.isRoot,
-            chord: peakData.chord
+            lastVal: pData.val,
+            maxVal: pData.val,
+            chord: pData.chord
           });
         }
       }
 
-      // Flush ended tracks that were not seen in current frame
+      // Đóng các nốt đã ngắt tiếng
       for (const [m, track] of activeTracks.entries()) {
-        if (!currentFramePeaks.has(m)) {
+        if (!currentFramePitches.has(m)) {
           if (f - track.lastFrame > 1) {
             const durFrames = track.lastFrame - track.startFrame + 1;
-            if (durFrames >= 3 && track.maxVal >= 42) {
+            if (durFrames >= 3 && track.maxVal >= 38) {
               notes.push({
                 pitch: m,
                 startMs: Math.round(track.startFrame * timeResMs),
                 endMs: Math.round((track.lastFrame + 1) * timeResMs),
-                velocity: Math.min(127, Math.max(45, Math.round(38 + (track.maxVal / 255) * 85))),
-                isChordTone: track.isChordTone,
-                isRoot: track.isRoot,
+                velocity: Math.min(127, Math.max(50, Math.round(40 + (track.maxVal / 255) * 85))),
                 chordName: track.chord
               });
             }
@@ -3216,26 +3153,24 @@ class MusicalChordAnalyzer {
       }
     }
 
-    // Flush remaining tracks at end of audio
+    // Kết thúc bài: ghi nhận các nốt còn lại
     for (const [m, track] of activeTracks.entries()) {
       const durFrames = track.lastFrame - track.startFrame + 1;
-      if (durFrames >= 3 && track.maxVal >= 42) {
+      if (durFrames >= 3 && track.maxVal >= 38) {
         notes.push({
           pitch: m,
           startMs: Math.round(track.startFrame * timeResMs),
           endMs: Math.round((track.lastFrame + 1) * timeResMs),
-          velocity: Math.min(127, Math.max(45, Math.round(38 + (track.maxVal / 255) * 85))),
-          isChordTone: track.isChordTone,
-          isRoot: track.isRoot,
+          velocity: Math.min(127, Math.max(50, Math.round(40 + (track.maxVal / 255) * 85))),
           chordName: track.chord
         });
       }
     }
 
-    // Sort notes chronologically by startMs, then pitch
+    // Sắp xếp các nốt theo thứ tự thời gian
     notes.sort((a, b) => (a.startMs - b.startMs) || (a.pitch - b.pitch));
 
-    // Merge adjacent notes of the same pitch if gap <= 60ms
+    // Nối các phân đoạn cùng nốt nếu khoảng cách quá ngắn (<= 60ms)
     const merged = [];
     for (const note of notes) {
       if (merged.length > 0) {
