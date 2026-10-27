@@ -41,7 +41,7 @@
     } catch (_) {}
   </script>
 
-  <link rel="stylesheet" href="./style.css?v=20261027_27">
+  <link rel="stylesheet" href="./style.css?v=20261027_28">
 </head>
 
 <body>
@@ -509,50 +509,21 @@
                 <div style="display: flex; align-items: center; gap: 8px;">
                   <span id="tab2-midi-badge-text">MIDI Piano Roll</span>
                   <div style="display: flex; align-items: center; gap: 5px;">
+                    <!-- 1. Play MIDI -->
                     <button id="btn-tab2-play-midi" class="midi-play-btn icon-only" title="Phát thử nốt MIDI theo nhạc cụ (Tương tác vạch vàng)" type="button">
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
                     </button>
-                    <button id="btn-tab2-export-midi" class="midi-export-btn icon-only" title="Tải file .mid về máy (Standard MIDI File)" type="button">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    </button>
+                    <!-- 2. Nút chọn Nhạc cụ (ở giữa Play MIDI và Save MIDI) -->
                     <div class="dropdown-wrapper" id="tab2-midi-inst-wrapper" style="position: relative; pointer-events: auto;">
                       <button id="btn-tab2-midi-inst" class="midi-inst-btn" title="Chọn nhạc cụ General MIDI phát thử" type="button">
                         <span id="tab2-midi-inst-icon">🎹</span>
                       </button>
-                      <div id="tab2-midi-inst-menu" class="dropdown-menu midi-inst-dropdown-menu" style="display: none;">
-                        <button class="dropdown-item midi-inst-item active" data-inst="PIANO" data-icon="🎹" type="button">
-                          <span class="inst-icon">🎹</span>
-                          <span class="inst-name">Grand Piano</span>
-                          <span class="inst-check">✓</span>
-                        </button>
-                        <button class="dropdown-item midi-inst-item" data-inst="EP" data-icon="🎹" type="button">
-                          <span class="inst-icon">🎹</span>
-                          <span class="inst-name">Rhodes EP</span>
-                          <span class="inst-check">✓</span>
-                        </button>
-                        <button class="dropdown-item midi-inst-item" data-inst="GUITAR" data-icon="🎸" type="button">
-                          <span class="inst-icon">🎸</span>
-                          <span class="inst-name">Guitar</span>
-                          <span class="inst-check">✓</span>
-                        </button>
-                        <button class="dropdown-item midi-inst-item" data-inst="STRINGS" data-icon="🎻" type="button">
-                          <span class="inst-icon">🎻</span>
-                          <span class="inst-name">Strings</span>
-                          <span class="inst-check">✓</span>
-                        </button>
-                        <button class="dropdown-item midi-inst-item" data-inst="SYNTH" data-icon="🎛️" type="button">
-                          <span class="inst-icon">🎛️</span>
-                          <span class="inst-name">Synth</span>
-                          <span class="inst-check">✓</span>
-                        </button>
-                        <button class="dropdown-item midi-inst-item" data-inst="MARIMBA" data-icon="🪵" type="button">
-                          <span class="inst-icon">🪵</span>
-                          <span class="inst-name">Marimba</span>
-                          <span class="inst-check">✓</span>
-                        </button>
-                      </div>
                     </div>
-                    <!-- Nút Edit: bên dưới/cạnh nút play midi -->
+                    <!-- 3. Save / Export MIDI -->
+                    <button id="btn-tab2-export-midi" class="midi-export-btn icon-only" title="Tải file .mid về máy (Standard MIDI File)" type="button">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    </button>
+                    <!-- 4. Edit MIDI -->
                     <button id="btn-tab2-edit-midi" class="midi-edit-btn icon-only" title="Chế độ chỉnh sửa nốt MIDI (Bút chì, Tẩy, Bàn tay)" type="button">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
                         <path d="M12 20h9"/>
@@ -601,6 +572,40 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <!-- Global MIDI Instrument Selection Dropdown Menu (Ported to root for unclipped fixed positioning) -->
+  <div id="tab2-midi-inst-menu" class="dropdown-menu midi-inst-dropdown-menu" style="display: none;">
+    <button class="dropdown-item midi-inst-item active" data-inst="PIANO" data-icon="🎹" type="button">
+      <span class="inst-icon">🎹</span>
+      <span class="inst-name">Grand Piano</span>
+      <span class="inst-check">✓</span>
+    </button>
+    <button class="dropdown-item midi-inst-item" data-inst="EP" data-icon="🎹" type="button">
+      <span class="inst-icon">🎹</span>
+      <span class="inst-name">Rhodes EP</span>
+      <span class="inst-check">✓</span>
+    </button>
+    <button class="dropdown-item midi-inst-item" data-inst="GUITAR" data-icon="🎸" type="button">
+      <span class="inst-icon">🎸</span>
+      <span class="inst-name">Guitar</span>
+      <span class="inst-check">✓</span>
+    </button>
+    <button class="dropdown-item midi-inst-item" data-inst="STRINGS" data-icon="🎻" type="button">
+      <span class="inst-icon">🎻</span>
+      <span class="inst-name">Strings</span>
+      <span class="inst-check">✓</span>
+    </button>
+    <button class="dropdown-item midi-inst-item" data-inst="SYNTH" data-icon="🎛️" type="button">
+      <span class="inst-icon">🎛️</span>
+      <span class="inst-name">Synth</span>
+      <span class="inst-check">✓</span>
+    </button>
+    <button class="dropdown-item midi-inst-item" data-inst="MARIMBA" data-icon="🪵" type="button">
+      <span class="inst-icon">🪵</span>
+      <span class="inst-name">Marimba</span>
+      <span class="inst-check">✓</span>
+    </button>
   </div>
 
   <!-- Compatibility placeholder for harnesses checking #root -->
@@ -778,6 +783,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261027_27"></script>
+  <script src="./app.js?v=20261027_28"></script>
 </body>
 </html>

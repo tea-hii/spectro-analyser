@@ -5710,6 +5710,9 @@ class SpectroSubApp {
     const instItems = document.querySelectorAll('.midi-inst-item');
 
     if (btnTab2MidiInst && tab2MidiInstMenu) {
+      if (tab2MidiInstMenu.parentElement !== document.body) {
+        document.body.appendChild(tab2MidiInstMenu);
+      }
       btnTab2MidiInst.addEventListener('click', (e) => {
         e.stopPropagation();
         const isOpen = tab2MidiInstMenu.classList.contains('show');
@@ -5735,6 +5738,8 @@ class SpectroSubApp {
           const icon = item.dataset.icon;
           if (this.midiPreviewer && inst) {
             this.midiPreviewer.currentInstrument = inst;
+            // Audition preview note (Middle C) with new instrument
+            this.midiPreviewer.playNote(60, 0.45, 95);
           }
           if (tab2MidiInstIcon && icon) {
             tab2MidiInstIcon.textContent = icon;

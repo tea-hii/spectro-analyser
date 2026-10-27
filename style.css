@@ -1459,6 +1459,8 @@ input, textarea, button, select {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
   flex-direction: column;
   gap: 2px;
+  z-index: 99999 !important;
+  pointer-events: auto !important;
 }
 
 .midi-inst-item {
