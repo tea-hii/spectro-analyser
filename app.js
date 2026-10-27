@@ -2481,6 +2481,7 @@ class MusicalChordAnalyzer {
     this.midiNotes = null;
     this.midiWidth = 0;
     this.midiHeight = 0;
+    this.midiThreshold = 70; // Ngưỡng lọc năng lượng CQT tối thiểu (chỉ nốt sáng rõ)
 
     this.data = null;
     this.paletteKey = 'INFERNO';
@@ -3040,6 +3041,8 @@ class MusicalChordAnalyzer {
     if (!spec.cqtMatrix || numFrames <= 0 || totalBins <= 0) return [];
     const cqtMatrix = new Uint8Array(spec.cqtMatrix);
 
+    const minBrightness = typeof this.midiThreshold === 'number' ? this.midiThreshold : 70;
+
     const CHORD_NOTES_MAP = {
       'C': [0, 4, 7], 'C#': [1, 5, 8], 'Db': [1, 5, 8],
       'D': [2, 6, 9], 'D#': [3, 7, 10], 'Eb': [3, 7, 10],
@@ -3065,12 +3068,27 @@ class MusicalChordAnalyzer {
       const chord = detectedChords[f] || '';
       const chordPcs = CHORD_NOTES_MAP[chord] || null;
 
-      // Nếu frame không nhận diện được hợp âm hợp lệ thì bỏ qua
       if (!chordPcs || chordPcs.length === 0) continue;
+
+      // 1. Quét tìm năng lượng cực đại của hợp âm trong frame này
+      let maxFrameChordEnergy = 0;
+      for (let m = globalMinM; m <= globalMaxM; m++) {
+        if (!chordPcs.includes(m % 12)) continue;
+        const s = m - globalMinM;
+        if (s < 0 || s >= totalBins) continue;
+        const v = cqtMatrix[frameBase + s];
+        if (v > maxFrameChordEnergy) maxFrameChordEnergy = v;
+      }
+
+      // Nếu toàn bộ hợp âm quá nhỏ hoặc im lặng thì bỏ qua
+      if (maxFrameChordEnergy < minBrightness) continue;
+
+      // Ngưỡng lọc tương đối: Nốt phải đạt ít nhất 38% năng lượng của nốt sáng nhất trong hợp âm
+      const relativeThreshold = Math.max(minBrightness, maxFrameChordEnergy * 0.38);
 
       const currentFramePitches = new Map();
 
-      // Chỉ xét các nốt thuộc hợp âm đã nhận diện (ví dụ G -> G, B, D) trên toàn bộ dải cao độ CQT
+      // 2. Chỉ xét các nốt thuộc hợp âm có năng lượng sáng rõ thực sự
       for (let m = globalMinM; m <= globalMaxM; m++) {
         const pc = m % 12;
         if (!chordPcs.includes(pc)) continue; // Lọc sạch mọi nốt không thuộc hợp âm
@@ -3079,26 +3097,26 @@ class MusicalChordAnalyzer {
         if (s < 0 || s >= totalBins) continue;
 
         const val = cqtMatrix[frameBase + s];
+        // Lọc bỏ nốt mờ/tối (như E2, G2 bị dội âm trầm)
+        if (val < relativeThreshold) continue;
+
         const valPrev = (s > 0) ? cqtMatrix[frameBase + s - 1] : 0;
         const valNext = (s < totalBins - 1) ? cqtMatrix[frameBase + s + 1] : 0;
 
-        // Đối chiếu lại với CQT để xem cao độ đó có thực sự phát ra âm thanh không
-        const peakEnergy = Math.max(val, valPrev, valNext);
-        if (peakEnergy >= 36) {
-          if (val >= 34 && (val >= valPrev * 0.90 || val >= valNext * 0.90)) {
-            currentFramePitches.set(m, {
-              val: peakEnergy,
-              chord
-            });
-          }
+        // Đảm bảo là đỉnh năng lượng cục bộ
+        if (val >= valPrev * 0.92 && val >= valNext * 0.92) {
+          currentFramePitches.set(m, {
+            val,
+            chord
+          });
         }
       }
 
-      // Cập nhật các note tracks liên tục theo thời gian
+      // 3. Cập nhật các note tracks liên tục theo thời gian
       for (const [m, pData] of currentFramePitches) {
         if (activeTracks.has(m)) {
           const track = activeTracks.get(m);
-          // Onset detection: nếu năng lượng tăng vọt đột ngột (+40) sau một khoảng thời gian -> ngắt note cũ và gõ lại note mới
+          // Onset detection: nếu năng lượng tăng vọt đột ngột (+40) sau một khoảng thời gian -> gõ lại note mới
           if (pData.val > track.lastVal + 40 && (f - track.startFrame) >= 5) {
             const durFrames = track.lastFrame - track.startFrame + 1;
             if (durFrames >= 3) {
@@ -3138,7 +3156,7 @@ class MusicalChordAnalyzer {
         if (!currentFramePitches.has(m)) {
           if (f - track.lastFrame > 1) {
             const durFrames = track.lastFrame - track.startFrame + 1;
-            if (durFrames >= 3 && track.maxVal >= 38) {
+            if (durFrames >= 3 && track.maxVal >= minBrightness) {
               notes.push({
                 pitch: m,
                 startMs: Math.round(track.startFrame * timeResMs),
@@ -3156,7 +3174,7 @@ class MusicalChordAnalyzer {
     // Kết thúc bài: ghi nhận các nốt còn lại
     for (const [m, track] of activeTracks.entries()) {
       const durFrames = track.lastFrame - track.startFrame + 1;
-      if (durFrames >= 3 && track.maxVal >= 38) {
+      if (durFrames >= 3 && track.maxVal >= minBrightness) {
         notes.push({
           pitch: m,
           startMs: Math.round(track.startFrame * timeResMs),
@@ -5586,6 +5604,24 @@ class SpectroSubApp {
       selectTab2MidiInst.addEventListener('change', (e) => {
         if (this.midiPreviewer) {
           this.midiPreviewer.currentInstrument = e.target.value;
+        }
+      });
+    }
+
+    const selectTab2MidiThreshold = document.getElementById('select-tab2-midi-threshold');
+    if (selectTab2MidiThreshold) {
+      selectTab2MidiThreshold.addEventListener('change', (e) => {
+        const val = parseInt(e.target.value, 10);
+        if (!isNaN(val)) {
+          this.chordAnalyzerTab2.midiThreshold = val;
+          if (this.chordAnalyzerTab2.data) {
+            this.chordAnalyzerTab2.transcribeMidiFromCqt();
+            const badgeText = document.getElementById('tab2-midi-badge-text');
+            if (badgeText && this.chordAnalyzerTab2.midiNotes) {
+              badgeText.textContent = `MIDI Piano Roll (${this.chordAnalyzerTab2.midiNotes.length} nốt)`;
+            }
+            this.chordAnalyzerTab2.render();
+          }
         }
       });
     }
