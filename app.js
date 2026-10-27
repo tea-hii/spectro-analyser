@@ -2997,7 +2997,8 @@ class MusicalChordAnalyzer {
       const vStartMs = this.xToTime(gutterW);
       const vEndMs = this.xToTime(w);
 
-      for (const note of this.midiNotes) {
+      for (let i = 0; i < this.midiNotes.length; i++) {
+        const note = this.midiNotes[i];
         if (note.endMs < vStartMs || note.startMs > vEndMs) continue;
         if (note.pitch < minM || note.pitch > maxM) continue;
 
