@@ -3438,11 +3438,14 @@ class MusicalChordAnalyzer {
           const midY = (p1.y + p2.y) / 2;
           pinchCenterTime = this.xToTime(midX);
 
-          if (canvas === this.cqtCanvas && this.cqtHeight > this.rulerHeight) {
-            const rulerH = this.rulerHeight;
-            const graphH = this.cqtHeight - rulerH;
-            const clampedY = Math.max(rulerH, Math.min(this.cqtHeight, midY));
-            pinchCenterFracY = Math.max(0, Math.min(1, (clampedY - rulerH) / Math.max(1, graphH)));
+          const isPitchZoomCanvas = (canvas === this.cqtCanvas || canvas === this.midiCanvas);
+          if (isPitchZoomCanvas) {
+            const isCqt = (canvas === this.cqtCanvas);
+            const rulerH = isCqt ? this.rulerHeight : 0;
+            const canvasH = isCqt ? (this.cqtHeight - rulerH) : (this.midiHeight || 100);
+            const totalH = isCqt ? this.cqtHeight : (this.midiHeight || 100);
+            const clampedY = Math.max(rulerH, Math.min(totalH, midY));
+            pinchCenterFracY = Math.max(0, Math.min(1, (clampedY - rulerH) / Math.max(1, canvasH)));
             pinchCenterNote = this.activeMaxMidi - pinchCenterFracY * pinchStartSpan;
           }
 
@@ -3512,7 +3515,8 @@ class MusicalChordAnalyzer {
             else if (curDistX > curDistY * 1.35) pinchLockedAxis = 'X';
           }
 
-          if (pinchLockedAxis === 'Y' && canvas === this.cqtCanvas && this.cqtHeight > this.rulerHeight) {
+          const isPitchCanvasPinch = (canvas === this.cqtCanvas || canvas === this.midiCanvas);
+          if (pinchLockedAxis === 'Y' && isPitchCanvasPinch) {
             // Zoom theo chiều dọc (Dải cao độ nốt)
             const scaleY = pinchStartDistY > 0 ? curDistY / pinchStartDistY : 1.0;
             // scaleY > 1: tách 2 ngón ra xa theo chiều dọc -> Zoom in (thu hẹp dải nốt)
@@ -3567,9 +3571,11 @@ class MusicalChordAnalyzer {
           this.clampScroll();
 
           // Kéo chuột theo chiều dọc trên CQT Canvas để cuộn dải nốt (Vertical Pitch Pan)
-          if (canvas === this.cqtCanvas && this.cqtHeight > this.rulerHeight) {
+          const isPitchPanCanvas = (canvas === this.cqtCanvas || canvas === this.midiCanvas);
+          if (isPitchPanCanvas) {
             const curY = getY(e);
-            const graphH = this.cqtHeight - this.rulerHeight;
+            const isCqt = (canvas === this.cqtCanvas);
+            const graphH = isCqt ? (this.cqtHeight - this.rulerHeight) : (this.midiHeight || 100);
             const currentSpan = dragStartMaxMidi - dragStartMinMidi + 1;
             const semitoneH = graphH / Math.max(1, currentSpan);
             const deltaNotes = Math.round((curY - dragStartY) / semitoneH);
@@ -3633,12 +3639,15 @@ class MusicalChordAnalyzer {
         // Tách Zoom dọc và Zoom ngang:
         // - Shift + Wheel (hoặc con trỏ rê ở cột nốt bên trái piano): Zoom THEO CHIỀU DỌC (Cao độ nốt)
         // - Cuộn bánh xe thông thường: Zoom THEO CHIỀU NGANG (Thời gian)
-        const isVerticalZoomIntent = e.shiftKey || (mouseX < this.leftGutterWidth && canvas === this.cqtCanvas);
+        const isPitchCanvasWheel = (canvas === this.cqtCanvas || canvas === this.midiCanvas);
+        const isVerticalZoomIntent = e.shiftKey || (mouseX < this.leftGutterWidth && isPitchCanvasWheel);
 
-        if (isVerticalZoomIntent && canvas === this.cqtCanvas && this.cqtHeight > this.rulerHeight) {
-          // --- ZOOM THEO CHIỀU DỌC (Cao độ nốt CQT) ---
-          const rulerH = this.rulerHeight;
-          const graphH = this.cqtHeight - rulerH;
+        if (isVerticalZoomIntent && isPitchCanvasWheel) {
+          // --- ZOOM THEO CHIỀU DỌC (Đồng bộ cả CQT và MIDI Piano Roll) ---
+          const isCqt = (canvas === this.cqtCanvas);
+          const rulerH = isCqt ? this.rulerHeight : 0;
+          const canvasH = isCqt ? this.cqtHeight : (this.midiHeight || 100);
+          const graphH = canvasH - rulerH;
           const currentSpan = Math.max(6, this.activeMaxMidi - this.activeMinMidi);
 
           // Tỉ lệ vị trí Y chuột trong biểu đồ CQT (0 = đỉnh, 1 = đáy)
@@ -3699,6 +3708,229 @@ class MusicalChordAnalyzer {
 }
 
 // -------------------------------------------------------------
+// 5.5 Polyphonic MIDI Synthesizer & Audition Engine (General MIDI)
+// -------------------------------------------------------------
+class MidiAudioPreviewer {
+  constructor(audioEngine) {
+    this.audioEngine = audioEngine;
+    this.isPlaying = false;
+    this.currentInstrument = 'PIANO';
+    this.activeNodes = [];
+    this.startPositionMs = 0;
+    this.startAudioContextTime = 0;
+    this.playbackTimerId = null;
+    this.onProgress = null;
+    this.onStateChange = null;
+  }
+
+  getAudioContext() {
+    return this.audioEngine ? this.audioEngine.getAudioContext() : new (window.AudioContext || window.webkitAudioContext)();
+  }
+
+  playNote(pitch, durationSec, velocity = 80, time = 0) {
+    try {
+      const ctx = this.getAudioContext();
+      if (ctx.state === 'suspended') ctx.resume();
+
+      const freq = 440.0 * Math.pow(2.0, (pitch - 69.0) / 12.0);
+      const startTime = time > 0 ? time : ctx.currentTime;
+      const dur = Math.max(0.08, durationSec);
+      const velGain = Math.max(0.05, Math.min(1.0, (velocity / 127) * 0.85));
+
+      const masterGain = ctx.createGain();
+      masterGain.gain.setValueAtTime(0, startTime);
+      masterGain.connect(ctx.destination);
+
+      const filter = ctx.createBiquadFilter();
+      filter.connect(masterGain);
+
+      const inst = this.currentInstrument;
+      if (inst === 'STRINGS') {
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(Math.min(3800, freq * 4), startTime);
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        osc1.type = 'sawtooth'; osc2.type = 'sawtooth';
+        osc1.frequency.setValueAtTime(freq, startTime);
+        osc2.frequency.setValueAtTime(freq, startTime);
+        osc1.detune.setValueAtTime(-8, startTime);
+        osc2.detune.setValueAtTime(8, startTime);
+        osc1.connect(filter); osc2.connect(filter);
+
+        masterGain.gain.linearRampToValueAtTime(velGain * 0.45, startTime + 0.12);
+        masterGain.gain.setValueAtTime(velGain * 0.45, startTime + Math.max(0.13, dur - 0.08));
+        masterGain.gain.exponentialRampToValueAtTime(0.0001, startTime + dur + 0.25);
+
+        osc1.start(startTime); osc2.start(startTime);
+        osc1.stop(startTime + dur + 0.3); osc2.stop(startTime + dur + 0.3);
+        this.activeNodes.push(osc1, osc2, masterGain);
+      } else if (inst === 'EP') {
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(Math.min(5000, freq * 5), startTime);
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, startTime);
+
+        const bell = ctx.createOscillator();
+        bell.type = 'sine';
+        bell.frequency.setValueAtTime(freq * 3.0, startTime);
+        const bellGain = ctx.createGain();
+        bellGain.gain.setValueAtTime(velGain * 0.45, startTime);
+        bellGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.12);
+        bell.connect(bellGain); bellGain.connect(filter);
+
+        osc.connect(filter);
+        masterGain.gain.linearRampToValueAtTime(velGain * 0.7, startTime + 0.008);
+        masterGain.gain.exponentialRampToValueAtTime(velGain * 0.2, startTime + 0.4);
+        masterGain.gain.exponentialRampToValueAtTime(0.0001, startTime + dur + 0.15);
+
+        osc.start(startTime); bell.start(startTime);
+        osc.stop(startTime + dur + 0.2); bell.stop(startTime + 0.15);
+        this.activeNodes.push(osc, bell, masterGain);
+      } else if (inst === 'GUITAR') {
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(Math.min(4500, freq * 3.5), startTime);
+        filter.frequency.exponentialRampToValueAtTime(Math.max(180, freq * 1.1), startTime + dur);
+        const osc = ctx.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, startTime);
+        osc.connect(filter);
+
+        masterGain.gain.linearRampToValueAtTime(velGain * 0.8, startTime + 0.004);
+        masterGain.gain.exponentialRampToValueAtTime(0.0001, startTime + dur + 0.1);
+
+        osc.start(startTime);
+        osc.stop(startTime + dur + 0.15);
+        this.activeNodes.push(osc, masterGain);
+      } else if (inst === 'SYNTH') {
+        filter.type = 'lowpass';
+        filter.Q.value = 3.5;
+        filter.frequency.setValueAtTime(Math.min(5500, freq * 5), startTime);
+        filter.frequency.exponentialRampToValueAtTime(Math.max(250, freq * 1.5), startTime + 0.25);
+        const osc = ctx.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, startTime);
+        osc.connect(filter);
+
+        masterGain.gain.linearRampToValueAtTime(velGain * 0.55, startTime + 0.012);
+        masterGain.gain.setValueAtTime(velGain * 0.38, startTime + dur - 0.04);
+        masterGain.gain.exponentialRampToValueAtTime(0.0001, startTime + dur + 0.15);
+
+        osc.start(startTime);
+        osc.stop(startTime + dur + 0.2);
+        this.activeNodes.push(osc, masterGain);
+      } else if (inst === 'MARIMBA') {
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(Math.min(7500, freq * 4), startTime);
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, startTime);
+        osc.connect(filter);
+
+        masterGain.gain.linearRampToValueAtTime(velGain * 0.85, startTime + 0.003);
+        masterGain.gain.exponentialRampToValueAtTime(0.0001, startTime + Math.min(dur, 0.45));
+
+        osc.start(startTime);
+        osc.stop(startTime + Math.min(dur, 0.5));
+        this.activeNodes.push(osc, masterGain);
+      } else {
+        // Acoustic Grand Piano (Default)
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(Math.min(6500, freq * 4.5), startTime);
+        filter.frequency.exponentialRampToValueAtTime(Math.max(250, freq * 1.4), startTime + dur);
+
+        const osc1 = ctx.createOscillator();
+        osc1.type = 'triangle';
+        osc1.frequency.setValueAtTime(freq, startTime);
+
+        const osc2 = ctx.createOscillator();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(freq * 2.0, startTime);
+        const gain2 = ctx.createGain();
+        gain2.gain.setValueAtTime(0.25, startTime);
+        gain2.gain.exponentialRampToValueAtTime(0.001, startTime + 0.25);
+
+        osc1.connect(filter);
+        osc2.connect(gain2);
+        gain2.connect(filter);
+
+        masterGain.gain.linearRampToValueAtTime(velGain * 0.75, startTime + 0.005);
+        masterGain.gain.exponentialRampToValueAtTime(velGain * 0.2, startTime + Math.min(dur, 0.7));
+        masterGain.gain.exponentialRampToValueAtTime(0.0001, startTime + dur + 0.12);
+
+        osc1.start(startTime);
+        osc2.start(startTime);
+        osc1.stop(startTime + dur + 0.15);
+        osc2.stop(startTime + 0.3);
+        this.activeNodes.push(osc1, osc2, masterGain);
+      }
+    } catch (e) {
+      console.warn('playNote error:', e);
+    }
+  }
+
+  stopAll() {
+    this.isPlaying = false;
+    for (const node of this.activeNodes) {
+      try {
+        if (typeof node.stop === 'function') node.stop();
+        if (typeof node.disconnect === 'function') node.disconnect();
+      } catch (_) {}
+    }
+    this.activeNodes = [];
+    if (this.playbackTimerId) {
+      cancelAnimationFrame(this.playbackTimerId);
+      this.playbackTimerId = null;
+    }
+    if (this.onStateChange) this.onStateChange(false);
+  }
+
+  playMidi(notes, startMs = 0, durationMs = 0) {
+    this.stopAll();
+    if (!notes || notes.length === 0) return;
+
+    const ctx = this.getAudioContext();
+    if (ctx.state === 'suspended') ctx.resume();
+
+    this.isPlaying = true;
+    this.startPositionMs = Math.max(0, startMs);
+    this.startAudioContextTime = ctx.currentTime;
+    if (this.onStateChange) this.onStateChange(true);
+
+    const maxNoteEnd = notes.reduce((max, n) => Math.max(max, n.endMs), 0);
+    const totalDuration = Math.max(durationMs, maxNoteEnd);
+
+    // Schedule all future notes relative to context current time
+    for (const note of notes) {
+      if (note.endMs <= this.startPositionMs) continue;
+      const noteDelayMs = Math.max(0, note.startMs - this.startPositionMs);
+      const noteStartCtxTime = this.startAudioContextTime + (noteDelayMs / 1000.0);
+      const noteDurSec = (note.endMs - Math.max(note.startMs, this.startPositionMs)) / 1000.0;
+      this.playNote(note.pitch, noteDurSec, note.velocity, noteStartCtxTime);
+    }
+
+    const updateLoop = () => {
+      if (!this.isPlaying) return;
+      const elapsedSec = ctx.currentTime - this.startAudioContextTime;
+      const currentPosMs = this.startPositionMs + elapsedSec * 1000.0;
+
+      if (this.onProgress) {
+        this.onProgress(currentPosMs);
+      }
+
+      if (currentPosMs >= totalDuration + 200) {
+        this.stopAll();
+        if (this.onProgress) this.onProgress(totalDuration);
+        return;
+      }
+
+      this.playbackTimerId = requestAnimationFrame(updateLoop);
+    };
+    this.playbackTimerId = requestAnimationFrame(updateLoop);
+  }
+}
+
+// -------------------------------------------------------------
 // 6. Main Application Controller (SpectroSubApp)
 // -------------------------------------------------------------
 class SpectroSubApp {
@@ -3725,6 +3957,7 @@ class SpectroSubApp {
     const midiCanvas = document.getElementById('midi-canvas');
     this.chordAnalyzerTab2 = new MusicalChordAnalyzer(cqtCanvas, chromaCanvas, this.audioTab2, midiCanvas);
     this.chordWorker = null;
+    this.midiPreviewer = new MidiAudioPreviewer(this.audioTab2);
 
     // Undo / Redo history stacks for Tab 1 (Max 5 steps)
     this.historyStack = [];
@@ -5323,7 +5556,14 @@ class SpectroSubApp {
     }
 
     const btnTab2Play = document.getElementById('btn-tab2-play');
-    if (btnTab2Play) btnTab2Play.addEventListener('click', () => this.audioTab2.togglePlay());
+    if (btnTab2Play) {
+      btnTab2Play.addEventListener('click', () => {
+        if (this.midiPreviewer && this.midiPreviewer.isPlaying) {
+          this.midiPreviewer.stopAll();
+        }
+        this.audioTab2.togglePlay();
+      });
+    }
 
     const btnTab2Loop = document.getElementById('btn-tab2-loop');
     if (btnTab2Loop) {
@@ -5339,6 +5579,68 @@ class SpectroSubApp {
     const tab2MidiSpl = document.getElementById('tab2-midi-splitter');
     const tab2CqtBox = document.getElementById('tab2-cqt-container');
     const btnTab2ExportMidi = document.getElementById('btn-tab2-export-midi');
+    const btnTab2PlayMidi = document.getElementById('btn-tab2-play-midi');
+    const selectTab2MidiInst = document.getElementById('select-tab2-midi-inst');
+
+    if (selectTab2MidiInst) {
+      selectTab2MidiInst.addEventListener('change', (e) => {
+        if (this.midiPreviewer) {
+          this.midiPreviewer.currentInstrument = e.target.value;
+        }
+      });
+    }
+
+    if (btnTab2PlayMidi) {
+      this.midiPreviewer.onStateChange = (playing) => {
+        btnTab2PlayMidi.classList.toggle('playing', playing);
+        btnTab2PlayMidi.innerHTML = playing
+          ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg><span>Stop MIDI</span>'
+          : '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg><span>Play MIDI</span>';
+      };
+
+      this.midiPreviewer.onProgress = (ms) => {
+        this.audioTab2.currentPositionMs = ms;
+        const badge2 = document.getElementById('tab2-time-badge');
+        if (badge2) badge2.textContent = TimeFormatter.formatFull(ms);
+
+        // Auto scroll viewport forward if playhead reaches right edge
+        const viewW = (this.chordAnalyzerTab2.cqtWidth || 800) - this.chordAnalyzerTab2.leftGutterWidth;
+        const visibleWindowMs = viewW * this.chordAnalyzerTab2.msPerPixel;
+        const leftMs = this.chordAnalyzerTab2.scrollOffsetMs;
+        const rightMs = leftMs + visibleWindowMs;
+        if (ms >= rightMs || ms < leftMs) {
+          this.chordAnalyzerTab2.scrollOffsetMs = Math.max(-200, ms - visibleWindowMs * 0.15);
+        }
+        this.chordAnalyzerTab2.render();
+      };
+
+      btnTab2PlayMidi.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!this.chordAnalyzerTab2.midiNotes || this.chordAnalyzerTab2.midiNotes.length === 0) {
+          if (this.chordAnalyzerTab2.data) {
+            this.chordAnalyzerTab2.transcribeMidiFromCqt();
+          }
+        }
+        if (!this.chordAnalyzerTab2.midiNotes || this.chordAnalyzerTab2.midiNotes.length === 0) {
+          alert('Chưa có nốt MIDI để phát thử!');
+          return;
+        }
+
+        if (this.midiPreviewer.isPlaying) {
+          this.midiPreviewer.stopAll();
+        } else {
+          // Stop audio playback if running
+          if (this.audioTab2.isPlaying) {
+            this.audioTab2.pause();
+          }
+          let curPos = this.audioTab2.getCurrentPosition();
+          if (curPos >= this.audioTab2.durationMs - 200) {
+            curPos = 0;
+          }
+          this.midiPreviewer.playMidi(this.chordAnalyzerTab2.midiNotes, curPos, this.audioTab2.durationMs);
+        }
+      });
+    }
 
     if (btnTab2Midi) {
       btnTab2Midi.addEventListener('click', () => {

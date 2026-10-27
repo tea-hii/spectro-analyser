@@ -41,7 +41,7 @@
     } catch (_) {}
   </script>
 
-  <link rel="stylesheet" href="./style.css?v=20261027_23">
+  <link rel="stylesheet" href="./style.css?v=20261027_24">
 </head>
 
 <body>
@@ -503,12 +503,28 @@
             <!-- Tier MIDI: Piano Roll / Transcribed Notes (Between CQT & Chromagram) -->
             <div id="tab2-midi-container" class="midi-tier-container" style="display: none; height: 28%; min-height: 80px; position: relative;">
               <canvas id="midi-canvas" style="display: block; width: 100%; height: 100%; touch-action: none !important;"></canvas>
-              <div class="tier-label-overlay" style="display: flex; align-items: center; gap: 8px;">
-                <span id="tab2-midi-badge-text">MIDI Piano Roll (AMT)</span>
-                <button id="btn-tab2-export-midi" class="midi-export-btn" title="Tải file .mid về máy (Standard MIDI File)" type="button">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  <span>Xuất .mid</span>
-                </button>
+              <div class="tier-label-overlay" style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px; padding: 4px 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span id="tab2-midi-badge-text">MIDI Piano Roll (AMT)</span>
+                  <button id="btn-tab2-export-midi" class="midi-export-btn" title="Tải file .mid về máy (Standard MIDI File)" type="button">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <span>Xuất .mid</span>
+                  </button>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <button id="btn-tab2-play-midi" class="midi-play-btn" title="Phát thử nốt MIDI theo nhạc cụ (Tương tác vạch vàng)" type="button">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+                    <span>Play MIDI</span>
+                  </button>
+                  <select id="select-tab2-midi-inst" class="midi-inst-select" title="Chọn nhạc cụ General MIDI phát thử">
+                    <option value="PIANO" selected>🎹 Grand Piano</option>
+                    <option value="EP">🎹 Rhodes EP</option>
+                    <option value="GUITAR">🎸 Acoustic Guitar</option>
+                    <option value="STRINGS">🎻 Strings</option>
+                    <option value="SYNTH">🎛️ Synth Lead</option>
+                    <option value="MARIMBA">🪵 Marimba</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -703,6 +719,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261027_23"></script>
+  <script src="./app.js?v=20261027_24"></script>
 </body>
 </html>
