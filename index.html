@@ -41,7 +41,7 @@
     } catch (_) {}
   </script>
 
-  <link rel="stylesheet" href="./style.css?v=20261027_35">
+  <link rel="stylesheet" href="./style.css?v=20261027_36">
 </head>
 
 <body>
@@ -494,17 +494,18 @@
             <!-- Tier 1: Dynamic CQT Spectrogram (Semitones) -->
             <div id="tab2-cqt-container" class="cqt-tier-container" style="height: 58%; min-height: 80px; position: relative;">
               <canvas id="cqt-canvas" style="display: block; width: 100%; height: 100%;"></canvas>
-              <div class="tier-label-overlay" style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
-                <span>Dynamic CQT Spectrogram</span>
-                <button id="btn-tab2-cqt-info" class="tab2-info-btn" title="Hướng dẫn cách hoạt động của ứng dụng: Phân tích 2-Gram &amp; Tạo, Sửa, Xuất MIDI" type="button">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="12" y1="10" x2="12" y2="19"/>
-                    <line x1="9.5" y1="10" x2="12" y2="10"/>
-                    <line x1="10" y1="19" x2="14" y2="19"/>
-                    <circle cx="12" cy="4.5" r="1.6" fill="currentColor" stroke="none"/>
-                  </svg>
-                </button>
-              </div>
+              <!-- Thẻ nhãn Dynamic CQT Spectrogram độc lập -->
+              <div class="tier-label-overlay">Dynamic CQT Spectrogram</div>
+
+              <!-- Nút i tách rời hoàn toàn khỏi thẻ Dynamic CQT, nằm bên dưới -->
+              <button id="btn-tab2-cqt-info" class="tab2-info-btn" title="Hướng dẫn cách hoạt động của ứng dụng: Phân tích 2-Gram &amp; Tạo, Sửa, Xuất MIDI" type="button">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="10" x2="12" y2="19"/>
+                  <line x1="9.5" y1="10" x2="12" y2="10"/>
+                  <line x1="10" y1="19" x2="14" y2="19"/>
+                  <circle cx="12" cy="4.5" r="1.6" fill="currentColor" stroke="none"/>
+                </svg>
+              </button>
             </div>
 
             <!-- Draggable Horizontal Splitter between CQT & MIDI -->
@@ -885,6 +886,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261027_35"></script>
+  <script src="./app.js?v=20261027_36"></script>
 </body>
 </html>
