@@ -3417,7 +3417,8 @@ class SpectroSubApp {
       if (span) span.textContent = t('load_btn');
     }
 
-    const bpmGroup = document.querySelector('#tab-pane-2 .latency-control-group:has(#input-tab2-bpm)');
+    const inputTab2Bpm = document.getElementById('input-tab2-bpm');
+    const bpmGroup = inputTab2Bpm ? inputTab2Bpm.closest('.latency-control-group') : null;
     if (bpmGroup) bpmGroup.title = t('bpm_title');
 
     const selBarGrid = document.getElementById('select-tab2-bar-grid');
