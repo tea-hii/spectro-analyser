@@ -2485,8 +2485,9 @@ class MusicalChordAnalyzer {
 
     // MIDI Edit Mode state
     this.isMidiEditMode = false;
-    this.midiTool = 'PENCIL'; // 'PENCIL', 'ERASER', 'HAND'
+    this.midiTool = 'PENCIL'; // 'PENCIL', 'ERASER', 'MOVE'
     this.drawingMidiNote = null;
+    this.midiDragAction = null;
     this.isErasingMidi = false;
 
     this.data = null;
@@ -2977,6 +2978,12 @@ class MusicalChordAnalyzer {
         const noteH = Math.max(3, semitoneH - 1.5);
 
         // Unified clean MIDI note color (all notes share the same aesthetic)
+        const isBeingDragged = (this.midiDragAction && this.midiDragAction.index === i);
+        if (isBeingDragged) {
+          ctx.save();
+          ctx.globalAlpha = 0.25;
+        }
+
         const gradTop = '#38bdf8';
         const gradBottom = '#0284c7';
         const strokeCol = '#7dd3fc';
@@ -3011,8 +3018,98 @@ class MusicalChordAnalyzer {
           ctx.textBaseline = 'middle';
           ctx.fillText(noteText, x1 + noteW / 2, noteY + noteH / 2 + 0.5);
         }
+
+        if (isBeingDragged) {
+          ctx.restore();
+        }
       }
-    } else {
+    }
+
+    // Ghost Note Preview 1: Pencil Drawing (Translucent cyan with dashed border)
+    if (this.drawingMidiNote) {
+      const note = this.drawingMidiNote;
+      if (note.pitch >= minM && note.pitch <= maxM) {
+        const x1 = Math.max(gutterW, this.timeToX(note.startMs));
+        const x2 = Math.min(w, this.timeToX(note.endMs));
+        const noteW = Math.max(4, x2 - x1);
+        const noteRow = maxM - note.pitch;
+        const noteY = noteRow * semitoneH;
+        const noteH = Math.max(2, semitoneH - 1.5);
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.40)';
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 3]);
+
+        const cornerR = Math.min(3, noteW / 3, noteH / 3);
+        if (typeof ctx.roundRect === 'function') {
+          ctx.beginPath();
+          ctx.roundRect(x1, noteY + 0.75, noteW, noteH, cornerR);
+          ctx.fill();
+          ctx.stroke();
+        } else {
+          ctx.fillRect(x1, noteY + 0.75, noteW, noteH);
+          ctx.strokeRect(x1, noteY + 0.75, noteW, noteH);
+        }
+        ctx.setLineDash([]);
+
+        if (noteW >= 20 && noteH >= 9) {
+          const octave = Math.floor(note.pitch / 12) - 1;
+          const noteText = `${NOTE_NAMES[note.pitch % 12]}${octave}`;
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 9px "JetBrains Mono", monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(noteText, x1 + noteW / 2, noteY + noteH / 2 + 0.5);
+        }
+        ctx.restore();
+      }
+    }
+
+    // Ghost Note Preview 2: Move / Resize Note (Translucent amber/gold with dashed border)
+    if (this.midiDragAction && this.midiDragAction.ghostNote) {
+      const note = this.midiDragAction.ghostNote;
+      if (note.pitch >= minM && note.pitch <= maxM) {
+        const x1 = Math.max(gutterW, this.timeToX(note.startMs));
+        const x2 = Math.min(w, this.timeToX(note.endMs));
+        const noteW = Math.max(4, x2 - x1);
+        const noteRow = maxM - note.pitch;
+        const noteY = noteRow * semitoneH;
+        const noteH = Math.max(2, semitoneH - 1.5);
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.45)';
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 3]);
+
+        const cornerR = Math.min(3, noteW / 3, noteH / 3);
+        if (typeof ctx.roundRect === 'function') {
+          ctx.beginPath();
+          ctx.roundRect(x1, noteY + 0.75, noteW, noteH, cornerR);
+          ctx.fill();
+          ctx.stroke();
+        } else {
+          ctx.fillRect(x1, noteY + 0.75, noteW, noteH);
+          ctx.strokeRect(x1, noteY + 0.75, noteW, noteH);
+        }
+        ctx.setLineDash([]);
+
+        if (noteW >= 20 && noteH >= 9) {
+          const octave = Math.floor(note.pitch / 12) - 1;
+          const noteText = `${NOTE_NAMES[note.pitch % 12]}${octave}`;
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 9px "JetBrains Mono", monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(noteText, x1 + noteW / 2, noteY + noteH / 2 + 0.5);
+        }
+        ctx.restore();
+      }
+    }
+
+    if ((!this.midiNotes || this.midiNotes.length === 0) && !this.drawingMidiNote) {
       // Empty hint when no notes transcribed yet
       ctx.fillStyle = '#71717a';
       ctx.font = '12px system-ui, sans-serif';
@@ -3278,6 +3375,35 @@ class MusicalChordAnalyzer {
     return barMs;
   }
 
+  findMidiNoteAt(x, y) {
+    if (!this.midiNotes || this.midiNotes.length === 0) return null;
+    const minM = this.activeMinMidi;
+    const maxM = this.activeMaxMidi;
+    const renderedSemitones = Math.max(1, maxM - minM + 1);
+    const semitoneH = (this.midiHeight || 100) / renderedSemitones;
+    const row = Math.floor(y / semitoneH);
+    const pitch = Math.max(minM, Math.min(maxM, maxM - row));
+
+    for (let i = this.midiNotes.length - 1; i >= 0; i--) {
+      const note = this.midiNotes[i];
+      if (note.pitch !== pitch) continue;
+      const x1 = this.timeToX(note.startMs);
+      const x2 = this.timeToX(note.endMs);
+      if (x >= x1 - 4 && x <= x2 + 4) {
+        let part = 'BODY';
+        const noteW = Math.max(1, x2 - x1);
+        const edgeThreshold = Math.min(8, Math.max(3, noteW / 3));
+        if (x <= x1 + edgeThreshold) {
+          part = 'LEFT_EDGE';
+        } else if (x >= x2 - edgeThreshold) {
+          part = 'RIGHT_EDGE';
+        }
+        return { index: i, note, part };
+      }
+    }
+    return null;
+  }
+
   eraseMidiNoteAt(x, y) {
     if (!this.midiNotes || this.midiNotes.length === 0) return;
     const minM = this.activeMinMidi;
@@ -3467,7 +3593,18 @@ class MusicalChordAnalyzer {
 
         if (canvas === this.midiCanvas && this.isMidiEditMode) {
           if (curX >= this.leftGutterWidth) {
-            canvas.style.cursor = (this.midiTool === 'PENCIL') ? 'crosshair' : (this.midiTool === 'ERASER') ? 'cell' : 'grab';
+            if (this.midiTool === 'PENCIL') {
+              canvas.style.cursor = 'crosshair';
+            } else if (this.midiTool === 'ERASER') {
+              canvas.style.cursor = 'cell';
+            } else if (this.midiTool === 'MOVE') {
+              const hit = this.findMidiNoteAt(curX, curY);
+              if (hit) {
+                canvas.style.cursor = (hit.part === 'LEFT_EDGE' || hit.part === 'RIGHT_EDGE') ? 'ew-resize' : 'move';
+              } else {
+                canvas.style.cursor = 'default';
+              }
+            }
           } else {
             canvas.style.cursor = 'default';
           }
@@ -3529,7 +3666,7 @@ class MusicalChordAnalyzer {
         dragStartMinMidi = this.activeMinMidi;
         dragStartMaxMidi = this.activeMaxMidi;
 
-        // MIDI Edit Mode: Pencil Drawing & Eraser
+        // MIDI Edit Mode: Pencil Drawing, Eraser & Move/Resize
         if (canvas === this.midiCanvas && this.isMidiEditMode && dragStartX >= this.leftGutterWidth) {
           const minM = this.activeMinMidi;
           const maxM = this.activeMaxMidi;
@@ -3545,11 +3682,38 @@ class MusicalChordAnalyzer {
             const startMs = Math.max(0, snappedStart);
             const endMs = startMs + gridStepMs;
             this.drawingMidiNote = { pitch, startMs, endMs, velocity: 90 };
+            isDragging = true;
+            dragTarget = 'MIDI_DRAW';
             this.render();
             return;
           } else if (this.midiTool === 'ERASER') {
             this.isErasingMidi = true;
+            isDragging = true;
+            dragTarget = 'MIDI_ERASE';
             this.eraseMidiNoteAt(dragStartX, dragStartY);
+            return;
+          } else if (this.midiTool === 'MOVE') {
+            const hit = this.findMidiNoteAt(dragStartX, dragStartY);
+            if (hit) {
+              isDragging = true;
+              dragTarget = 'MIDI_MOVE';
+              this.midiDragAction = {
+                type: hit.part, // 'BODY', 'LEFT_EDGE', 'RIGHT_EDGE'
+                index: hit.index,
+                dragStartPitch: hit.note.pitch,
+                dragStartMouseY: dragStartY,
+                dragStartMouseXTime: this.xToTime(dragStartX),
+                initialStartMs: hit.note.startMs,
+                initialEndMs: hit.note.endMs,
+                ghostNote: { ...hit.note }
+              };
+              if (hit.part === 'LEFT_EDGE' || hit.part === 'RIGHT_EDGE') {
+                canvas.style.cursor = 'ew-resize';
+              } else {
+                canvas.style.cursor = 'move';
+              }
+              this.render();
+            }
             return;
           }
         }
@@ -3661,6 +3825,51 @@ class MusicalChordAnalyzer {
           } else if (this.midiTool === 'ERASER' && this.isErasingMidi) {
             this.eraseMidiNoteAt(curX, curY);
             return;
+          } else if (this.midiTool === 'MOVE' && this.midiDragAction) {
+            const gridStepMs = this.getGridStepMs();
+            const curTime = this.xToTime(curX);
+            const act = this.midiDragAction;
+
+            if (act.type === 'BODY') {
+              const deltaMs = curTime - act.dragStartMouseXTime;
+              const snappedDeltaMs = Math.round(deltaMs / gridStepMs) * gridStepMs;
+              const dur = act.initialEndMs - act.initialStartMs;
+              let newStart = Math.max(0, act.initialStartMs + snappedDeltaMs);
+              let newEnd = newStart + dur;
+
+              const minM = this.activeMinMidi;
+              const maxM = this.activeMaxMidi;
+              const renderedSemitones = Math.max(1, maxM - minM + 1);
+              const semitoneH = (this.midiHeight || 100) / renderedSemitones;
+              const curRow = Math.floor(curY / semitoneH);
+              const newPitch = Math.max(minM, Math.min(maxM, maxM - curRow));
+
+              act.ghostNote = {
+                ...act.ghostNote,
+                pitch: newPitch,
+                startMs: newStart,
+                endMs: newEnd
+              };
+              canvas.style.cursor = 'move';
+            } else if (act.type === 'LEFT_EDGE') {
+              const snappedStart = Math.round(curTime / gridStepMs) * gridStepMs;
+              const newStart = Math.max(0, Math.min(act.initialEndMs - gridStepMs, snappedStart));
+              act.ghostNote = {
+                ...act.ghostNote,
+                startMs: newStart
+              };
+              canvas.style.cursor = 'ew-resize';
+            } else if (act.type === 'RIGHT_EDGE') {
+              const snappedEnd = Math.round(curTime / gridStepMs) * gridStepMs;
+              const newEnd = Math.max(act.initialStartMs + gridStepMs, snappedEnd);
+              act.ghostNote = {
+                ...act.ghostNote,
+                endMs: newEnd
+              };
+              canvas.style.cursor = 'ew-resize';
+            }
+            this.render();
+            return;
           }
         }
 
@@ -3727,6 +3936,17 @@ class MusicalChordAnalyzer {
               window.app.midiPreviewer.playNote(note.pitch, Math.min(0.8, (note.endMs - note.startMs) / 1000.0), 90);
             }
             this.drawingMidiNote = null;
+          }
+          if (this.midiTool === 'MOVE' && this.midiDragAction) {
+            if (this.midiNotes && this.midiNotes[this.midiDragAction.index]) {
+              const finalNote = this.midiDragAction.ghostNote;
+              this.midiNotes[this.midiDragAction.index] = { ...finalNote };
+              this.midiNotes.sort((a, b) => a.startMs - b.startMs || a.pitch - b.pitch);
+              if (window.app && window.app.midiPreviewer) {
+                window.app.midiPreviewer.playNote(finalNote.pitch, Math.min(0.8, (finalNote.endMs - finalNote.startMs) / 1000.0), finalNote.velocity || 90);
+              }
+            }
+            this.midiDragAction = null;
           }
           this.isErasingMidi = false;
         }
@@ -5817,7 +6037,7 @@ class SpectroSubApp {
     const tab2MidiToolsBar = document.getElementById('tab2-midi-tools-bar');
     const btnTab2ToolPencil = document.getElementById('btn-tab2-tool-pencil');
     const btnTab2ToolEraser = document.getElementById('btn-tab2-tool-eraser');
-    const btnTab2ToolHand = document.getElementById('btn-tab2-tool-hand');
+    const btnTab2ToolMove = document.getElementById('btn-tab2-tool-move') || document.getElementById('btn-tab2-tool-hand');
     const btnTab2TrashMidi = document.getElementById('btn-tab2-trash-midi');
 
     if (btnTab2EditMidi) {
@@ -5833,7 +6053,7 @@ class SpectroSubApp {
           this.chordAnalyzerTab2.midiTool = 'PENCIL';
           if (btnTab2ToolPencil) btnTab2ToolPencil.classList.add('active');
           if (btnTab2ToolEraser) btnTab2ToolEraser.classList.remove('active');
-          if (btnTab2ToolHand) btnTab2ToolHand.classList.remove('active');
+          if (btnTab2ToolMove) btnTab2ToolMove.classList.remove('active');
           if (this.chordAnalyzerTab2.midiCanvas) this.chordAnalyzerTab2.midiCanvas.style.cursor = 'crosshair';
         } else {
           if (this.chordAnalyzerTab2.midiCanvas) this.chordAnalyzerTab2.midiCanvas.style.cursor = 'default';
@@ -5845,9 +6065,9 @@ class SpectroSubApp {
       this.chordAnalyzerTab2.midiTool = tool;
       if (btnTab2ToolPencil) btnTab2ToolPencil.classList.toggle('active', tool === 'PENCIL');
       if (btnTab2ToolEraser) btnTab2ToolEraser.classList.toggle('active', tool === 'ERASER');
-      if (btnTab2ToolHand) btnTab2ToolHand.classList.toggle('active', tool === 'HAND');
+      if (btnTab2ToolMove) btnTab2ToolMove.classList.toggle('active', tool === 'MOVE');
       if (this.chordAnalyzerTab2.midiCanvas) {
-        this.chordAnalyzerTab2.midiCanvas.style.cursor = (tool === 'PENCIL') ? 'crosshair' : (tool === 'ERASER') ? 'cell' : 'grab';
+        this.chordAnalyzerTab2.midiCanvas.style.cursor = (tool === 'PENCIL') ? 'crosshair' : (tool === 'ERASER') ? 'cell' : 'default';
       }
     };
 
@@ -5857,8 +6077,8 @@ class SpectroSubApp {
     if (btnTab2ToolEraser) {
       btnTab2ToolEraser.addEventListener('click', (e) => { e.stopPropagation(); setMidiSubtool('ERASER'); });
     }
-    if (btnTab2ToolHand) {
-      btnTab2ToolHand.addEventListener('click', (e) => { e.stopPropagation(); setMidiSubtool('HAND'); });
+    if (btnTab2ToolMove) {
+      btnTab2ToolMove.addEventListener('click', (e) => { e.stopPropagation(); setMidiSubtool('MOVE'); });
     }
 
     if (btnTab2TrashMidi) {
@@ -5869,6 +6089,7 @@ class SpectroSubApp {
         }
         this.chordAnalyzerTab2.midiNotes = null;
         this.chordAnalyzerTab2.drawingMidiNote = null;
+        this.chordAnalyzerTab2.midiDragAction = null;
         this.chordAnalyzerTab2.render();
       });
     }
