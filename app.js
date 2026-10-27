@@ -2515,6 +2515,13 @@ class MusicalChordAnalyzer {
     this.drawingMidiNote = null;
     this.midiDragAction = null;
     this.isErasingMidi = false;
+    this.preEraseSnapshot = null;
+    this.preMoveSnapshot = null;
+
+    // MIDI Undo / Forward History Stack (Max 5 steps)
+    this.midiHistoryStack = [];
+    this.midiFutureStack = [];
+    this.maxMidiHistorySteps = 5;
 
     this.data = null;
     this.paletteKey = 'INFERNO';
@@ -3402,6 +3409,70 @@ class MusicalChordAnalyzer {
     return barMs;
   }
 
+  pushMidiHistory(explicitSnapshot = null) {
+    const snap = explicitSnapshot !== null
+      ? (explicitSnapshot ? explicitSnapshot.map(n => ({ ...n })) : null)
+      : (this.midiNotes ? this.midiNotes.map(n => ({ ...n })) : null);
+    this.midiHistoryStack.push(snap);
+    if (this.midiHistoryStack.length > this.maxMidiHistorySteps) {
+      this.midiHistoryStack.shift(); // Max 5 steps
+    }
+    this.midiFutureStack = [];
+    this.updateMidiUndoRedoButtonsState();
+  }
+
+  undoMidi() {
+    if (this.midiHistoryStack.length === 0) return;
+    const currentState = this.midiNotes ? this.midiNotes.map(n => ({ ...n })) : null;
+    const previousState = this.midiHistoryStack.pop();
+    this.midiFutureStack.push(currentState);
+    if (this.midiFutureStack.length > this.maxMidiHistorySteps) {
+      this.midiFutureStack.shift();
+    }
+    this.midiNotes = previousState ? previousState.map(n => ({ ...n })) : null;
+    this.render();
+    this.updateMidiUndoRedoButtonsState();
+  }
+
+  redoMidi() {
+    if (this.midiFutureStack.length === 0) return;
+    const currentState = this.midiNotes ? this.midiNotes.map(n => ({ ...n })) : null;
+    const nextState = this.midiFutureStack.pop();
+    this.midiHistoryStack.push(currentState);
+    if (this.midiHistoryStack.length > this.maxMidiHistorySteps) {
+      this.midiHistoryStack.shift();
+    }
+    this.midiNotes = nextState ? nextState.map(n => ({ ...n })) : null;
+    this.render();
+    this.updateMidiUndoRedoButtonsState();
+  }
+
+  updateMidiUndoRedoButtonsState() {
+    const btnUndo = document.getElementById('btn-tab2-midi-undo');
+    const btnRedo = document.getElementById('btn-tab2-midi-redo');
+    const isEn = (typeof CURRENT_LANG !== 'undefined' ? CURRENT_LANG === 'EN' : false);
+
+    if (btnUndo) {
+      const canUndo = this.midiHistoryStack && this.midiHistoryStack.length > 0;
+      btnUndo.disabled = !canUndo;
+      btnUndo.style.opacity = canUndo ? '1' : '0.35';
+      btnUndo.classList.toggle('disabled', !canUndo);
+      btnUndo.title = canUndo
+        ? (isEn ? `Undo MIDI (${this.midiHistoryStack.length}/5 steps) (Ctrl+Z)` : `Hoàn tác MIDI - Undo (${this.midiHistoryStack.length}/5 bước) (Ctrl+Z)`)
+        : (isEn ? 'Nothing to undo (Ctrl+Z)' : 'Không có thao tác nào để hoàn tác (Ctrl+Z)');
+    }
+
+    if (btnRedo) {
+      const canRedo = this.midiFutureStack && this.midiFutureStack.length > 0;
+      btnRedo.disabled = !canRedo;
+      btnRedo.style.opacity = canRedo ? '1' : '0.35';
+      btnRedo.classList.toggle('disabled', !canRedo);
+      btnRedo.title = canRedo
+        ? (isEn ? `Forward / Redo MIDI (${this.midiFutureStack.length}/5 steps) (Ctrl+Y)` : `Làm lại MIDI - Forward / Redo (${this.midiFutureStack.length}/5 bước) (Ctrl+Y)`)
+        : (isEn ? 'Nothing to redo (Ctrl+Y)' : 'Không có thao tác nào để làm lại (Ctrl+Y)');
+    }
+  }
+
   findMidiNoteAt(x, y) {
     if (!this.midiNotes || this.midiNotes.length === 0) return null;
     const minM = this.activeMinMidi;
@@ -3714,6 +3785,7 @@ class MusicalChordAnalyzer {
             this.render();
             return;
           } else if (this.midiTool === 'ERASER') {
+            this.preEraseSnapshot = this.midiNotes ? this.midiNotes.map(n => ({ ...n })) : null;
             this.isErasingMidi = true;
             isDragging = true;
             dragTarget = 'MIDI_ERASE';
@@ -3722,11 +3794,13 @@ class MusicalChordAnalyzer {
           } else if (this.midiTool === 'MOVE') {
             const hit = this.findMidiNoteAt(dragStartX, dragStartY);
             if (hit) {
+              this.preMoveSnapshot = this.midiNotes ? this.midiNotes.map(n => ({ ...n })) : null;
               isDragging = true;
               dragTarget = 'MIDI_MOVE';
               this.midiDragAction = {
                 type: hit.part, // 'BODY', 'LEFT_EDGE', 'RIGHT_EDGE'
                 index: hit.index,
+                originalNote: { ...hit.note },
                 dragStartPitch: hit.note.pitch,
                 dragStartMouseY: dragStartY,
                 dragStartMouseXTime: this.xToTime(dragStartX),
@@ -3955,6 +4029,7 @@ class MusicalChordAnalyzer {
 
         if (canvas === this.midiCanvas && this.isMidiEditMode) {
           if (this.midiTool === 'PENCIL' && this.drawingMidiNote) {
+            this.pushMidiHistory();
             if (!this.midiNotes) this.midiNotes = [];
             const note = this.drawingMidiNote;
             this.midiNotes.push(note);
@@ -3964,9 +4039,29 @@ class MusicalChordAnalyzer {
             }
             this.drawingMidiNote = null;
           }
+          if (this.isErasingMidi) {
+            if (this.preEraseSnapshot) {
+              const curLen = this.midiNotes ? this.midiNotes.length : 0;
+              const preLen = this.preEraseSnapshot ? this.preEraseSnapshot.length : 0;
+              if (curLen !== preLen) {
+                this.pushMidiHistory(this.preEraseSnapshot);
+              }
+            }
+            this.preEraseSnapshot = null;
+            this.isErasingMidi = false;
+          }
           if (this.midiTool === 'MOVE' && this.midiDragAction) {
             if (this.midiNotes && this.midiNotes[this.midiDragAction.index]) {
               const finalNote = this.midiDragAction.ghostNote;
+              const origNote = this.midiDragAction.originalNote;
+              const hasChanged = origNote && (
+                origNote.pitch !== finalNote.pitch ||
+                origNote.startMs !== finalNote.startMs ||
+                origNote.endMs !== finalNote.endMs
+              );
+              if (hasChanged && this.preMoveSnapshot) {
+                this.pushMidiHistory(this.preMoveSnapshot);
+              }
               this.midiNotes[this.midiDragAction.index] = { ...finalNote };
               this.midiNotes.sort((a, b) => a.startMs - b.startMs || a.pitch - b.pitch);
               if (window.app && window.app.midiPreviewer) {
@@ -3974,8 +4069,8 @@ class MusicalChordAnalyzer {
               }
             }
             this.midiDragAction = null;
+            this.preMoveSnapshot = null;
           }
-          this.isErasingMidi = false;
         }
 
         isDragging = false;
@@ -4807,6 +4902,7 @@ class SpectroSubApp {
     }
 
     if (this.chordAnalyzerTab2) {
+      this.chordAnalyzerTab2.updateMidiUndoRedoButtonsState();
       this.chordAnalyzerTab2.render();
     }
 
@@ -6294,11 +6390,31 @@ class SpectroSubApp {
       btnTab2ToolMove.addEventListener('click', (e) => { e.stopPropagation(); setMidiSubtool('MOVE'); });
     }
 
+    const btnTab2MidiUndo = document.getElementById('btn-tab2-midi-undo');
+    const btnTab2MidiRedo = document.getElementById('btn-tab2-midi-redo');
+
+    if (btnTab2MidiUndo) {
+      btnTab2MidiUndo.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.chordAnalyzerTab2.undoMidi();
+      });
+    }
+
+    if (btnTab2MidiRedo) {
+      btnTab2MidiRedo.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.chordAnalyzerTab2.redoMidi();
+      });
+    }
+
     if (btnTab2TrashMidi) {
       btnTab2TrashMidi.addEventListener('click', (e) => {
         e.stopPropagation();
         if (this.midiPreviewer && this.midiPreviewer.isPlaying) {
           this.midiPreviewer.stopAll();
+        }
+        if (this.chordAnalyzerTab2.midiNotes && this.chordAnalyzerTab2.midiNotes.length > 0) {
+          this.chordAnalyzerTab2.pushMidiHistory();
         }
         this.chordAnalyzerTab2.midiNotes = null;
         this.chordAnalyzerTab2.drawingMidiNote = null;
@@ -7224,7 +7340,7 @@ class SpectroSubApp {
 
   bindKeyboardShortcuts() {
     window.addEventListener('keydown', (e) => {
-      // Ctrl+Z (Undo) & Ctrl+Y / Ctrl+Shift+Z (Redo) for Tab 1
+      // Ctrl+Z (Undo) & Ctrl+Y / Ctrl+Shift+Z (Redo) for Tab 1 & Tab 2 MIDI
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         if (this.currentTab === 'tab1') {
           e.preventDefault();
@@ -7234,11 +7350,23 @@ class SpectroSubApp {
             this.undo();
           }
           return;
+        } else if (this.currentTab === 'tab2' || this.chordAnalyzerTab2?.isMidiEditMode) {
+          e.preventDefault();
+          if (e.shiftKey) {
+            this.chordAnalyzerTab2.redoMidi();
+          } else {
+            this.chordAnalyzerTab2.undoMidi();
+          }
+          return;
         }
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
         if (this.currentTab === 'tab1') {
           e.preventDefault();
           this.redo();
+          return;
+        } else if (this.currentTab === 'tab2' || this.chordAnalyzerTab2?.isMidiEditMode) {
+          e.preventDefault();
+          this.chordAnalyzerTab2.redoMidi();
           return;
         }
       }

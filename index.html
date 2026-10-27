@@ -41,7 +41,7 @@
     } catch (_) {}
   </script>
 
-  <link rel="stylesheet" href="./style.css?v=20261027_33">
+  <link rel="stylesheet" href="./style.css?v=20261027_34">
 </head>
 
 <body>
@@ -543,7 +543,7 @@
                   </div>
                 </div>
 
-                <!-- 3 Nút Công Cụ khi bấm Edit: Bút chì, Tẩy, Bàn tay -->
+                <!-- Nút Công Cụ khi bấm Edit: Bút chì, Tẩy, Di chuyển & Undo, Forward -->
                 <div id="tab2-midi-tools-bar" class="midi-tools-bar" style="display: none; align-items: center; gap: 5px; padding-top: 2px;">
                   <button id="btn-tab2-tool-pencil" class="midi-subtool-btn icon-only active" title="Bút chì: Vẽ thêm nốt MIDI (Kéo thả, bám theo lưới nhịp)" type="button">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
@@ -559,6 +559,21 @@
                       <polyline points="19 9 22 12 19 15"/>
                       <line x1="2" y1="12" x2="22" y2="12"/>
                       <line x1="12" y1="2" x2="12" y2="22"/>
+                    </svg>
+                  </button>
+
+                  <div style="width: 1px; height: 16px; background: rgba(255, 255, 255, 0.2); margin: 0 1px;"></div>
+
+                  <button id="btn-tab2-midi-undo" class="midi-subtool-btn icon-only disabled" style="opacity: 0.35;" title="Hoàn tác MIDI - Undo (Ctrl+Z, tối đa 5 bước)" type="button" disabled>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M3 7v6h6"/>
+                      <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
+                    </svg>
+                  </button>
+                  <button id="btn-tab2-midi-redo" class="midi-subtool-btn icon-only disabled" style="opacity: 0.35;" title="Làm lại MIDI - Forward / Redo (Ctrl+Y, tối đa 5 bước)" type="button" disabled>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 7v6h-6"/>
+                      <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/>
                     </svg>
                   </button>
                 </div>
@@ -868,6 +883,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261027_33"></script>
+  <script src="./app.js?v=20261027_34"></script>
 </body>
 </html>

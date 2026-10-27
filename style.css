@@ -1542,6 +1542,13 @@ input, textarea, button, select {
   color: #ffffff;
 }
 
+.midi-subtool-btn:disabled,
+.midi-subtool-btn.disabled {
+  opacity: 0.35 !important;
+  cursor: not-allowed !important;
+  pointer-events: none;
+}
+
 .midi-edit-btn.active {
   background: rgba(245, 158, 11, 0.22);
   border-color: #f59e0b;
