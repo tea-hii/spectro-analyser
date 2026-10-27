@@ -399,6 +399,132 @@ function initColorLUTs() {
 initColorLUTs();
 
 // -------------------------------------------------------------
+// 1.5 Session Cache Manager (IndexedDB for Audio, localStorage with session token for Cues & MIDI)
+// - Auto-cleared when loading a new audio file (zero stale accumulation)
+// - Auto-cleared when closing the tab / starting a fresh tab
+// - Preserves in-progress work when mobile OS backgrounds/reloads the tab
+// -------------------------------------------------------------
+class AppSessionCache {
+  constructor() {
+    this.dbName = 'SpectroSessionCacheDB';
+    this.dbVersion = 1;
+    this.storeName = 'audio_blobs';
+    this.db = null;
+  }
+
+  async getDB() {
+    if (this.db) return this.db;
+    return new Promise((resolve) => {
+      if (!window.indexedDB) {
+        resolve(null);
+        return;
+      }
+      try {
+        const req = indexedDB.open(this.dbName, this.dbVersion);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(this.storeName)) {
+            db.createObjectStore(this.storeName);
+          }
+        };
+        req.onsuccess = () => {
+          this.db = req.result;
+          resolve(this.db);
+        };
+        req.onerror = () => {
+          console.warn('IndexedDB not available for session cache:', req.error);
+          resolve(null);
+        };
+      } catch (err) {
+        console.warn('IndexedDB open error:', err);
+        resolve(null);
+      }
+    });
+  }
+
+  // Check if this is an active/restored tab session vs brand new tab
+  isRestoredSession() {
+    try {
+      return sessionStorage.getItem('spectro_tab_active') === '1';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  markSessionActive() {
+    try {
+      sessionStorage.setItem('spectro_tab_active', '1');
+    } catch (_) {}
+  }
+
+  async saveAudioBlob(key, arrayBuffer, meta) {
+    try {
+      const db = await this.getDB();
+      if (!db) return false;
+      return new Promise((resolve) => {
+        const tx = db.transaction(this.storeName, 'readwrite');
+        const store = tx.objectStore(this.storeName);
+        store.put({ buffer: arrayBuffer, meta, timestamp: Date.now() }, key);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      });
+    } catch (e) {
+      console.warn('saveAudioBlob error:', e);
+      return false;
+    }
+  }
+
+  async getAudioBlob(key) {
+    try {
+      const db = await this.getDB();
+      if (!db) return null;
+      return new Promise((resolve) => {
+        const tx = db.transaction(this.storeName, 'readonly');
+        const store = tx.objectStore(this.storeName);
+        const req = store.get(key);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      });
+    } catch (e) {
+      console.warn('getAudioBlob error:', e);
+      return null;
+    }
+  }
+
+  async clearAudioBlob(key) {
+    try {
+      const db = await this.getDB();
+      if (!db) return;
+      return new Promise((resolve) => {
+        const tx = db.transaction(this.storeName, 'readwrite');
+        const store = tx.objectStore(this.storeName);
+        store.delete(key);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      });
+    } catch (e) {
+      console.warn('clearAudioBlob error:', e);
+    }
+  }
+
+  async clearAll() {
+    try {
+      const db = await this.getDB();
+      if (db) {
+        const tx = db.transaction(this.storeName, 'readwrite');
+        tx.objectStore(this.storeName).clear();
+      }
+      localStorage.removeItem('spectro_cache_tab1_cues');
+      localStorage.removeItem('spectro_cache_tab1_meta');
+      localStorage.removeItem('spectro_cache_tab2_midi');
+      localStorage.removeItem('spectro_cache_tab2_meta');
+    } catch (e) {
+      console.warn('clearAll cache error:', e);
+    }
+  }
+}
+
+// -------------------------------------------------------------
 // 2. Audio Engine (Isolated per Tab for Zero-Leakage)
 // -------------------------------------------------------------
 class AudioEngine {
@@ -3455,6 +3581,9 @@ class MusicalChordAnalyzer {
     }
     this.midiFutureStack = [];
     this.updateMidiUndoRedoButtonsState();
+    if (window.app && typeof window.app.saveTab2MidiCache === 'function') {
+      window.app.saveTab2MidiCache();
+    }
   }
 
   undoMidi() {
@@ -3468,6 +3597,9 @@ class MusicalChordAnalyzer {
     this.midiNotes = previousState ? previousState.map(n => ({ ...n })) : null;
     this.render();
     this.updateMidiUndoRedoButtonsState();
+    if (window.app && typeof window.app.saveTab2MidiCache === 'function') {
+      window.app.saveTab2MidiCache();
+    }
   }
 
   redoMidi() {
@@ -3481,6 +3613,9 @@ class MusicalChordAnalyzer {
     this.midiNotes = nextState ? nextState.map(n => ({ ...n })) : null;
     this.render();
     this.updateMidiUndoRedoButtonsState();
+    if (window.app && typeof window.app.saveTab2MidiCache === 'function') {
+      window.app.saveTab2MidiCache();
+    }
   }
 
   updateMidiUndoRedoButtonsState() {
@@ -4526,9 +4661,9 @@ class SpectroSubApp {
     this.rendererTab1.resize();
     this.chordAnalyzerTab2.resize();
 
-    // Auto load Sample 1 for Tab 1 and Tab 2
-    this.loadTab1Preset(1);
-    this.loadTab2Preset(1);
+    this.sessionCache = new AppSessionCache();
+    this.initVisibilityHandler();
+    this.checkAndRestoreSession();
     this.updateUndoRedoButtonsState();
   }
 
@@ -4555,6 +4690,7 @@ class SpectroSubApp {
     }
     this.futureStack = [];
     this.updateUndoRedoButtonsState();
+    this.saveTab1CuesCache();
   }
 
   undo() {
@@ -6466,6 +6602,7 @@ class SpectroSubApp {
         this.chordAnalyzerTab2.drawingMidiNote = null;
         this.chordAnalyzerTab2.midiDragAction = null;
         this.chordAnalyzerTab2.render();
+        localStorage.removeItem('spectro_cache_tab2_midi');
       });
     }
 
@@ -6721,6 +6858,267 @@ class SpectroSubApp {
   // -------------------------------------------------------------
   // Tab 1 Operations
   // -------------------------------------------------------------
+  saveTab1CuesCache() {
+    try {
+      if (this.cuesTab1 && this.cuesTab1.length > 0) {
+        const serialized = this.cuesTab1.map(c => ({
+          id: c.id,
+          startMs: c.startMs,
+          endMs: c.endMs,
+          text: c.text,
+          actor: c.actor,
+          clockState: c.clockState,
+          wordTimings: c.wordTimings
+        }));
+        localStorage.setItem('spectro_cache_tab1_cues', JSON.stringify(serialized));
+      } else {
+        localStorage.removeItem('spectro_cache_tab1_cues');
+      }
+    } catch (e) {
+      console.warn('saveTab1CuesCache error:', e);
+    }
+  }
+
+  saveTab2MidiCache() {
+    try {
+      if (this.chordAnalyzerTab2 && this.chordAnalyzerTab2.midiNotes && this.chordAnalyzerTab2.midiNotes.length > 0) {
+        localStorage.setItem('spectro_cache_tab2_midi', JSON.stringify(this.chordAnalyzerTab2.midiNotes));
+      } else {
+        localStorage.removeItem('spectro_cache_tab2_midi');
+      }
+    } catch (e) {
+      console.warn('saveTab2MidiCache error:', e);
+    }
+  }
+
+  initVisibilityHandler() {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        if (this.audioTab1 && this.audioTab1.isPlaying) {
+          this.audioTab1.pause();
+        }
+        if (this.audioTab2 && this.audioTab2.isPlaying) {
+          this.audioTab2.pause();
+        }
+      } else if (document.visibilityState === 'visible') {
+        if (this.audioTab1 && this.audioTab1.audioCtx && this.audioTab1.audioCtx.state === 'suspended') {
+          this.audioTab1.audioCtx.resume().catch(() => {});
+        }
+        if (this.audioTab2 && this.audioTab2.audioCtx && this.audioTab2.audioCtx.state === 'suspended') {
+          this.audioTab2.audioCtx.resume().catch(() => {});
+        }
+        if (this.currentTab === 'tab1' && this.rendererTab1) {
+          this.rendererTab1.resize();
+        } else if (this.currentTab === 'tab2' && this.chordAnalyzerTab2) {
+          this.chordAnalyzerTab2.resize();
+        }
+      }
+    });
+  }
+
+  showRestoreToast(trackName) {
+    let toast = document.getElementById('session-restore-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'session-restore-toast';
+      toast.style.cssText = `
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(15, 23, 42, 0.94);
+        backdrop-filter: blur(8px);
+        border: 1px solid #38bdf8;
+        color: #f8fafc;
+        padding: 9px 18px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 600;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 15px rgba(56, 189, 248, 0.3);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+        pointer-events: none;
+      `;
+      document.body.appendChild(toast);
+    }
+    const isEn = (typeof CURRENT_LANG !== 'undefined' ? CURRENT_LANG === 'EN' : false);
+    const msg = isEn ? `✓ Restored session: ${trackName}` : `✓ Đã khôi phục phiên làm việc: ${trackName}`;
+    toast.innerHTML = `<span style="color: #38bdf8; font-size: 15px;">🔄</span> <span>${msg}</span>`;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+    setTimeout(() => {
+      if (toast) {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-50%) translateY(10px)';
+      }
+    }, 3800);
+  }
+
+  async restoreTab1Session(cached) {
+    const { buffer, meta } = cached;
+    const name = (meta && meta.name) ? meta.name : 'Restored Audio';
+    const isEn = (typeof CURRENT_LANG !== 'undefined' ? CURRENT_LANG === 'EN' : false);
+
+    this.showLoading(
+      isEn ? `Restoring previous session "${name}"...` : `Đang khôi phục phiên làm việc "${name}"...`,
+      0.2
+    );
+
+    await this.audioTab1.loadAudioBuffer(buffer.slice(0), name, (p) => {
+      this.showLoading(
+        isEn ? 'Analyzing audio...' : 'Đang phân tích âm thanh...',
+        0.2 + p * 0.3
+      );
+    });
+
+    const durationMs = this.audioTab1.durationMs;
+    const savedViewMode = (meta && meta.viewMode) ? meta.viewMode : 'DUAL';
+
+    if (savedViewMode === 'WAVEFORM' || durationMs > 15 * 60 * 1000) {
+      this.rendererTab1.spectrogram = null;
+      this.rendererTab1.viewMode = 'WAVEFORM';
+    } else {
+      this.showLoading(
+        isEn ? 'Rendering Spectrogram...' : 'Đang tính biểu đồ phổ...',
+        0.6
+      );
+      this.fftTab1.hopSize = 256;
+      const spec = await this.fftTab1.computeSpectrogramAsync(
+        this.audioTab1.samples16k,
+        16000,
+        (p) => this.showLoading(isEn ? 'Drawing spectrogram...' : 'Đang vẽ phổ...', 0.6 + p * 0.35)
+      );
+      this.rendererTab1.spectrogram = spec;
+      this.rendererTab1.viewMode = savedViewMode;
+    }
+
+    this.syncViewModeUI();
+    this.rendererTab1.selectionStartMs = 0;
+    this.rendererTab1.selectionEndMs = Math.min(3000, this.audioTab1.durationMs);
+
+    // Restore cached cues if available
+    try {
+      const cachedCuesJson = localStorage.getItem('spectro_cache_tab1_cues');
+      if (cachedCuesJson) {
+        const rawCues = JSON.parse(cachedCuesJson);
+        if (Array.isArray(rawCues) && rawCues.length > 0) {
+          this.cuesTab1 = rawCues.map(c => new SubtitleCue(c));
+          this.selectedCueIds.clear();
+          if (this.cuesTab1.length > 0) {
+            this.selectTab1Cue(this.cuesTab1[0]);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to parse cached cues:', e);
+    }
+
+    this.updateHeaderMeta(name, this.audioTab1.durationMs);
+    this.hideLoading();
+    this.rendererTab1.resetScrollToStart();
+    this.rendererTab1.resize();
+    this.renderTab1CuesList();
+    this.showRestoreToast(name);
+  }
+
+  async restoreTab2Session(cached) {
+    const { buffer, meta } = cached;
+    const name = (meta && meta.name) ? meta.name : 'Restored Music';
+
+    await this.audioTab2.loadAudioBuffer(buffer.slice(0), name, () => {});
+
+    if (this.chordWorker) {
+      this.chordWorker.terminate();
+    }
+    this.chordWorker = new Worker('./chord-worker.js');
+    this.chordWorker.onmessage = (e) => {
+      const msg = e.data;
+      if (msg.type === 'done') {
+        this.chordAnalyzerTab2.data = msg;
+        this.chordAnalyzerTab2.resetPitchRangeToAuto();
+        this.chordAnalyzerTab2.offscreenValid = false;
+        this.chordAnalyzerTab2.buildOffscreenCanvases();
+
+        // Restore cached MIDI notes if available
+        try {
+          const cachedMidiJson = localStorage.getItem('spectro_cache_tab2_midi');
+          if (cachedMidiJson) {
+            const parsedMidi = JSON.parse(cachedMidiJson);
+            if (Array.isArray(parsedMidi) && parsedMidi.length > 0) {
+              this.chordAnalyzerTab2.midiNotes = parsedMidi;
+              this.chordAnalyzerTab2.isMidiVisible = true;
+              const badgeText = document.getElementById('tab2-midi-badge-text');
+              if (badgeText) badgeText.textContent = 'MIDI Piano Roll';
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to parse cached MIDI:', e);
+        }
+
+        const emptyOverlay = document.getElementById('tab2-empty-overlay');
+        if (emptyOverlay) emptyOverlay.style.display = 'none';
+
+        if (this.currentTab === 'tab2') {
+          this.updateHeaderMeta(name, this.audioTab2.durationMs);
+        }
+        this.chordAnalyzerTab2.resize();
+      }
+    };
+
+    this.chordWorker.postMessage({
+      action: 'analyzeChords',
+      samples: this.audioTab2.samples16k,
+      sampleRate: 16000
+    });
+  }
+
+  async checkAndRestoreSession() {
+    const isRestored = this.sessionCache.isRestoredSession();
+    if (!isRestored) {
+      // User closed tab or started brand new session -> purge all old storage
+      await this.sessionCache.clearAll();
+      this.sessionCache.markSessionActive();
+      this.loadTab1Preset(1);
+      this.loadTab2Preset(1);
+      return;
+    }
+
+    let restoredTab1 = false;
+    let restoredTab2 = false;
+
+    try {
+      const tab1Cached = await this.sessionCache.getAudioBlob('tab1_audio');
+      if (tab1Cached && tab1Cached.buffer) {
+        await this.restoreTab1Session(tab1Cached);
+        restoredTab1 = true;
+      }
+    } catch (e) {
+      console.warn('Error restoring tab 1 session:', e);
+    }
+
+    try {
+      const tab2Cached = await this.sessionCache.getAudioBlob('tab2_audio');
+      if (tab2Cached && tab2Cached.buffer) {
+        await this.restoreTab2Session(tab2Cached);
+        restoredTab2 = true;
+      }
+    } catch (e) {
+      console.warn('Error restoring tab 2 session:', e);
+    }
+
+    if (!restoredTab1) {
+      this.loadTab1Preset(1);
+    }
+    if (!restoredTab2) {
+      this.loadTab2Preset(1);
+    }
+
+    this.sessionCache.markSessionActive();
+  }
+
   syncViewModeUI() {
     const btnViewMode = document.getElementById('btn-view-mode');
     const viewModeLabel = document.getElementById('view-mode-label');
@@ -6798,6 +7196,12 @@ class SpectroSubApp {
 
   async loadTab1AudioFile(file) {
     try {
+      // Clear previous cache immediately so no old audio accumulates
+      if (this.sessionCache) {
+        await this.sessionCache.clearAudioBlob('tab1_audio');
+        localStorage.removeItem('spectro_cache_tab1_cues');
+        localStorage.removeItem('spectro_cache_tab1_meta');
+      }
       this.showLoading(`Đang đọc file "${file.name}" vào RAM Tab 1...`, 0.05);
       const arrayBuf = await file.arrayBuffer();
 
@@ -6862,6 +7266,16 @@ class SpectroSubApp {
       this.rendererTab1.resetScrollToStart();
       this.rendererTab1.resize();
       this.renderTab1CuesList();
+
+      // Save fresh session cache
+      if (this.sessionCache) {
+        this.sessionCache.saveAudioBlob('tab1_audio', arrayBuf.slice(0), {
+          name: file.name,
+          durationMs: this.audioTab1.durationMs,
+          viewMode: this.rendererTab1.viewMode
+        });
+        this.sessionCache.markSessionActive();
+      }
     } catch (err) {
       console.error(err);
       this.hideLoading();
@@ -6916,6 +7330,11 @@ class SpectroSubApp {
   }
 
   async loadTab1Preset(presetId = 1) {
+    if (this.sessionCache) {
+      this.sessionCache.clearAudioBlob('tab1_audio');
+      localStorage.removeItem('spectro_cache_tab1_cues');
+      localStorage.removeItem('spectro_cache_tab1_meta');
+    }
     const trackLabel = 'Ví dụ 1';
     const candidatePaths = [
       './assets/french_liaisons.mp3',
@@ -7401,6 +7820,12 @@ class SpectroSubApp {
 
   async loadTab2AudioFile(file) {
     try {
+      // Clear previous cache immediately so no old audio accumulates
+      if (this.sessionCache) {
+        await this.sessionCache.clearAudioBlob('tab2_audio');
+        localStorage.removeItem('spectro_cache_tab2_midi');
+        localStorage.removeItem('spectro_cache_tab2_meta');
+      }
       this.showLoading(`Đang đọc bài nhạc "${file.name}" vào RAM Tab 2...`, 0.05);
       const arrayBuf = await file.arrayBuffer();
 
@@ -7444,6 +7869,15 @@ class SpectroSubApp {
           }
 
           this.chordAnalyzerTab2.resize();
+
+          // Save fresh session cache
+          if (this.sessionCache) {
+            this.sessionCache.saveAudioBlob('tab2_audio', arrayBuf.slice(0), {
+              name: file.name,
+              durationMs: this.audioTab2.durationMs
+            });
+            this.sessionCache.markSessionActive();
+          }
         } else if (msg.type === 'error') {
           this.hideLoading();
           alert('Lỗi phân tích hợp âm trong Web Worker: ' + msg.error);
