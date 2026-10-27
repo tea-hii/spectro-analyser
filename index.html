@@ -41,7 +41,7 @@
     } catch (_) {}
   </script>
 
-  <link rel="stylesheet" href="./style.css?v=20261027_34">
+  <link rel="stylesheet" href="./style.css?v=20261027_35">
 </head>
 
 <body>
@@ -230,8 +230,10 @@
               <div style="width: 1px; height: 20px; background: var(--border-color); margin: 0 2px;"></div>
 
               <select id="select-speed" class="tb-select mono-font" title="Tốc độ phát Tab 1">
+                <option value="0.25">0.25x</option>
                 <option value="0.5">0.5x</option>
                 <option value="0.75">0.75x</option>
+                <option value="0.8">0.8x</option>
                 <option value="1.0" selected>1.0x</option>
                 <option value="1.25">1.25x</option>
                 <option value="1.5">1.5x</option>
@@ -255,7 +257,7 @@
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                   <span>Bù trễ:</span>
                 </span>
-                <input id="input-latency-offset" type="number" step="5" min="-200" max="400" value="65" class="latency-input mono-font">
+                <input id="input-latency-offset" type="number" step="5" min="-200" max="400" value="0" class="latency-input mono-font">
                 <span class="latency-unit">ms</span>
               </div>
             </div>
@@ -415,7 +417,7 @@
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                   <span>Bù trễ:</span>
                 </span>
-                <input id="input-tab2-latency-offset" type="number" step="5" min="-200" max="400" value="65" class="latency-input mono-font">
+                <input id="input-tab2-latency-offset" type="number" step="5" min="-200" max="400" value="0" class="latency-input mono-font">
                 <span class="latency-unit">ms</span>
               </div>
 
@@ -883,6 +885,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261027_34"></script>
+  <script src="./app.js?v=20261027_35"></script>
 </body>
 </html>

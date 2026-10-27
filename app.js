@@ -404,7 +404,7 @@ class AudioEngine {
     this.loopStartMs = 0;
     this.loopEndMs = 0;
 
-    this.customLatencyMs = 65; // Bù trễ âm thanh thủ công (ms)
+    this.customLatencyMs = 0; // Bù trễ âm thanh thủ công (ms, mặc định: 0)
 
     this.onPositionUpdate = () => {};
     this.onPlayStateChange = () => {};
@@ -766,14 +766,12 @@ class AudioEngine {
     if (!this.isPlaying || !this.audioCtx) {
       return this.currentPositionMs;
     }
-    // Bù trễ âm thanh đầu ra: Sử dụng giá trị tùy chỉnh của người dùng (customLatencyMs) nếu có,
-    // hoặc tự động dựa trên phần cứng (mặc định 65ms trên Windows).
-    let compensationSec = 0.065;
+    // Bù trễ âm thanh đầu ra: Sử dụng giá trị tùy chỉnh của người dùng (customLatencyMs) nếu có (mặc định 0ms).
+    let compensationSec = 0.0;
     if (this.customLatencyMs !== undefined && this.customLatencyMs !== null) {
       compensationSec = this.customLatencyMs / 1000.0;
     } else {
-      const browserLatency = (this.audioCtx.outputLatency || 0) + (this.audioCtx.baseLatency || 0);
-      compensationSec = Math.max(browserLatency, 0.065);
+      compensationSec = 0.0;
     }
 
     const rawElapsedSec = this.audioCtx.currentTime - this.startContextTime;
@@ -5758,8 +5756,8 @@ class SpectroSubApp {
           this.audioTab1.customLatencyMs = val;
         }
       } else {
-        this.audioTab1.customLatencyMs = 65;
-        inputLatency.value = 65;
+        this.audioTab1.customLatencyMs = 0;
+        inputLatency.value = 0;
       }
 
       const onLatencyChange = () => {
@@ -6510,8 +6508,8 @@ class SpectroSubApp {
           this.audioTab2.customLatencyMs = val;
         }
       } else {
-        this.audioTab2.customLatencyMs = 65;
-        inputTab2Latency.value = 65;
+        this.audioTab2.customLatencyMs = 0;
+        inputTab2Latency.value = 0;
       }
 
       const onTab2LatencyChange = () => {
@@ -6637,6 +6635,39 @@ class SpectroSubApp {
         }
       });
     }
+
+    // Support vertical mouse wheel scrolling to scroll horizontal top toolbars on desktop
+    const setupToolbarWheelScroll = () => {
+      const tab1Tools = document.querySelector('.toolbar-tools-group');
+      const tab1Toolbar = document.querySelector('.toolbar') || document.querySelector('.app-header');
+      if (tab1Toolbar && tab1Tools) {
+        tab1Toolbar.addEventListener('wheel', (e) => {
+          if (e.target.closest('.dropdown-menu')) return;
+          if (Math.abs(e.deltaY) >= Math.abs(e.deltaX) && tab1Tools.scrollWidth > tab1Tools.clientWidth) {
+            e.preventDefault();
+            tab1Tools.scrollLeft += e.deltaY;
+          }
+        }, { passive: false });
+      }
+
+      const tab2Tools = document.querySelector('.chord-tools-group');
+      const tab2Toolbar = document.querySelector('.chord-toolbar');
+      if (tab2Toolbar && tab2Tools) {
+        tab2Toolbar.addEventListener('wheel', (e) => {
+          if (e.target.closest('.dropdown-menu')) return;
+          if (Math.abs(e.deltaY) >= Math.abs(e.deltaX)) {
+            if (tab2Tools.scrollWidth > tab2Tools.clientWidth) {
+              e.preventDefault();
+              tab2Tools.scrollLeft += e.deltaY;
+            } else if (tab2Toolbar.scrollWidth > tab2Toolbar.clientWidth) {
+              e.preventDefault();
+              tab2Toolbar.scrollLeft += e.deltaY;
+            }
+          }
+        }, { passive: false });
+      }
+    };
+    setupToolbarWheelScroll();
   }
 
   // -------------------------------------------------------------

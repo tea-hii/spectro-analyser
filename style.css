@@ -454,12 +454,18 @@ input, textarea, button, select {
   gap: 6px;
   flex: 1;
   min-width: 0;
-  overflow: visible;
-  flex-wrap: wrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  scrollbar-width: thin;
 }
 
 .toolbar-tools-group::-webkit-scrollbar {
-  display: none;
+  height: 3px;
+}
+.toolbar-tools-group::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.35);
+  border-radius: 2px;
 }
 
 .tb-btn {
@@ -1254,11 +1260,18 @@ input, textarea, button, select {
   gap: 8px;
   flex: 1;
   min-width: 0;
-  overflow: visible;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  scrollbar-width: thin;
 }
 
 .chord-tools-group::-webkit-scrollbar {
-  display: none;
+  height: 3px;
+}
+.chord-tools-group::-webkit-scrollbar-thumb {
+  background: rgba(168, 85, 247, 0.35);
+  border-radius: 2px;
 }
 
 .chord-actions-group {
