@@ -1662,369 +1662,6 @@ class SpectrogramCanvasRenderer {
 
     this.drawMinimap(ctx, 0, h - miniH, w, miniH);
   }
-  renderMidiTier() {
-    if (!this.midiCanvas || !this.midiCtx || !this.midiWidth || !this.midiHeight) return;
-    const ctx = this.midiCtx, w = this.midiWidth, h = this.midiHeight;
-
-    // Background
-    ctx.fillStyle = '#141416';
-    ctx.fillRect(0, 0, w, h);
-
-    const gutterW = this.leftGutterWidth;
-    const minM = this.activeMinMidi;
-    const maxM = this.activeMaxMidi;
-    const renderedSemitones = Math.max(1, maxM - minM + 1);
-    const semitoneH = h / renderedSemitones;
-
-    // Gutter piano roll labels
-    const blackKeyW = Math.round(gutterW * 0.62);
-    for (let m = minM; m <= maxM; m++) {
-      const row = maxM - m;
-      const y = row * semitoneH;
-      const pc = m % 12;
-      const isBlack = (pc === 1 || pc === 3 || pc === 6 || pc === 8 || pc === 10);
-
-      if (!isBlack) {
-        ctx.fillStyle = '#222634';
-        ctx.fillRect(0, y, gutterW, semitoneH);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(0, y, gutterW, semitoneH);
-
-        const octave = Math.floor(m / 12) - 1;
-        ctx.fillStyle = (pc === 0) ? '#fde047' : '#94a3b8';
-        ctx.font = (pc === 0) ? 'bold 10px "JetBrains Mono", monospace' : '9px "JetBrains Mono", monospace';
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`${NOTE_NAMES[pc]}${octave}`, gutterW - 6, y + semitoneH / 2);
-      }
-    }
-
-    for (let m = minM; m <= maxM; m++) {
-      const row = maxM - m;
-      const y = row * semitoneH;
-      const pc = m % 12;
-      const isBlack = (pc === 1 || pc === 3 || pc === 6 || pc === 8 || pc === 10);
-
-      if (isBlack) {
-        ctx.fillStyle = '#11131a';
-        ctx.fillRect(0, y, blackKeyW, semitoneH);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(0, y, blackKeyW, semitoneH);
-      }
-
-      // Horizontal grid lines across timeline
-      ctx.strokeStyle = (pc === 0) ? 'rgba(250, 204, 21, 0.22)' : 'rgba(255, 255, 255, 0.04)';
-      ctx.beginPath();
-      ctx.moveTo(gutterW, y + semitoneH);
-      ctx.lineTo(w, y + semitoneH);
-      ctx.stroke();
-    }
-
-    // BPM & Bar / Beat Grid lines across MIDI Piano Roll
-    this.drawBpmGrid(ctx, gutterW, 0, w, h, false);
-
-    // Render transcribed MIDI notes
-    if (this.midiNotes && this.midiNotes.length > 0) {
-      const vStartMs = this.xToTime(gutterW);
-      const vEndMs = this.xToTime(w);
-
-      for (const note of this.midiNotes) {
-        if (note.endMs < vStartMs || note.startMs > vEndMs) continue;
-        if (note.pitch < minM || note.pitch > maxM) continue;
-
-        const row = maxM - note.pitch;
-        const noteY = row * semitoneH;
-        const x1 = Math.max(gutterW, this.timeToX(note.startMs));
-        const x2 = Math.min(w, this.timeToX(note.endMs));
-        const noteW = Math.max(3.5, x2 - x1);
-        const noteH = Math.max(3, semitoneH - 1.5);
-
-        // Color coding:
-        // Root tone -> Gold/Amber
-        // Chord constituent (3rd, 5th) -> Emerald/Cyan
-        // Melody / non-chord -> Purple/Violet
-        let gradTop = '#10b981', gradBottom = '#059669', strokeCol = '#34d399';
-        if (note.isRoot) {
-          gradTop = '#f59e0b'; gradBottom = '#d97706'; strokeCol = '#fde68a';
-        } else if (note.isChordTone) {
-          gradTop = '#06b6d4'; gradBottom = '#0284c7'; strokeCol = '#67e8f9';
-        } else {
-          gradTop = '#a855f7'; gradBottom = '#7c3aed'; strokeCol = '#d8b4fe';
-        }
-
-        const grad = ctx.createLinearGradient(x1, noteY, x1, noteY + noteH);
-        grad.addColorStop(0, gradTop);
-        grad.addColorStop(1, gradBottom);
-
-        ctx.fillStyle = grad;
-        const cornerR = Math.min(3, noteW / 3, noteH / 3);
-        if (typeof ctx.roundRect === 'function') {
-          ctx.beginPath();
-          ctx.roundRect(x1, noteY + 0.75, noteW, noteH, cornerR);
-          ctx.fill();
-          ctx.strokeStyle = strokeCol;
-          ctx.lineWidth = 1;
-          ctx.stroke();
-        } else {
-          ctx.fillRect(x1, noteY + 0.75, noteW, noteH);
-          ctx.strokeStyle = strokeCol;
-          ctx.lineWidth = 1;
-          ctx.strokeRect(x1, noteY + 0.75, noteW, noteH);
-        }
-
-        // Note label inside bar if wide enough
-        if (noteW >= 24 && noteH >= 9) {
-          const octave = Math.floor(note.pitch / 12) - 1;
-          const noteText = `${NOTE_NAMES[note.pitch % 12]}${octave}`;
-          ctx.fillStyle = '#ffffff';
-          ctx.font = 'bold 9px "JetBrains Mono", monospace';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(noteText, x1 + noteW / 2, noteY + noteH / 2 + 0.5);
-        }
-      }
-    } else {
-      // Empty hint when no notes transcribed yet
-      ctx.fillStyle = '#71717a';
-      ctx.font = '12px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('Đang chuẩn bị dữ liệu MIDI từ CQT & Hợp âm...', (gutterW + w) / 2, h / 2);
-    }
-
-    // Yellow Playhead
-    const playheadMs = this.audio.getCurrentPosition();
-    const playheadX = this.timeToX(playheadMs);
-    if (playheadX >= gutterW && playheadX <= w) {
-      ctx.strokeStyle = '#facc15';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(playheadX, 0);
-      ctx.lineTo(playheadX, h);
-      ctx.stroke();
-    }
-  }
-
-  transcribeMidiFromCqt() {
-    if (!this.data) return [];
-    const spec = this.data;
-    const numFrames = spec.numFrames;
-    const totalBins = spec.numSemitones;
-    const globalMinM = spec.minMidi;
-    const timeResMs = spec.timeResolutionMs || 20.0;
-    const detectedChords = spec.detectedChords || [];
-
-    if (!spec.cqtMatrix || numFrames <= 0 || totalBins <= 0) return [];
-    const cqtMatrix = new Uint8Array(spec.cqtMatrix);
-
-    const CHORD_NOTES_MAP = {
-      'C': [0, 4, 7], 'C#': [1, 5, 8], 'Db': [1, 5, 8],
-      'D': [2, 6, 9], 'D#': [3, 7, 10], 'Eb': [3, 7, 10],
-      'E': [4, 8, 11],
-      'F': [5, 9, 0], 'F#': [6, 10, 1], 'Gb': [6, 10, 1],
-      'G': [7, 11, 2], 'G#': [8, 0, 3], 'Ab': [8, 0, 3],
-      'A': [9, 1, 4], 'A#': [10, 2, 5], 'Bb': [10, 2, 5],
-      'B': [11, 3, 6],
-      'Cm': [0, 3, 7], 'C#m': [1, 4, 8], 'Dbm': [1, 4, 8],
-      'Dm': [2, 5, 9], 'D#m': [3, 6, 10], 'Ebm': [3, 6, 10],
-      'Em': [4, 7, 11],
-      'Fm': [5, 8, 0], 'F#m': [6, 9, 1], 'Gbm': [6, 9, 1],
-      'Gm': [7, 10, 2], 'G#m': [8, 11, 3], 'Abm': [8, 11, 3],
-      'Am': [9, 0, 4], 'A#m': [10, 1, 5], 'Bbm': [10, 1, 5],
-      'Bm': [11, 2, 6]
-    };
-
-    const notes = [];
-    const activeTracks = new Map(); // pitch -> { startFrame, lastFrame, maxVal, sumVal, count, chord }
-
-    for (let f = 0; f < numFrames; f++) {
-      const frameBase = f * totalBins;
-      const chord = detectedChords[f] || '';
-      const chordPcs = CHORD_NOTES_MAP[chord] || null;
-      const rootPc = chordPcs ? chordPcs[0] : null;
-
-      const currentFramePeaks = new Map();
-
-      // Find local peaks along semitone dimension
-      for (let s = 1; s < totalBins - 1; s++) {
-        const val = cqtMatrix[frameBase + s];
-        if (val < 36) continue;
-
-        const valPrev = cqtMatrix[frameBase + s - 1];
-        const valNext = cqtMatrix[frameBase + s + 1];
-        if (val < valPrev || val < valNext) continue;
-
-        const m = globalMinM + s;
-        const pc = m % 12;
-
-        let isChordTone = false;
-        let isRoot = false;
-        let effectiveVal = val;
-
-        if (chordPcs) {
-          isChordTone = chordPcs.includes(pc);
-          isRoot = (pc === rootPc);
-
-          if (isChordTone) {
-            // Chord tone: reward & prioritize
-            effectiveVal = Math.min(255, val * (isRoot ? 1.25 : 1.12));
-          } else {
-            // Non-chord tone:
-            // 1. Spectral leakage check: if neighbor is chord tone and active, suppress leakage
-            const prevPc = (m - 1) % 12;
-            const nextPc = (m + 1) % 12;
-            const neighborIsChord = (chordPcs.includes(prevPc) && valPrev >= val * 0.72) ||
-                                    (chordPcs.includes(nextPc) && valNext >= val * 0.72);
-            if (neighborIsChord) {
-              continue; // Spectral leakage filtered!
-            }
-
-            // 2. Harmonic overtone check: if lower root is present (octave or fifth), penalize
-            let isOvertone = false;
-            for (let lowerS = 0; lowerS < s; lowerS++) {
-              const lowerM = globalMinM + lowerS;
-              const lowerDiff = m - lowerM;
-              if (lowerDiff === 12 || lowerDiff === 19 || lowerDiff === 24 || lowerDiff === 28) {
-                if (cqtMatrix[frameBase + lowerS] > 70) {
-                  isOvertone = true;
-                  break;
-                }
-              }
-            }
-            if (isOvertone) {
-              effectiveVal *= 0.55;
-            }
-
-            // High threshold for passing / melody non-chord tones
-            if (effectiveVal < 95) continue;
-          }
-        } else {
-          // No chord recognized: accept strong peaks
-          if (val < 50) continue;
-        }
-
-        currentFramePeaks.set(m, {
-          val: effectiveVal,
-          isChordTone,
-          isRoot,
-          chord
-        });
-      }
-
-      // Update active tracks
-      for (const [m, peakData] of currentFramePeaks) {
-        if (activeTracks.has(m)) {
-          const track = activeTracks.get(m);
-          // Onset detection: sudden spike in energy -> re-trigger new note
-          if (peakData.val > track.lastVal + 40 && (f - track.startFrame) >= 4) {
-            // Finalize previous note
-            const durFrames = track.lastFrame - track.startFrame + 1;
-            if (durFrames >= 3) {
-              notes.push({
-                pitch: m,
-                startMs: Math.round(track.startFrame * timeResMs),
-                endMs: Math.round((track.lastFrame + 1) * timeResMs),
-                velocity: Math.min(127, Math.max(45, Math.round(38 + (track.maxVal / 255) * 85))),
-                isChordTone: track.isChordTone,
-                isRoot: track.isRoot,
-                chordName: track.chord
-              });
-            }
-            // Start new note
-            activeTracks.set(m, {
-              startFrame: f,
-              lastFrame: f,
-              lastVal: peakData.val,
-              maxVal: peakData.val,
-              sumVal: peakData.val,
-              count: 1,
-              isChordTone: peakData.isChordTone,
-              isRoot: peakData.isRoot,
-              chord: peakData.chord
-            });
-          } else {
-            track.lastFrame = f;
-            track.lastVal = peakData.val;
-            track.maxVal = Math.max(track.maxVal, peakData.val);
-            track.sumVal += peakData.val;
-            track.count++;
-          }
-        } else {
-          activeTracks.set(m, {
-            startFrame: f,
-            lastFrame: f,
-            lastVal: peakData.val,
-            maxVal: peakData.val,
-            sumVal: peakData.val,
-            count: 1,
-            isChordTone: peakData.isChordTone,
-            isRoot: peakData.isRoot,
-            chord: peakData.chord
-          });
-        }
-      }
-
-      // Flush ended tracks that were not seen in current frame
-      for (const [m, track] of activeTracks.entries()) {
-        if (!currentFramePeaks.has(m)) {
-          if (f - track.lastFrame > 1) {
-            const durFrames = track.lastFrame - track.startFrame + 1;
-            if (durFrames >= 3 && track.maxVal >= 42) {
-              notes.push({
-                pitch: m,
-                startMs: Math.round(track.startFrame * timeResMs),
-                endMs: Math.round((track.lastFrame + 1) * timeResMs),
-                velocity: Math.min(127, Math.max(45, Math.round(38 + (track.maxVal / 255) * 85))),
-                isChordTone: track.isChordTone,
-                isRoot: track.isRoot,
-                chordName: track.chord
-              });
-            }
-            activeTracks.delete(m);
-          }
-        }
-      }
-    }
-
-    // Flush remaining tracks at end of audio
-    for (const [m, track] of activeTracks.entries()) {
-      const durFrames = track.lastFrame - track.startFrame + 1;
-      if (durFrames >= 3 && track.maxVal >= 42) {
-        notes.push({
-          pitch: m,
-          startMs: Math.round(track.startFrame * timeResMs),
-          endMs: Math.round((track.lastFrame + 1) * timeResMs),
-          velocity: Math.min(127, Math.max(45, Math.round(38 + (track.maxVal / 255) * 85))),
-          isChordTone: track.isChordTone,
-          isRoot: track.isRoot,
-          chordName: track.chord
-        });
-      }
-    }
-
-    // Sort notes chronologically by startMs, then pitch
-    notes.sort((a, b) => (a.startMs - b.startMs) || (a.pitch - b.pitch));
-
-    // Merge adjacent notes of the same pitch if gap <= 60ms
-    const merged = [];
-    for (const note of notes) {
-      if (merged.length > 0) {
-        const prev = merged[merged.length - 1];
-        if (prev.pitch === note.pitch && (note.startMs - prev.endMs) <= 60 && prev.chordName === note.chordName) {
-          prev.endMs = Math.max(prev.endMs, note.endMs);
-          prev.velocity = Math.round((prev.velocity + note.velocity) / 2);
-          continue;
-        }
-      }
-      merged.push(note);
-    }
-
-    this.midiNotes = merged;
-    return merged;
-  }
-
   drawSpectrogram(ctx, x, y, width, height) {
     const spec = this.spectrogram;
     const numFrames = spec.numFrames;
@@ -2899,6 +2536,9 @@ class MusicalChordAnalyzer {
     }
 
     if (this.midiCanvas && this.isMidiVisible) {
+      if (!this.midiCtx) {
+        this.midiCtx = this.midiCanvas.getContext('2d');
+      }
       const rMidi = this.midiCanvas.getBoundingClientRect();
       if (rMidi.width > 0 && rMidi.height > 0) {
         this.midiCanvas.width = Math.round(rMidi.width * dpr);
@@ -3249,6 +2889,370 @@ class MusicalChordAnalyzer {
 
     this.drawMinimap(ctx, 0, h - miniH, w, miniH);
   }
+
+  renderMidiTier() {
+    if (!this.midiCanvas || !this.midiCtx || !this.midiWidth || !this.midiHeight) return;
+    const ctx = this.midiCtx, w = this.midiWidth, h = this.midiHeight;
+
+    // Background
+    ctx.fillStyle = '#141416';
+    ctx.fillRect(0, 0, w, h);
+
+    const gutterW = this.leftGutterWidth;
+    const minM = this.activeMinMidi;
+    const maxM = this.activeMaxMidi;
+    const renderedSemitones = Math.max(1, maxM - minM + 1);
+    const semitoneH = h / renderedSemitones;
+
+    // Gutter piano roll labels
+    const blackKeyW = Math.round(gutterW * 0.62);
+    for (let m = minM; m <= maxM; m++) {
+      const row = maxM - m;
+      const y = row * semitoneH;
+      const pc = m % 12;
+      const isBlack = (pc === 1 || pc === 3 || pc === 6 || pc === 8 || pc === 10);
+
+      if (!isBlack) {
+        ctx.fillStyle = '#222634';
+        ctx.fillRect(0, y, gutterW, semitoneH);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0, y, gutterW, semitoneH);
+
+        const octave = Math.floor(m / 12) - 1;
+        ctx.fillStyle = (pc === 0) ? '#fde047' : '#94a3b8';
+        ctx.font = (pc === 0) ? 'bold 10px "JetBrains Mono", monospace' : '9px "JetBrains Mono", monospace';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${NOTE_NAMES[pc]}${octave}`, gutterW - 6, y + semitoneH / 2);
+      }
+    }
+
+    for (let m = minM; m <= maxM; m++) {
+      const row = maxM - m;
+      const y = row * semitoneH;
+      const pc = m % 12;
+      const isBlack = (pc === 1 || pc === 3 || pc === 6 || pc === 8 || pc === 10);
+
+      if (isBlack) {
+        ctx.fillStyle = '#11131a';
+        ctx.fillRect(0, y, blackKeyW, semitoneH);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0, y, blackKeyW, semitoneH);
+      }
+
+      // Horizontal grid lines across timeline
+      ctx.strokeStyle = (pc === 0) ? 'rgba(250, 204, 21, 0.22)' : 'rgba(255, 255, 255, 0.04)';
+      ctx.beginPath();
+      ctx.moveTo(gutterW, y + semitoneH);
+      ctx.lineTo(w, y + semitoneH);
+      ctx.stroke();
+    }
+
+    // BPM & Bar / Beat Grid lines across MIDI Piano Roll
+    this.drawBpmGrid(ctx, gutterW, 0, w, h, false);
+
+    // Render transcribed MIDI notes
+    if (this.midiNotes && this.midiNotes.length > 0) {
+      const vStartMs = this.xToTime(gutterW);
+      const vEndMs = this.xToTime(w);
+
+      for (const note of this.midiNotes) {
+        if (note.endMs < vStartMs || note.startMs > vEndMs) continue;
+        if (note.pitch < minM || note.pitch > maxM) continue;
+
+        const row = maxM - note.pitch;
+        const noteY = row * semitoneH;
+        const x1 = Math.max(gutterW, this.timeToX(note.startMs));
+        const x2 = Math.min(w, this.timeToX(note.endMs));
+        const noteW = Math.max(3.5, x2 - x1);
+        const noteH = Math.max(3, semitoneH - 1.5);
+
+        // Color coding:
+        // Root tone -> Gold/Amber
+        // Chord constituent (3rd, 5th) -> Emerald/Cyan
+        // Melody / non-chord -> Purple/Violet
+        let gradTop = '#10b981', gradBottom = '#059669', strokeCol = '#34d399';
+        if (note.isRoot) {
+          gradTop = '#f59e0b'; gradBottom = '#d97706'; strokeCol = '#fde68a';
+        } else if (note.isChordTone) {
+          gradTop = '#06b6d4'; gradBottom = '#0284c7'; strokeCol = '#67e8f9';
+        } else {
+          gradTop = '#a855f7'; gradBottom = '#7c3aed'; strokeCol = '#d8b4fe';
+        }
+
+        const grad = ctx.createLinearGradient(x1, noteY, x1, noteY + noteH);
+        grad.addColorStop(0, gradTop);
+        grad.addColorStop(1, gradBottom);
+
+        ctx.fillStyle = grad;
+        const cornerR = Math.min(3, noteW / 3, noteH / 3);
+        if (typeof ctx.roundRect === 'function') {
+          ctx.beginPath();
+          ctx.roundRect(x1, noteY + 0.75, noteW, noteH, cornerR);
+          ctx.fill();
+          ctx.strokeStyle = strokeCol;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        } else {
+          ctx.fillRect(x1, noteY + 0.75, noteW, noteH);
+          ctx.strokeStyle = strokeCol;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x1, noteY + 0.75, noteW, noteH);
+        }
+
+        // Note label inside bar if wide enough
+        if (noteW >= 24 && noteH >= 9) {
+          const octave = Math.floor(note.pitch / 12) - 1;
+          const noteText = `${NOTE_NAMES[note.pitch % 12]}${octave}`;
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 9px "JetBrains Mono", monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(noteText, x1 + noteW / 2, noteY + noteH / 2 + 0.5);
+        }
+      }
+    } else {
+      // Empty hint when no notes transcribed yet
+      ctx.fillStyle = '#71717a';
+      ctx.font = '12px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Đang chuẩn bị dữ liệu MIDI từ CQT & Hợp âm...', (gutterW + w) / 2, h / 2);
+    }
+
+    // Yellow Playhead
+    const playheadMs = this.audio.getCurrentPosition();
+    const playheadX = this.timeToX(playheadMs);
+    if (playheadX >= gutterW && playheadX <= w) {
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(playheadX, 0);
+      ctx.lineTo(playheadX, h);
+      ctx.stroke();
+    }
+  }
+
+  transcribeMidiFromCqt() {
+    if (!this.data) return [];
+    const spec = this.data;
+    const numFrames = spec.numFrames;
+    const totalBins = spec.numSemitones;
+    const globalMinM = spec.minMidi;
+    const timeResMs = spec.timeResolutionMs || 20.0;
+    const detectedChords = spec.detectedChords || [];
+
+    if (!spec.cqtMatrix || numFrames <= 0 || totalBins <= 0) return [];
+    const cqtMatrix = new Uint8Array(spec.cqtMatrix);
+
+    const CHORD_NOTES_MAP = {
+      'C': [0, 4, 7], 'C#': [1, 5, 8], 'Db': [1, 5, 8],
+      'D': [2, 6, 9], 'D#': [3, 7, 10], 'Eb': [3, 7, 10],
+      'E': [4, 8, 11],
+      'F': [5, 9, 0], 'F#': [6, 10, 1], 'Gb': [6, 10, 1],
+      'G': [7, 11, 2], 'G#': [8, 0, 3], 'Ab': [8, 0, 3],
+      'A': [9, 1, 4], 'A#': [10, 2, 5], 'Bb': [10, 2, 5],
+      'B': [11, 3, 6],
+      'Cm': [0, 3, 7], 'C#m': [1, 4, 8], 'Dbm': [1, 4, 8],
+      'Dm': [2, 5, 9], 'D#m': [3, 6, 10], 'Ebm': [3, 6, 10],
+      'Em': [4, 7, 11],
+      'Fm': [5, 8, 0], 'F#m': [6, 9, 1], 'Gbm': [6, 9, 1],
+      'Gm': [7, 10, 2], 'G#m': [8, 11, 3], 'Abm': [8, 11, 3],
+      'Am': [9, 0, 4], 'A#m': [10, 1, 5], 'Bbm': [10, 1, 5],
+      'Bm': [11, 2, 6]
+    };
+
+    const notes = [];
+    const activeTracks = new Map(); // pitch -> { startFrame, lastFrame, maxVal, sumVal, count, chord }
+
+    for (let f = 0; f < numFrames; f++) {
+      const frameBase = f * totalBins;
+      const chord = detectedChords[f] || '';
+      const chordPcs = CHORD_NOTES_MAP[chord] || null;
+      const rootPc = chordPcs ? chordPcs[0] : null;
+
+      const currentFramePeaks = new Map();
+
+      // Find local peaks along semitone dimension
+      for (let s = 1; s < totalBins - 1; s++) {
+        const val = cqtMatrix[frameBase + s];
+        if (val < 36) continue;
+
+        const valPrev = cqtMatrix[frameBase + s - 1];
+        const valNext = cqtMatrix[frameBase + s + 1];
+        if (val < valPrev || val < valNext) continue;
+
+        const m = globalMinM + s;
+        const pc = m % 12;
+
+        let isChordTone = false;
+        let isRoot = false;
+        let effectiveVal = val;
+
+        if (chordPcs) {
+          isChordTone = chordPcs.includes(pc);
+          isRoot = (pc === rootPc);
+
+          if (isChordTone) {
+            // Chord tone: reward & prioritize
+            effectiveVal = Math.min(255, val * (isRoot ? 1.25 : 1.12));
+          } else {
+            // Non-chord tone:
+            // 1. Spectral leakage check: if neighbor is chord tone and active, suppress leakage
+            const prevPc = (m - 1) % 12;
+            const nextPc = (m + 1) % 12;
+            const neighborIsChord = (chordPcs.includes(prevPc) && valPrev >= val * 0.72) ||
+                                    (chordPcs.includes(nextPc) && valNext >= val * 0.72);
+            if (neighborIsChord) {
+              continue; // Spectral leakage filtered!
+            }
+
+            // 2. Harmonic overtone check: if lower root is present (octave or fifth), penalize
+            let isOvertone = false;
+            for (let lowerS = 0; lowerS < s; lowerS++) {
+              const lowerM = globalMinM + lowerS;
+              const lowerDiff = m - lowerM;
+              if (lowerDiff === 12 || lowerDiff === 19 || lowerDiff === 24 || lowerDiff === 28) {
+                if (cqtMatrix[frameBase + lowerS] > 70) {
+                  isOvertone = true;
+                  break;
+                }
+              }
+            }
+            if (isOvertone) {
+              effectiveVal *= 0.55;
+            }
+
+            // High threshold for passing / melody non-chord tones
+            if (effectiveVal < 95) continue;
+          }
+        } else {
+          // No chord recognized: accept strong peaks
+          if (val < 50) continue;
+        }
+
+        currentFramePeaks.set(m, {
+          val: effectiveVal,
+          isChordTone,
+          isRoot,
+          chord
+        });
+      }
+
+      // Update active tracks
+      for (const [m, peakData] of currentFramePeaks) {
+        if (activeTracks.has(m)) {
+          const track = activeTracks.get(m);
+          // Onset detection: sudden spike in energy -> re-trigger new note
+          if (peakData.val > track.lastVal + 40 && (f - track.startFrame) >= 4) {
+            // Finalize previous note
+            const durFrames = track.lastFrame - track.startFrame + 1;
+            if (durFrames >= 3) {
+              notes.push({
+                pitch: m,
+                startMs: Math.round(track.startFrame * timeResMs),
+                endMs: Math.round((track.lastFrame + 1) * timeResMs),
+                velocity: Math.min(127, Math.max(45, Math.round(38 + (track.maxVal / 255) * 85))),
+                isChordTone: track.isChordTone,
+                isRoot: track.isRoot,
+                chordName: track.chord
+              });
+            }
+            // Start new note
+            activeTracks.set(m, {
+              startFrame: f,
+              lastFrame: f,
+              lastVal: peakData.val,
+              maxVal: peakData.val,
+              sumVal: peakData.val,
+              count: 1,
+              isChordTone: peakData.isChordTone,
+              isRoot: peakData.isRoot,
+              chord: peakData.chord
+            });
+          } else {
+            track.lastFrame = f;
+            track.lastVal = peakData.val;
+            track.maxVal = Math.max(track.maxVal, peakData.val);
+            track.sumVal += peakData.val;
+            track.count++;
+          }
+        } else {
+          activeTracks.set(m, {
+            startFrame: f,
+            lastFrame: f,
+            lastVal: peakData.val,
+            maxVal: peakData.val,
+            sumVal: peakData.val,
+            count: 1,
+            isChordTone: peakData.isChordTone,
+            isRoot: peakData.isRoot,
+            chord: peakData.chord
+          });
+        }
+      }
+
+      // Flush ended tracks that were not seen in current frame
+      for (const [m, track] of activeTracks.entries()) {
+        if (!currentFramePeaks.has(m)) {
+          if (f - track.lastFrame > 1) {
+            const durFrames = track.lastFrame - track.startFrame + 1;
+            if (durFrames >= 3 && track.maxVal >= 42) {
+              notes.push({
+                pitch: m,
+                startMs: Math.round(track.startFrame * timeResMs),
+                endMs: Math.round((track.lastFrame + 1) * timeResMs),
+                velocity: Math.min(127, Math.max(45, Math.round(38 + (track.maxVal / 255) * 85))),
+                isChordTone: track.isChordTone,
+                isRoot: track.isRoot,
+                chordName: track.chord
+              });
+            }
+            activeTracks.delete(m);
+          }
+        }
+      }
+    }
+
+    // Flush remaining tracks at end of audio
+    for (const [m, track] of activeTracks.entries()) {
+      const durFrames = track.lastFrame - track.startFrame + 1;
+      if (durFrames >= 3 && track.maxVal >= 42) {
+        notes.push({
+          pitch: m,
+          startMs: Math.round(track.startFrame * timeResMs),
+          endMs: Math.round((track.lastFrame + 1) * timeResMs),
+          velocity: Math.min(127, Math.max(45, Math.round(38 + (track.maxVal / 255) * 85))),
+          isChordTone: track.isChordTone,
+          isRoot: track.isRoot,
+          chordName: track.chord
+        });
+      }
+    }
+
+    // Sort notes chronologically by startMs, then pitch
+    notes.sort((a, b) => (a.startMs - b.startMs) || (a.pitch - b.pitch));
+
+    // Merge adjacent notes of the same pitch if gap <= 60ms
+    const merged = [];
+    for (const note of notes) {
+      if (merged.length > 0) {
+        const prev = merged[merged.length - 1];
+        if (prev.pitch === note.pitch && (note.startMs - prev.endMs) <= 60 && prev.chordName === note.chordName) {
+          prev.endMs = Math.max(prev.endMs, note.endMs);
+          prev.velocity = Math.round((prev.velocity + note.velocity) / 2);
+          continue;
+        }
+      }
+      merged.push(note);
+    }
+
+    this.midiNotes = merged;
+    return merged;
+  }
+
 
   drawTimeRuler(ctx, x, y, width, height) {
     ctx.fillStyle = '#18181b';
@@ -5408,14 +5412,15 @@ class SpectroSubApp {
           return;
         }
 
-        const nextVisible = !this.chordAnalyzerTab2.isMidiVisible;
-        this.chordAnalyzerTab2.isMidiVisible = nextVisible;
+        try {
+          const nextVisible = !this.chordAnalyzerTab2.isMidiVisible;
+          this.chordAnalyzerTab2.isMidiVisible = nextVisible;
 
-        if (nextVisible) {
-          // If notes not generated yet, transcribe now
-          if (!this.chordAnalyzerTab2.midiNotes) {
-            this.chordAnalyzerTab2.transcribeMidiFromCqt();
-          }
+          if (nextVisible) {
+            // If notes not generated yet, transcribe now
+            if (!this.chordAnalyzerTab2.midiNotes) {
+              this.chordAnalyzerTab2.transcribeMidiFromCqt();
+            }
 
           if (tab2MidiPanel) {
             tab2MidiPanel.style.display = 'flex';
@@ -5448,6 +5453,10 @@ class SpectroSubApp {
         }
 
         this.chordAnalyzerTab2.resize();
+        } catch (err) {
+          console.error('Lỗi khi bật dải MIDI Tab 2:', err);
+          alert('Lỗi tạo MIDI: ' + err.message);
+        }
       });
     }
 
