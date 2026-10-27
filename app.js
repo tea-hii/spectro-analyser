@@ -53,6 +53,8 @@ const I18N_LOCALES = {
     move_up_title: 'Di chuyển các câu đã chọn lên trên',
     move_down_title: 'Di chuyển các câu đã chọn xuống dưới',
     master_clock_title: 'Đồng bộ chế độ đồng hồ tất cả các câu (Click để đổi chế độ)',
+    master_clock_sync_prefix: 'Đồng bộ chế độ tất cả câu: ',
+    move_group_title: 'Di chuyển câu đã chọn lên / xuống',
     btn_add_cue: 'Thêm',
     empty_cues_title: 'Danh sách câu đang trống',
     empty_cues_desc: 'Bấm <strong>"+ Thêm câu"</strong> ở góc phải hoặc nạp file phụ đề (.ass, .srt, .json) để bắt đầu.',
@@ -151,6 +153,8 @@ const I18N_LOCALES = {
     move_up_title: 'Move Selected Lines Up',
     move_down_title: 'Move Selected Lines Down',
     master_clock_title: 'Synchronize clock mode for all lines (Click to toggle)',
+    master_clock_sync_prefix: 'Sync mode for all cues: ',
+    move_group_title: 'Move selected lines up / down',
     btn_add_cue: 'Add',
     empty_cues_title: 'Line list is empty',
     empty_cues_desc: 'Click <strong>"+ Add"</strong> at the right corner or upload subtitle files (.ass, .srt, .json) to get started.',
@@ -3452,6 +3456,37 @@ class SpectroSubApp {
     const btnFileMenu = document.getElementById('btn-file-menu');
     if (btnFileMenu) btnFileMenu.title = t('file_menu_title');
 
+    // Tab 1 File Dropdown Menu Localization
+    const fileMenuHeaderUpload = document.getElementById('file-menu-header-upload');
+    if (fileMenuHeaderUpload) fileMenuHeaderUpload.textContent = t('file_upload_heading');
+
+    const btnUploadAudio = document.getElementById('btn-file-upload-audio');
+    if (btnUploadAudio) {
+      const span = btnUploadAudio.querySelector('span');
+      if (span) span.textContent = t('upload_audio');
+    }
+
+    const btnUploadSub = document.getElementById('btn-file-upload-sub');
+    if (btnUploadSub) {
+      const span = btnUploadSub.querySelector('span');
+      if (span) span.textContent = t('upload_sub');
+    }
+
+    const btnLoadSampleTab1 = document.getElementById('btn-file-load-sample');
+    if (btnLoadSampleTab1) {
+      const span = btnLoadSampleTab1.querySelector('span');
+      if (span) span.textContent = t('load_sample_tab1');
+    }
+
+    const fileMenuHeaderSave = document.getElementById('file-menu-header-save');
+    if (fileMenuHeaderSave) fileMenuHeaderSave.textContent = t('file_save_heading');
+
+    const btnSaveScript = document.getElementById('btn-file-save-script');
+    if (btnSaveScript) {
+      const span = btnSaveScript.querySelector('span');
+      if (span) span.textContent = t('save_script');
+    }
+
     const selectSpeed = document.getElementById('select-speed');
     if (selectSpeed) selectSpeed.title = t('speed_title');
 
@@ -3477,8 +3512,14 @@ class SpectroSubApp {
     const btnSelectAll = document.getElementById('btn-select-all');
     if (btnSelectAll) btnSelectAll.title = t('select_all_title');
 
+    const cueMoveGroup = document.getElementById('cue-move-group');
+    if (cueMoveGroup) cueMoveGroup.title = t('move_group_title');
+
     const btnMasterClock = document.getElementById('btn-master-clock');
-    if (btnMasterClock) btnMasterClock.title = t('master_clock_title');
+    if (btnMasterClock) {
+      const curState = btnMasterClock.getAttribute('data-state') || (this.cuesTab1[0]?.clockState || CueClockState.SHOW_LOCKED);
+      btnMasterClock.title = `${t('master_clock_sync_prefix')}${this.getClockStateTooltip(curState)}`;
+    }
 
     const btnOpenAddCues = document.getElementById('btn-open-add-cues');
     if (btnOpenAddCues) {
@@ -4498,7 +4539,7 @@ class SpectroSubApp {
           }
         });
         btnMasterClock.setAttribute('data-state', nextState);
-        btnMasterClock.title = 'Đồng bộ chế độ tất cả câu: ' + this.getClockStateTooltip(nextState);
+        btnMasterClock.title = `${t('master_clock_sync_prefix')}${this.getClockStateTooltip(nextState)}`;
         this.updateStartEndButtonsState();
         this.renderTab1CuesList();
         this.rendererTab1.render();

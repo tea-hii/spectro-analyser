@@ -41,7 +41,7 @@
     } catch (_) {}
   </script>
 
-  <link rel="stylesheet" href="./style.css?v=20261027_11">
+  <link rel="stylesheet" href="./style.css?v=20261027_12">
 </head>
 
 <body>
@@ -205,7 +205,7 @@
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                 </button>
                 <div id="file-dropdown-menu" class="dropdown-menu" style="min-width: 250px; top: 100%; left: 0; margin-top: 4px;">
-                  <div style="padding: 6px 12px 2px; font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">📁 Up File</div>
+                  <div id="file-menu-header-upload" style="padding: 6px 12px 2px; font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">📁 Up File</div>
                   <button id="btn-file-upload-audio" class="dropdown-item" type="button">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
                     <span>Tải file Audio (mp3, wav...)</span>
@@ -219,7 +219,7 @@
                     <span>Ví dụ 1 (Mẫu Pháp)</span>
                   </button>
                   <div style="height: 1px; background: var(--border-color); margin: 4px 0;"></div>
-                  <div style="padding: 6px 12px 2px; font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">💾 Save Script</div>
+                  <div id="file-menu-header-save" style="padding: 6px 12px 2px; font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">💾 Save Script</div>
                   <button id="btn-file-save-script" class="dropdown-item" type="button">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
                     <span style="font-weight: 600; color: #38bdf8;">Lưu / Xuất Kịch Bản (.ass, .srt)</span>
@@ -284,7 +284,7 @@
                 <span id="cues-count-label" class="sub-title">D.s câu (0)</span>
 
                 <!-- Move Selected Cues Up / Down Stacked Slim -->
-                <div class="cue-move-group" title="Di chuyển câu đã chọn lên / xuống">
+                <div id="cue-move-group" class="cue-move-group" title="Di chuyển câu đã chọn lên / xuống">
                   <button id="btn-move-up" class="cue-move-btn cue-move-up" title="Di chuyển các câu đã chọn lên trên" type="button">
                     <svg width="10" height="7" viewBox="0 0 14 8" fill="currentColor">
                       <polygon points="7,0 14,8 0,8"/>
@@ -661,6 +661,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261027_11"></script>
+  <script src="./app.js?v=20261027_12"></script>
 </body>
 </html>
