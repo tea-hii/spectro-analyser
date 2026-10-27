@@ -431,7 +431,7 @@ input, textarea, button, select {
   align-items: center;
   gap: 6px;
   overflow: visible;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .toolbar-row::-webkit-scrollbar {
@@ -1234,7 +1234,7 @@ input, textarea, button, select {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   z-index: 20;
 }
 

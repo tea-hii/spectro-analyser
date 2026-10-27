@@ -6639,32 +6639,32 @@ class SpectroSubApp {
 
     // Support vertical mouse wheel scrolling to scroll horizontal top toolbars on desktop
     const setupToolbarWheelScroll = () => {
-      const tab1Tools = document.querySelector('.toolbar-tools-group');
-      const tab1Toolbar = document.querySelector('.toolbar') || document.querySelector('.app-header');
-      if (tab1Toolbar && tab1Tools) {
-        tab1Toolbar.addEventListener('wheel', (e) => {
-          if (e.target.closest('.dropdown-menu')) return;
-          if (Math.abs(e.deltaY) >= Math.abs(e.deltaX) && tab1Tools.scrollWidth > tab1Tools.clientWidth) {
+      const handleToolbarWheel = (e, containers) => {
+        if (e.target.closest('.dropdown-menu')) return;
+        if (Math.abs(e.deltaY) < Math.abs(e.deltaX)) return;
+        for (const el of containers) {
+          if (el && el.scrollWidth > el.clientWidth) {
             e.preventDefault();
-            tab1Tools.scrollLeft += e.deltaY;
+            el.scrollLeft += e.deltaY;
+            return;
           }
+        }
+      };
+
+      const tab1Toolbar = document.querySelector('.aegisub-toolbar');
+      const tab1Row = document.querySelector('.toolbar-row');
+      const tab1Tools = document.querySelector('.toolbar-tools-group');
+      if (tab1Toolbar) {
+        tab1Toolbar.addEventListener('wheel', (e) => {
+          handleToolbarWheel(e, [tab1Tools, tab1Row, tab1Toolbar]);
         }, { passive: false });
       }
 
-      const tab2Tools = document.querySelector('.chord-tools-group');
       const tab2Toolbar = document.querySelector('.chord-toolbar');
-      if (tab2Toolbar && tab2Tools) {
+      const tab2Tools = document.querySelector('.chord-tools-group');
+      if (tab2Toolbar) {
         tab2Toolbar.addEventListener('wheel', (e) => {
-          if (e.target.closest('.dropdown-menu')) return;
-          if (Math.abs(e.deltaY) >= Math.abs(e.deltaX)) {
-            if (tab2Tools.scrollWidth > tab2Tools.clientWidth) {
-              e.preventDefault();
-              tab2Tools.scrollLeft += e.deltaY;
-            } else if (tab2Toolbar.scrollWidth > tab2Toolbar.clientWidth) {
-              e.preventDefault();
-              tab2Toolbar.scrollLeft += e.deltaY;
-            }
-          }
+          handleToolbarWheel(e, [tab2Tools, tab2Toolbar]);
         }, { passive: false });
       }
     };
