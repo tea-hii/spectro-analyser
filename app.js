@@ -3544,8 +3544,6 @@ class SpectroSubApp {
     const btnTab2Load = document.getElementById('btn-tab2-load');
     if (btnTab2Load) {
       btnTab2Load.title = t('load_btn_title');
-      const span = btnTab2Load.querySelector('span');
-      if (span) span.textContent = t('load_btn');
     }
 
     const inputTab2Bpm = document.getElementById('input-tab2-bpm');

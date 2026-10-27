@@ -1264,8 +1264,9 @@ input, textarea, button, select {
 .detected-chord-badge {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 12px;
+  justify-content: center;
+  min-width: 44px;
+  padding: 4px 10px;
   border-radius: 8px;
   background: linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(56, 189, 248, 0.25));
   border: 1px solid rgba(168, 85, 247, 0.5);
