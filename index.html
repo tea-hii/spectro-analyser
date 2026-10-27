@@ -41,7 +41,7 @@
     } catch (_) {}
   </script>
 
-  <link rel="stylesheet" href="./style.css?v=20261027_09">
+  <link rel="stylesheet" href="./style.css?v=20261027_10">
 </head>
 
 <body>
@@ -525,23 +525,23 @@
       <div class="modal-body" style="font-size: 13px; line-height: 1.6;">
         <div style="border-left: 3px solid #38bdf8; padding-left: 8px;">
           <strong style="color: #38bdf8;">0 – 300 Hz (Pitch / F0):</strong>
-          <div>Tần số cơ bản của thanh quản, phản ánh cao độ giọng nói (nam ~100-150Hz, nữ ~200-250Hz).</div>
+          <div id="freq-desc-f0" data-i18n="modal_freq_f0">Tần số cơ bản của thanh quản, phản ánh cao độ giọng nói (nam ~100-150Hz, nữ ~200-250Hz).</div>
         </div>
         <div style="border-left: 3px solid #10b981; padding-left: 8px;">
-          <strong style="color: #10b981;">300 – 1.000 Hz (Formant F1):</strong>
-          <div>Độ mở của miệng / nguyên âm (Vowel Height). F1 cao với nguyên âm mở [a], thấp với nguyên âm khép [i], [u].</div>
+          <strong style="color: #10b981;">300 – 1000 Hz (Formant F1):</strong>
+          <div id="freq-desc-f1" data-i18n="modal_freq_f1">Độ mở của miệng / nguyên âm (Vowel Height). F1 cao với nguyên âm mở [a], thấp với nguyên âm khép [i], [u].</div>
         </div>
         <div style="border-left: 3px solid #eab308; padding-left: 8px;">
-          <strong style="color: #eab308;">1.000 – 2.500 Hz (Formant F2):</strong>
-          <div>Độ tiến/lùi của lưỡi (Vowel Frontness). F2 rất cao ở các nguyên âm trước [i], [e], [y].</div>
+          <strong style="color: #eab308;">1000 – 2500 Hz (Formant F2):</strong>
+          <div id="freq-desc-f2" data-i18n="modal_freq_f2">Độ tiến/lùi của lưỡi (Vowel Frontness). F2 rất cao ở các nguyên âm trước [i], [e], [y].</div>
         </div>
         <div style="border-left: 3px solid #a855f7; padding-left: 8px;">
-          <strong style="color: #a855f7;">2.500 – 4.500 Hz (Formant F3 &amp; Nasal Antiformants):</strong>
-          <div>Âm sắc cá nhân, âm mũi (voyelles nasales [õ], [ã], [ɛ̃]) và âm tắc bật hơi [p, t, k].</div>
+          <strong style="color: #a855f7;">2500 – 4500 Hz (Formant F3 &amp; Nasal Antiformants):</strong>
+          <div id="freq-desc-f3" data-i18n="modal_freq_f3">Âm sắc cá nhân, âm mũi (voyelles nasales [õ], [ã], [ɛ̃]) và âm tắc bật hơi [p, t, k].</div>
         </div>
         <div style="border-left: 3px solid #ef4444; padding-left: 8px;">
-          <strong style="color: #ef4444;">4.500 – 8.000 Hz (Liaisons, Fricatives [s, z, ʃ, ʒ]):</strong>
-          <div>Vùng năng lượng ma sát của phụ âm xát.</div>
+          <strong style="color: #ef4444;">4500 – 8000 Hz (Liaisons, Fricatives [s, z, ʃ, ʒ]):</strong>
+          <div id="freq-desc-liaisons" data-i18n="modal_freq_liaisons">Vùng năng lượng ma sát của phụ âm xát và hiện tượng nối âm Liaison ([z], [t]).</div>
         </div>
       </div>
       <div class="modal-footer">
@@ -565,35 +565,35 @@
               <input type="radio" name="export-format" value="ass" checked style="margin-top: 3px;">
               <div>
                 <strong style="color: #c084fc;">.ass</strong> (Advanced SubStation Alpha)
-                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Bao gồm mốc thời gian căn chỉnh từng từ (karaoke {\k}) nếu có cài đặt vạch tím.</div>
+                <div id="desc-export-ass" data-i18n="export_desc_ass" style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Bao gồm mốc thời gian căn chỉnh từng từ (karaoke {\k}) nếu có cài đặt vạch tím.</div>
               </div>
             </label>
             <label style="display: flex; align-items: flex-start; gap: 10px; font-size: 13px; cursor: pointer; background: #0f172a; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color);">
               <input type="radio" name="export-format" value="srt" style="margin-top: 3px;">
               <div>
                 <strong style="color: #38bdf8;">.srt</strong> (SubRip Subtitle)
-                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Định dạng phụ đề phổ biến nhất, tương thích mọi trình phát video/âm thanh.</div>
+                <div id="desc-export-srt" data-i18n="export_desc_srt" style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Định dạng phụ đề phổ biến nhất, tương thích mọi trình phát video/âm thanh.</div>
               </div>
             </label>
             <label style="display: flex; align-items: flex-start; gap: 10px; font-size: 13px; cursor: pointer; background: #0f172a; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color);">
               <input type="radio" name="export-format" value="json" style="margin-top: 3px;">
               <div>
                 <strong style="color: #34d399;">.json</strong> (SpectroSub Project Full State)
-                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Giữ nguyên 100% vạch tím từng từ, trạng thái khóa/sửa, startMs và endMs chính xác.</div>
+                <div id="desc-export-json" data-i18n="export_desc_json" style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Giữ nguyên 100% vạch tím từng từ, trạng thái khóa/sửa, startMs và endMs chính xác.</div>
               </div>
             </label>
             <label style="display: flex; align-items: flex-start; gap: 10px; font-size: 13px; cursor: pointer; background: #0f172a; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color);">
               <input type="radio" name="export-format" value="txt" style="margin-top: 3px;">
               <div>
                 <strong style="color: #cbd5e1;">.txt</strong> (Văn bản thuần túy)
-                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Xuất các dòng lời thoại đơn giản không kèm mốc thời gian.</div>
+                <div id="desc-export-txt" data-i18n="export_desc_txt" style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Xuất các dòng lời thoại đơn giản không kèm mốc thời gian.</div>
               </div>
             </label>
           </div>
         </div>
 
         <div>
-          <label style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 6px;">Tên file tải về (không cần gõ đuôi):</label>
+          <label id="label-export-filename" data-i18n="filename_label" style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 6px;">Tên file tải về (không cần gõ đuôi):</label>
           <input type="text" id="export-filename" class="cue-text-input" value="transcript" style="width: 100%;">
         </div>
       </div>
@@ -617,6 +617,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261027_09"></script>
+  <script src="./app.js?v=20261027_10"></script>
 </body>
 </html>

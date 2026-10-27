@@ -3523,8 +3523,31 @@ class SpectroSubApp {
     const modalFreqTitle = document.querySelector('#modal-freq-legend .modal-title');
     if (modalFreqTitle) modalFreqTitle.textContent = t('modal_freq_title');
 
+    const descF0 = document.getElementById('freq-desc-f0');
+    if (descF0) descF0.textContent = t('modal_freq_f0');
+    const descF1 = document.getElementById('freq-desc-f1');
+    if (descF1) descF1.textContent = t('modal_freq_f1');
+    const descF2 = document.getElementById('freq-desc-f2');
+    if (descF2) descF2.textContent = t('modal_freq_f2');
+    const descF3 = document.getElementById('freq-desc-f3');
+    if (descF3) descF3.textContent = t('modal_freq_f3');
+    const descLiaisons = document.getElementById('freq-desc-liaisons');
+    if (descLiaisons) descLiaisons.textContent = t('modal_freq_liaisons');
+
     const btnModalFreqClose = document.querySelector('#modal-freq-legend .modal-footer .modal-close-btn');
     if (btnModalFreqClose) btnModalFreqClose.textContent = t('btn_understood');
+
+    // Modal: Export descriptions
+    const descExportAss = document.getElementById('desc-export-ass');
+    if (descExportAss) descExportAss.textContent = t('export_desc_ass');
+    const descExportSrt = document.getElementById('desc-export-srt');
+    if (descExportSrt) descExportSrt.textContent = t('export_desc_srt');
+    const descExportJson = document.getElementById('desc-export-json');
+    if (descExportJson) descExportJson.textContent = t('export_desc_json');
+    const descExportTxt = document.getElementById('desc-export-txt');
+    if (descExportTxt) descExportTxt.textContent = t('export_desc_txt');
+    const labelExportFilename = document.getElementById('label-export-filename');
+    if (labelExportFilename) labelExportFilename.textContent = t('filename_label');
 
     // Modal: Export
     const modalExportTitle = document.querySelector('#modal-export .modal-title');
