@@ -14,6 +14,191 @@ function midiToNoteLabel(m) {
 }
 
 // -------------------------------------------------------------
+// Internationalization (i18n): Tiếng Việt (VI) & English (EN)
+// -------------------------------------------------------------
+const I18N_LOCALES = {
+  VI: {
+    lang_btn: 'VI',
+    lang_btn_title: 'Đổi sang Tiếng Anh (Switch to English)',
+    tab1_title: 'Tab 1: Speech Spectrogram',
+    tab1_subtitle: 'Phân tích ngữ âm & phụ đề',
+    tab2_title: 'Tab 2: Chord Analyser',
+    tab2_subtitle: 'Phân tích hợp âm',
+    play_title: 'Phát / Dừng (Phím Space)',
+    play_line_title: 'Phát câu đang chọn (Phím S)',
+    play_word_title: 'Phát từ tại con trỏ (Phím W) - Chỉ phát từ mà thanh vàng đang ở đó',
+    loop_title: 'Bật/Tắt Lặp đoạn (Phím L)',
+    loop_tab2_title: 'Bật/Tắt Lặp đoạn',
+    undo_title: 'Hoàn tác - Undo (Ctrl+Z, tối đa 5 bước)',
+    redo_title: 'Làm lại - Forward / Redo (Ctrl+Y, tối đa 5 bước)',
+    file_menu_title: 'File (Up File & Save Script)',
+    file_upload_heading: '📁 Up File',
+    file_save_heading: '💾 Save Script',
+    upload_audio: 'Tải file Audio (mp3, wav...)',
+    upload_sub: 'Tải phụ đề / kịch bản (.ass, .srt, .json)',
+    load_sample_tab1: 'Ví dụ 1 (Mẫu Pháp)',
+    save_script: 'Lưu / Xuất Kịch Bản (.ass, .srt)',
+    speed_title: 'Tốc độ phát',
+    view_mode_prefix: 'Chế độ hiển thị: ',
+    view_mode_suffix: ' (Bấm để đổi: Spectro → Waveform → Dual)',
+    latency_label: 'Bù trễ:',
+    latency_title_tab1: 'Bù trễ âm thanh thủ công (ms): Nhập số dương (+) để vạch vàng lùi lại khớp với âm thanh phát ra loa; nhập số âm (-) để vạch vàng tiến nhanh hơn. Luôn đảm bảo vạch vàng chạy tới cuối từ hoặc câu.',
+    latency_title_tab2: 'Bù trễ âm thanh thủ công Tab 2 (ms): Nhập số dương (+) để vạch vàng lùi lại khớp với âm thanh phát ra loa; nhập số âm (-) để vạch vàng tiến nhanh hơn.',
+    freq_legend_btn_title: 'Xem chú giải dải tần số ngữ âm (Formants & Liaisons)',
+    cues_count_prefix: 'Danh sách câu (',
+    select_all_title: 'Chọn tất cả câu',
+    delete_selected_title: 'Xóa các câu đã chọn',
+    delete_single_title: 'Xóa câu đang chọn',
+    delete_multiple_title: (n) => `Xóa ${n} câu đã chọn`,
+    move_up_title: 'Di chuyển các câu đã chọn lên trên',
+    move_down_title: 'Di chuyển các câu đã chọn xuống dưới',
+    master_clock_title: 'Đồng bộ chế độ đồng hồ tất cả các câu (Click để đổi chế độ)',
+    btn_add_cue: 'Thêm',
+    empty_cues_title: 'Danh sách câu đang trống',
+    empty_cues_desc: 'Bấm <strong>"+ Thêm câu"</strong> ở góc phải hoặc nạp file phụ đề (.ass, .srt, .json) để bắt đầu.',
+    cue_start_title: 'Thời gian Bắt đầu (phút:giây.tíc tắc). Bấm vào để sửa chính xác',
+    cue_end_title: 'Thời gian Kết thúc (phút:giây.tíc tắc). Bấm vào để sửa chính xác',
+    cue_locked_tip: 'Bấm vào biểu tượng đồng hồ để đổi chế độ và sửa',
+    clock_off: 'Chế độ [TẮT / KHÔNG CHỈNH SỬA - Xám]: Ẩn vạch start/stop & không hiện transcript (Click để đổi chế độ)',
+    clock_show_locked: 'Chế độ [HIỆN & KHÓA - Xanh Dương]: Hiện text dưới thanh thời gian & ẩn vạch start/stop (Click để đổi chế độ)',
+    clock_editing_time: 'Chế độ [SỬA THỜI GIAN - Vàng]: Ám vàng nhạt vùng phổ/sóng & hiện vạch xanh [start] - đỏ [stop] để kéo chỉnh mốc (Click để đổi chế độ)',
+    clock_editing_words: 'Chế độ [SỬA TỪNG TỪ - Tím]: Ám tím nhạt & kéo các vạch tím đậm để chỉnh vị trí từng từ (Click để đổi chế độ)',
+    bpm_title: 'Cài đặt BPM & Lưới nhịp phách (Bar / Measure): Chia vạch nhịp trực quan trên phổ âm CQT và Chromagram',
+    grid_1_bar: '1 Bar',
+    grid_half_bar: '1/2 Bar',
+    grid_quarter_bar: '1/4 Bar',
+    grid_off: 'Tắt lưới',
+    load_btn: 'Load',
+    load_btn_title: 'Load bài nhạc (File cục bộ hoặc Ví dụ 1)',
+    load_sample_tab2: 'Ví dụ 1 (Piano mẫu)',
+    load_local_tab2: 'Chọn file từ máy (Local)...',
+    tab2_play_title: 'Phát / Dừng Tab 2 (Phím Space)',
+    tab2_empty_desc: 'Bộ phân tích hợp âm trực quan qua <strong>Constant-Q Transform</strong> &amp; <strong>Chromagram 12 nốt</strong> triệt tiêu bồi âm. Giúp bạn nhìn rõ nốt cấu thành hợp âm để vẽ lại MIDI trong DAW.',
+    tab2_choose_file_btn: 'Chọn File Audio / Video Nhạc Cụ',
+    modal_add_title: 'Thêm câu hoặc đoạn văn bản',
+    insert_pos_label: 'Vị trí chèn câu:',
+    pos_after: 'Sau câu đang chọn',
+    pos_before: 'Trước câu đang chọn',
+    pos_start: 'Đầu danh sách',
+    pos_end: 'Cuối danh sách',
+    content_lines_label: 'Nội dung (mỗi dòng sẽ tạo một câu riêng):',
+    content_placeholder: 'Dán văn bản hoặc các câu tiếng Pháp vào đây...',
+    btn_cancel: 'Hủy',
+    btn_confirm_add: 'Xác nhận Thêm',
+    modal_freq_title: 'Chú Giải Dải Tần Số Ngữ Âm (Speech Spectrogram)',
+    modal_freq_f0: 'Tần số cơ bản của thanh quản, phản ánh cao độ giọng nói (nam ~100-150Hz, nữ ~200-250Hz).',
+    modal_freq_f1: 'Độ mở của miệng / nguyên âm (Vowel Height). F1 cao với nguyên âm mở [a], thấp với nguyên âm khép [i], [u].',
+    modal_freq_f2: 'Độ tiến/lùi của lưỡi (Vowel Frontness). F2 rất cao ở các nguyên âm trước [i], [e], [y].',
+    modal_freq_f3: 'Âm sắc cá nhân, âm mũi (voyelles nasales [õ], [ã], [ɛ̃]) và âm tắc bật hơi [p, t, k].',
+    modal_freq_liaisons: 'Vùng năng lượng ma sát của phụ âm xát và hiện tượng nối âm Liaison ([z], [t]).',
+    btn_understood: 'Đã hiểu',
+    modal_export_title: 'Lưu / Xuất Kịch Bản Phụ Đề',
+    choose_format_label: 'Chọn định dạng xuất:',
+    export_desc_ass: 'Bao gồm mốc thời gian căn chỉnh từng từ (karaoke {\\k}) nếu có cài đặt vạch tím.',
+    export_desc_srt: 'Định dạng phụ đề phổ biến nhất, tương thích mọi trình phát video/âm thanh.',
+    export_desc_json: 'Giữ nguyên 100% vạch tím từng từ, trạng thái khóa/sửa, startMs và endMs chính xác.',
+    export_desc_txt: 'Xuất các dòng lời thoại đơn giản không kèm mốc thời gian.',
+    filename_label: 'Tên file tải về (không cần gõ đuôi):',
+    btn_download_file: 'Tải File Về'
+  },
+  EN: {
+    lang_btn: 'EN',
+    lang_btn_title: 'Switch to Vietnamese (Đổi sang Tiếng Việt)',
+    tab1_title: 'Tab 1: Speech Spectrogram',
+    tab1_subtitle: 'Phonetic & Subtitle Analysis',
+    tab2_title: 'Tab 2: Chord Analyser',
+    tab2_subtitle: 'Chord Recognition',
+    play_title: 'Play / Pause (Space)',
+    play_line_title: 'Play Selected Line (Key S)',
+    play_word_title: 'Play Word at Cursor (Key W)',
+    loop_title: 'Toggle Loop (Key L)',
+    loop_tab2_title: 'Toggle Loop',
+    undo_title: 'Undo (Ctrl+Z, max 5 steps)',
+    redo_title: 'Redo (Ctrl+Y, max 5 steps)',
+    file_menu_title: 'File (Upload & Export Script)',
+    file_upload_heading: '📁 Upload File',
+    file_save_heading: '💾 Save Script',
+    upload_audio: 'Upload Audio file (mp3, wav...)',
+    upload_sub: 'Upload Subtitle / Script (.ass, .srt, .json)',
+    load_sample_tab1: 'Example 1 (French Sample)',
+    save_script: 'Export / Save Script (.ass, .srt)',
+    speed_title: 'Playback Speed',
+    view_mode_prefix: 'Display Mode: ',
+    view_mode_suffix: ' (Click to toggle: Spectro → Waveform → Dual)',
+    latency_label: 'Latency:',
+    latency_title_tab1: 'Manual Audio Latency Compensation (ms): Enter positive (+) to delay the yellow playhead to match speaker output; negative (-) to advance.',
+    latency_title_tab2: 'Manual Audio Latency Compensation Tab 2 (ms): Enter positive (+) to delay playhead; negative (-) to advance.',
+    freq_legend_btn_title: 'View Phonetic Frequency Legend (Formants & Liaisons)',
+    cues_count_prefix: 'Subtitle Lines (',
+    select_all_title: 'Select All Lines',
+    delete_selected_title: 'Delete Selected Lines',
+    delete_single_title: 'Delete Selected Line',
+    delete_multiple_title: (n) => `Delete ${n} selected lines`,
+    move_up_title: 'Move Selected Lines Up',
+    move_down_title: 'Move Selected Lines Down',
+    master_clock_title: 'Synchronize clock mode for all lines (Click to toggle)',
+    btn_add_cue: 'Add',
+    empty_cues_title: 'Line list is empty',
+    empty_cues_desc: 'Click <strong>"+ Add"</strong> at the right corner or upload subtitle files (.ass, .srt, .json) to get started.',
+    cue_start_title: 'Start Time (mm:ss.ms). Click to edit exact timing',
+    cue_end_title: 'End Time (mm:ss.ms). Click to edit exact timing',
+    cue_locked_tip: 'Click clock icon to change mode and edit timing',
+    clock_off: 'Mode [OFF / LOCKED - Gray]: Hide start/stop boundaries & transcript (Click to change mode)',
+    clock_show_locked: 'Mode [VISIBLE & LOCKED - Blue]: Show text below time ruler & hide start/stop boundaries (Click to change mode)',
+    clock_editing_time: 'Mode [EDIT LINE TIMING - Yellow]: Highlight waveform/spectrogram & show green [start] - red [stop] boundaries to drag (Click to change mode)',
+    clock_editing_words: 'Mode [EDIT WORDS - Purple]: Purple highlight & drag purple word handles to align karaoke timing (Click to change mode)',
+    bpm_title: 'BPM & Measure Grid Settings: Visual bar/beat lines across CQT and Chromagram',
+    grid_1_bar: '1 Bar',
+    grid_half_bar: '1/2 Bar',
+    grid_quarter_bar: '1/4 Bar',
+    grid_off: 'Grid Off',
+    load_btn: 'Load',
+    load_btn_title: 'Load audio track (Local file or Example 1)',
+    load_sample_tab2: 'Example 1 (Piano Chords)',
+    load_local_tab2: 'Select Local Audio File...',
+    tab2_play_title: 'Play / Pause Tab 2 (Space)',
+    tab2_empty_desc: 'Visual chord analyzer powered by <strong>Constant-Q Transform</strong> &amp; harmonic-suppressed <strong>12-Tone Chromagram</strong>. Inspect constituent notes to reconstruct MIDI in your DAW.',
+    tab2_choose_file_btn: 'Choose Audio / Video File',
+    modal_add_title: 'Add Lines or Script Text',
+    insert_pos_label: 'Insert Position:',
+    pos_after: 'After selected line',
+    pos_before: 'Before selected line',
+    pos_start: 'Start of list',
+    pos_end: 'End of list',
+    content_lines_label: 'Content (each line creates a separate cue):',
+    content_placeholder: 'Paste text or sentences here...',
+    btn_cancel: 'Cancel',
+    btn_confirm_add: 'Confirm & Add',
+    modal_freq_title: 'Phonetic Frequency Guide (Speech Spectrogram)',
+    modal_freq_f0: 'Laryngeal fundamental frequency reflecting vocal pitch (males ~100-150Hz, females ~200-250Hz).',
+    modal_freq_f1: 'Vowel height and mouth opening. High F1 for open vowels [a], low for close vowels [i], [u].',
+    modal_freq_f2: 'Vowel frontness and tongue advancement. High F2 for front vowels [i], [e], [y].',
+    modal_freq_f3: 'Speaker timbre, nasalization (voyelles nasales [õ], [ã], [ɛ̃]) and burst release [p, t, k].',
+    modal_freq_liaisons: 'Fricative consonant energy and liaison transitions ([z], [t]).',
+    btn_understood: 'Understood',
+    modal_export_title: 'Export / Save Subtitle Script',
+    choose_format_label: 'Select Export Format:',
+    export_desc_ass: 'Includes word-level karaoke timing ({\\k}) when purple word handles are aligned.',
+    export_desc_srt: 'Most widely compatible subtitle format for all video and media players.',
+    export_desc_json: 'Full SpectroSub state preserving 100% word timings, lock states, startMs and endMs.',
+    export_desc_txt: 'Plain text without timestamps.',
+    filename_label: 'File Name (without extension):',
+    btn_download_file: 'Download File'
+  }
+};
+
+let CURRENT_LANG = localStorage.getItem('app_language') === 'EN' ? 'EN' : 'VI';
+
+function t(key, ...args) {
+  const dict = I18N_LOCALES[CURRENT_LANG] || I18N_LOCALES.VI;
+  const val = dict[key] !== undefined ? dict[key] : (I18N_LOCALES.VI[key] || key);
+  if (typeof val === 'function') {
+    return val(...args);
+  }
+  return val;
+}
+
+// -------------------------------------------------------------
 // 1. Color Palettes (Look-Up Tables)
 // -------------------------------------------------------------
 const ColorPalettes = {
@@ -3145,6 +3330,168 @@ class SpectroSubApp {
     this.rendererTab1.render();
   }
 
+  updateLanguage(lang) {
+    if (lang !== 'VI' && lang !== 'EN') return;
+    CURRENT_LANG = lang;
+    localStorage.setItem('app_language', lang);
+
+    // 1. Language Toggle Buttons text & title
+    const btnLang1 = document.getElementById('btn-lang-tab1');
+    const btnLang2 = document.getElementById('btn-lang-tab2');
+    if (btnLang1) {
+      btnLang1.textContent = t('lang_btn');
+      btnLang1.title = t('lang_btn_title');
+    }
+    if (btnLang2) {
+      btnLang2.textContent = t('lang_btn');
+      btnLang2.title = t('lang_btn_title');
+    }
+
+    // 2. Translatable HTML data-i18n elements
+    document.querySelectorAll('[data-i18n]').forEach((el) => {
+      const key = el.getAttribute('data-i18n');
+      if (key) el.textContent = t(key);
+    });
+
+    // 3. Tab 1 Toolbar Titles & Tooltips
+    const btnPlay = document.getElementById('btn-play');
+    if (btnPlay) btnPlay.title = t('play_title');
+
+    const btnPlayLine = document.getElementById('btn-play-line');
+    if (btnPlayLine) btnPlayLine.title = t('play_line_title');
+
+    const btnPlayWord = document.getElementById('btn-play-word');
+    if (btnPlayWord) btnPlayWord.title = t('play_word_title');
+
+    const btnLoop = document.getElementById('btn-loop');
+    if (btnLoop) btnLoop.title = t('loop_title');
+
+    const btnFileMenu = document.getElementById('btn-file-menu');
+    if (btnFileMenu) btnFileMenu.title = t('file_menu_title');
+
+    const selectSpeed = document.getElementById('select-speed');
+    if (selectSpeed) selectSpeed.title = t('speed_title');
+
+    const latencyGroupTab1 = document.querySelector('#tab-pane-1 .latency-control-group');
+    if (latencyGroupTab1) latencyGroupTab1.title = t('latency_title_tab1');
+    const latencyLabelTab1 = document.querySelector('#tab-pane-1 .latency-label span');
+    if (latencyLabelTab1) latencyLabelTab1.textContent = t('latency_label');
+
+    const latencyGroupTab2 = document.querySelector('#tab-pane-2 .latency-control-group');
+    if (latencyGroupTab2) latencyGroupTab2.title = t('latency_title_tab2');
+    const latencyLabelTab2 = document.querySelector('#tab-pane-2 .latency-label span');
+    if (latencyLabelTab2) latencyLabelTab2.textContent = t('latency_label');
+
+    const btnViewMode = document.getElementById('btn-view-mode');
+    if (btnViewMode) {
+      const mode = this.rendererTab1 ? this.rendererTab1.viewMode : 'DUAL';
+      btnViewMode.title = `${t('view_mode_prefix')}${mode}${t('view_mode_suffix')}`;
+    }
+
+    const btnFreqLegend = document.getElementById('btn-freq-legend');
+    if (btnFreqLegend) btnFreqLegend.title = t('freq_legend_btn_title');
+
+    const btnSelectAll = document.getElementById('btn-select-all');
+    if (btnSelectAll) btnSelectAll.title = t('select_all_title');
+
+    const btnMasterClock = document.getElementById('btn-master-clock');
+    if (btnMasterClock) btnMasterClock.title = t('master_clock_title');
+
+    const btnOpenAddCues = document.getElementById('btn-open-add-cues');
+    if (btnOpenAddCues) {
+      const span = btnOpenAddCues.querySelector('span');
+      if (span) span.textContent = t('btn_add_cue');
+    }
+
+    // Tab 2 Toolbar elements
+    const btnTab2Play = document.getElementById('btn-tab2-play');
+    if (btnTab2Play) btnTab2Play.title = t('tab2_play_title');
+
+    const btnTab2Loop = document.getElementById('btn-tab2-loop');
+    if (btnTab2Loop) btnTab2Loop.title = t('loop_tab2_title');
+
+    const btnTab2Load = document.getElementById('btn-tab2-load');
+    if (btnTab2Load) {
+      btnTab2Load.title = t('load_btn_title');
+      const span = btnTab2Load.querySelector('span');
+      if (span) span.textContent = t('load_btn');
+    }
+
+    const bpmGroup = document.querySelector('#tab-pane-2 .latency-control-group:has(#input-tab2-bpm)');
+    if (bpmGroup) bpmGroup.title = t('bpm_title');
+
+    const selBarGrid = document.getElementById('select-tab2-bar-grid');
+    if (selBarGrid && selBarGrid.options) {
+      if (selBarGrid.options[0]) selBarGrid.options[0].textContent = t('grid_1_bar');
+      if (selBarGrid.options[1]) selBarGrid.options[1].textContent = t('grid_half_bar');
+      if (selBarGrid.options[2]) selBarGrid.options[2].textContent = t('grid_quarter_bar');
+      if (selBarGrid.options[3]) selBarGrid.options[3].textContent = t('grid_off');
+    }
+
+    const btnTab2LoadSample1 = document.getElementById('btn-tab2-load-sample1');
+    if (btnTab2LoadSample1) {
+      const span = btnTab2LoadSample1.querySelector('span');
+      if (span) span.textContent = t('load_sample_tab2');
+    }
+
+    const btnTab2LoadLocal = document.getElementById('btn-tab2-load-local');
+    if (btnTab2LoadLocal) {
+      const span = btnTab2LoadLocal.querySelector('span');
+      if (span) span.textContent = t('load_local_tab2');
+    }
+
+    // Modal: Add Cues
+    const modalAddTitle = document.querySelector('#modal-add-cues .modal-title');
+    if (modalAddTitle) modalAddTitle.textContent = t('modal_add_title');
+
+    const insertPosLabel = document.querySelector('#modal-add-cues label:first-of-type');
+    if (insertPosLabel) insertPosLabel.textContent = t('insert_pos_label');
+
+    const selInsertPos = document.getElementById('select-insert-pos');
+    if (selInsertPos && selInsertPos.options) {
+      if (selInsertPos.options[0]) selInsertPos.options[0].textContent = t('pos_after');
+      if (selInsertPos.options[1]) selInsertPos.options[1].textContent = t('pos_before');
+      if (selInsertPos.options[2]) selInsertPos.options[2].textContent = t('pos_start');
+      if (selInsertPos.options[3]) selInsertPos.options[3].textContent = t('pos_end');
+    }
+
+    const textareaAdd = document.getElementById('textarea-add-cues');
+    if (textareaAdd) textareaAdd.placeholder = t('content_placeholder');
+
+    const btnConfirmAdd = document.getElementById('btn-confirm-add-cues');
+    if (btnConfirmAdd) btnConfirmAdd.textContent = t('btn_confirm_add');
+
+    // Modal: Frequency Guide
+    const modalFreqTitle = document.querySelector('#modal-freq-legend .modal-title');
+    if (modalFreqTitle) modalFreqTitle.textContent = t('modal_freq_title');
+
+    const btnModalFreqClose = document.querySelector('#modal-freq-legend .modal-footer .modal-close-btn');
+    if (btnModalFreqClose) btnModalFreqClose.textContent = t('btn_understood');
+
+    // Modal: Export
+    const modalExportTitle = document.querySelector('#modal-export .modal-title');
+    if (modalExportTitle) modalExportTitle.textContent = t('modal_export_title');
+
+    const exportFormatLabel = document.querySelector('#modal-export .modal-body label:first-of-type');
+    if (exportFormatLabel) exportFormatLabel.textContent = t('choose_format_label');
+
+    const btnConfirmExport = document.getElementById('btn-confirm-export');
+    if (btnConfirmExport) btnConfirmExport.textContent = t('btn_download_file');
+
+    const modalCancelBtns = document.querySelectorAll('.modal-footer .modal-close-btn');
+    modalCancelBtns.forEach(btn => {
+      if (btn !== btnModalFreqClose) btn.textContent = t('btn_cancel');
+    });
+
+    this.updateUndoRedoButtonsState();
+    this.renderTab1CuesList();
+  }
+
+  toggleLanguage() {
+    const nextLang = CURRENT_LANG === 'VI' ? 'EN' : 'VI';
+    this.updateLanguage(nextLang);
+  }
+
   updateUndoRedoButtonsState() {
     const btnUndo = document.getElementById('btn-undo');
     const btnRedo = document.getElementById('btn-redo');
@@ -3153,14 +3500,18 @@ class SpectroSubApp {
       btnUndo.disabled = !canUndo;
       btnUndo.classList.toggle('disabled', !canUndo);
       btnUndo.style.opacity = canUndo ? '1' : '0.35';
-      btnUndo.title = canUndo ? `Hoàn tác - Undo (${this.historyStack.length}/5 bước) (Ctrl+Z)` : 'Không có thao tác nào để hoàn tác (Ctrl+Z)';
+      btnUndo.title = canUndo
+        ? (CURRENT_LANG === 'EN' ? `Undo (${this.historyStack.length}/5 steps) (Ctrl+Z)` : `Hoàn tác - Undo (${this.historyStack.length}/5 bước) (Ctrl+Z)`)
+        : (CURRENT_LANG === 'EN' ? 'Nothing to undo (Ctrl+Z)' : 'Không có thao tác nào để hoàn tác (Ctrl+Z)');
     }
     if (btnRedo) {
       const canRedo = this.futureStack.length > 0;
       btnRedo.disabled = !canRedo;
       btnRedo.classList.toggle('disabled', !canRedo);
       btnRedo.style.opacity = canRedo ? '1' : '0.35';
-      btnRedo.title = canRedo ? `Làm lại - Forward / Redo (${this.futureStack.length}/5 bước) (Ctrl+Y)` : 'Không có thao tác nào để làm lại (Ctrl+Y)';
+      btnRedo.title = canRedo
+        ? (CURRENT_LANG === 'EN' ? `Redo (${this.futureStack.length}/5 steps) (Ctrl+Y)` : `Làm lại - Forward / Redo (${this.futureStack.length}/5 bước) (Ctrl+Y)`)
+        : (CURRENT_LANG === 'EN' ? 'Nothing to redo (Ctrl+Y)' : 'Không có thao tác nào để làm lại (Ctrl+Y)');
     }
   }
 
@@ -3285,6 +3636,23 @@ class SpectroSubApp {
   }
 
   initUI() {
+    // Language Toggle Buttons (Tab 1 & Tab 2)
+    const btnLang1 = document.getElementById('btn-lang-tab1');
+    const btnLang2 = document.getElementById('btn-lang-tab2');
+    if (btnLang1) {
+      btnLang1.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleLanguage();
+      });
+    }
+    if (btnLang2) {
+      btnLang2.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleLanguage();
+      });
+    }
+    this.updateLanguage(CURRENT_LANG);
+
     // 3-Lines Hamburger Menu Button & Dropdown for Tab Switching (Tab 1)
     const btnHam = document.getElementById('btn-hamburger');
     const tabDropdown = document.getElementById('tab-dropdown-menu');
@@ -4285,15 +4653,15 @@ class SpectroSubApp {
   getClockStateTooltip(state) {
     switch (state) {
       case CueClockState.OFF:
-        return 'Chế độ [TẮT / KHÔNG CHỈNH SỬA - Xám]: Ẩn vạch start/stop & không hiện transcript (Click để đổi chế độ)';
+        return t('clock_off');
       case CueClockState.SHOW_LOCKED:
-        return 'Chế độ [HIỆN & KHÓA - Xanh Dương]: Hiện text dưới thanh thời gian & ẩn vạch start/stop (Click để đổi chế độ)';
+        return t('clock_show_locked');
       case CueClockState.EDITING_TIME:
-        return 'Chế độ [SỬA THỜI GIAN - Vàng]: Ám vàng nhạt vùng phổ/sóng & hiện vạch xanh [start] - đỏ [stop] để kéo chỉnh mốc (Click để đổi chế độ)';
+        return t('clock_editing_time');
       case CueClockState.EDITING_WORDS:
-        return 'Chế độ [SỬA TỪNG TỪ - Tím]: Ám tím nhạt & kéo các vạch tím đậm để chỉnh vị trí từng từ (Click để đổi chế độ)';
+        return t('clock_editing_words');
       default:
-        return 'Chế độ đồng hồ (Click để đổi chế độ)';
+        return t('master_clock_title');
     }
   }
 
@@ -4462,14 +4830,19 @@ class SpectroSubApp {
 
     const countLabel = document.getElementById('cues-count-label');
     if (countLabel) {
-      countLabel.textContent = `Danh sách câu (${this.cuesTab1.length})${this.selectedCueIds.size > 0 ? ` • Đã chọn ${this.selectedCueIds.size}` : ''}`;
+      const selectedSuffix = this.selectedCueIds.size > 0
+        ? (CURRENT_LANG === 'EN' ? ` • Selected ${this.selectedCueIds.size}` : ` • Đã chọn ${this.selectedCueIds.size}`)
+        : '';
+      countLabel.textContent = `${t('cues_count_prefix')}${this.cuesTab1.length})${selectedSuffix}`;
     }
 
     const btnSelectAll = document.getElementById('btn-select-all');
     if (btnSelectAll) {
       const allSelected = this.cuesTab1.length > 0 && this.selectedCueIds.size === this.cuesTab1.length;
       btnSelectAll.classList.toggle('active', allSelected);
-      btnSelectAll.title = allSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả câu';
+      btnSelectAll.title = allSelected
+        ? (CURRENT_LANG === 'EN' ? 'Deselect all lines' : 'Bỏ chọn tất cả')
+        : t('select_all_title');
       btnSelectAll.disabled = this.cuesTab1.length === 0;
     }
 
@@ -4478,23 +4851,29 @@ class SpectroSubApp {
       const hasTargets = this.selectedCueIds.size > 0 || (this.cuesTab1.length > 0 && this.activeCueTab1);
       btnDeleteSelected.disabled = !hasTargets;
       btnDeleteSelected.title = this.selectedCueIds.size > 0
-        ? `Xóa ${this.selectedCueIds.size} câu đã chọn`
-        : (this.activeCueTab1 ? 'Xóa câu đang chọn' : 'Xóa các câu đã chọn');
+        ? t('delete_multiple_title', this.selectedCueIds.size)
+        : (this.activeCueTab1 ? t('delete_single_title') : t('delete_selected_title'));
     }
 
     const btnMoveUp = document.getElementById('btn-move-up');
     const btnMoveDown = document.getElementById('btn-move-down');
     const canMove = this.cuesTab1.length >= 2 && (this.selectedCueIds.size > 0 || this.activeCueTab1);
-    if (btnMoveUp) btnMoveUp.disabled = !canMove;
-    if (btnMoveDown) btnMoveDown.disabled = !canMove;
+    if (btnMoveUp) {
+      btnMoveUp.disabled = !canMove;
+      btnMoveUp.title = t('move_up_title');
+    }
+    if (btnMoveDown) {
+      btnMoveDown.disabled = !canMove;
+      btnMoveDown.title = t('move_down_title');
+    }
 
     if (this.cuesTab1.length === 0) {
       const emptyDiv = document.createElement('div');
       emptyDiv.style.cssText = 'padding: 36px 16px; text-align: center; color: #64748b; font-size: 13px; line-height: 1.6;';
       emptyDiv.innerHTML = `
         <div style="font-size: 26px; margin-bottom: 6px;">📝</div>
-        <div style="font-weight: 600; color: #94a3b8; margin-bottom: 4px;">Danh sách câu đang trống</div>
-        <div style="font-size: 12px; color: #64748b;">Bấm <strong>"+ Thêm câu"</strong> ở góc phải hoặc nạp file phụ đề (.ass, .srt, .json) để bắt đầu.</div>
+        <div style="font-weight: 600; color: #94a3b8; margin-bottom: 4px;">${t('empty_cues_title')}</div>
+        <div style="font-size: 12px; color: #64748b;">${t('empty_cues_desc')}</div>
       `;
       container.appendChild(emptyDiv);
       return;
@@ -4548,7 +4927,7 @@ class SpectroSubApp {
       metaLeft.className = 'cue-meta-left';
 
       const canEditTimes = (cue.clockState === CueClockState.EDITING_TIME || cue.clockState === CueClockState.EDITING_WORDS);
-      const lockedTip = 'Bấm vào biểu tượng đồng hồ để đổi chế độ và sửa';
+      const lockedTip = t('cue_locked_tip');
 
       // Start Time Input (Màu xanh khi edit - chìm màu xám khi clock xám/xanh)
       const startInput = document.createElement('input');
@@ -4559,7 +4938,7 @@ class SpectroSubApp {
       startInput.value = TimeFormatter.formatFull(cue.startMs);
       startInput.readOnly = !canEditTimes;
       startInput.title = canEditTimes
-        ? 'Thời gian Bắt đầu (phút:giây.tíc tắc). Bấm vào để sửa chính xác'
+        ? t('cue_start_title')
         : lockedTip;
       startInput.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -4601,7 +4980,7 @@ class SpectroSubApp {
       endInput.value = TimeFormatter.formatFull(cue.endMs);
       endInput.readOnly = !canEditTimes;
       endInput.title = canEditTimes
-        ? 'Thời gian Kết thúc (phút:giây.tíc tắc). Bấm vào để sửa chính xác'
+        ? t('cue_end_title')
         : lockedTip;
       endInput.addEventListener('click', (e) => {
         e.stopPropagation();
