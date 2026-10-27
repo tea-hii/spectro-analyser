@@ -74,6 +74,7 @@ const I18N_LOCALES = {
     load_btn_title: 'Load bài nhạc (File cục bộ hoặc Ví dụ 1)',
     load_sample_tab2: 'Ví dụ 1 (Piano mẫu)',
     load_local_tab2: 'Chọn file từ máy (Local)...',
+    tab2_rewind_title: 'Về điểm đầu (Đưa thanh màu vàng về 0:00)',
     tab2_play_title: 'Phát / Dừng Tab 2 (Phím Space)',
     tab2_empty_desc: 'Bộ phân tích hợp âm trực quan qua <strong>Constant-Q Transform</strong> &amp; <strong>Chromagram 12 nốt</strong> triệt tiêu bồi âm. Giúp bạn nhìn rõ nốt cấu thành hợp âm để vẽ lại MIDI trong DAW.',
     tab2_choose_file_btn: 'Chọn File Audio / Video Nhạc Cụ',
@@ -174,6 +175,7 @@ const I18N_LOCALES = {
     load_btn_title: 'Load audio track (Local file or Example 1)',
     load_sample_tab2: 'Example 1 (Piano Chords)',
     load_local_tab2: 'Select Local Audio File...',
+    tab2_rewind_title: 'Return to start (Move yellow playhead to 0:00)',
     tab2_play_title: 'Play / Pause Tab 2 (Space)',
     tab2_empty_desc: 'Visual chord analyzer powered by <strong>Constant-Q Transform</strong> &amp; harmonic-suppressed <strong>12-Tone Chromagram</strong>. Inspect constituent notes to reconstruct MIDI in your DAW.',
     tab2_choose_file_btn: 'Choose Audio / Video File',
@@ -3553,6 +3555,9 @@ class SpectroSubApp {
     }
 
     // Tab 2 Toolbar elements
+    const btnTab2Rewind = document.getElementById('btn-tab2-rewind');
+    if (btnTab2Rewind) btnTab2Rewind.title = t('tab2_rewind_title');
+
     const btnTab2Play = document.getElementById('btn-tab2-play');
     if (btnTab2Play) btnTab2Play.title = t('tab2_play_title');
 
@@ -4827,6 +4832,18 @@ class SpectroSubApp {
     }
 
     // Tab 2 Controls
+    const btnTab2Rewind = document.getElementById('btn-tab2-rewind');
+    if (btnTab2Rewind) {
+      btnTab2Rewind.addEventListener('click', () => {
+        this.audioTab2.seek(0);
+        this.chordAnalyzerTab2.scrollOffsetMs = 0;
+        this.chordAnalyzerTab2.clampScroll();
+        this.chordAnalyzerTab2.render();
+        const badge2 = document.getElementById('tab2-time-badge');
+        if (badge2) badge2.textContent = TimeFormatter.formatFull(0);
+      });
+    }
+
     const btnTab2Play = document.getElementById('btn-tab2-play');
     if (btnTab2Play) btnTab2Play.addEventListener('click', () => this.audioTab2.togglePlay());
 
@@ -5705,6 +5722,17 @@ class SpectroSubApp {
         } else {
           const btn = document.getElementById('btn-tab2-loop');
           if (btn) btn.click();
+        }
+      } else if (e.code === 'Home') {
+        e.preventDefault();
+        if (this.currentTab === 'tab1') {
+          this.audioTab1.seek(0);
+          this.rendererTab1.scrollOffsetMs = 0;
+          this.rendererTab1.clampScroll();
+          this.rendererTab1.render();
+        } else {
+          const btnRewind = document.getElementById('btn-tab2-rewind');
+          if (btnRewind) btnRewind.click();
         }
       } else if (e.code === 'ArrowLeft') {
         e.preventDefault();
