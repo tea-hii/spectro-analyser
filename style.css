@@ -699,28 +699,33 @@ input, textarea, button, select {
 /* Circular (i) Frequency Legend Button */
 .freq-legend-btn {
   position: absolute;
-  bottom: 38px;
-  left: 10px;
-  width: 34px;
-  height: 34px;
+  bottom: 32px;
+  left: 8px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
-  background: rgba(15, 23, 42, 0.85);
-  backdrop-filter: blur(8px);
-  border: 1px solid var(--border-color);
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   color: var(--accent-cyan);
+  opacity: 0.35;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
   transition: all 0.2s ease;
   z-index: 10;
 }
 
-.freq-legend-btn:hover {
-  background: rgba(30, 41, 59, 0.95);
+.freq-legend-btn:hover,
+.freq-legend-btn:focus-visible,
+.freq-legend-btn:active {
+  opacity: 1;
+  background: rgba(15, 23, 42, 0.92);
   border-color: var(--accent-cyan);
-  transform: scale(1.08);
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.35);
+  transform: scale(1.15);
 }
 
 /* Cursor time readout */
