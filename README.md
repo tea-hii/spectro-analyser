@@ -62,7 +62,13 @@ A 100% client-side web application for audio frequency analysis, speech phonetic
 
 ## 🚀 Quick Start
 
-Run locally in any modern web browser:
+### Option 1: Live Web App (GitHub Pages)
+Open directly in any modern web browser without installation or setup:
+
+👉 **[https://tea-hii.github.io/spectro-analyser/](https://tea-hii.github.io/spectro-analyser/)**
+
+### Option 2: Run Locally
+You can also run a local static server from the project directory:
 
 ```bash
 # Using Node.js
@@ -72,4 +78,4 @@ npx serve . -p 8080
 python -m http.server 8080
 ```
 
-Open `http://localhost:8080` in your browser.
+Then navigate to `http://localhost:8080` in your browser.
