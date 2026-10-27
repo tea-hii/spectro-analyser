@@ -80,6 +80,19 @@ const I18N_LOCALES = {
     tab2_midi_badge: 'MIDI Piano Roll',
     tab2_midi_no_audio: 'Vui lòng chọn hoặc nạp bài nhạc trước khi tạo MIDI!',
     tab2_play_title: 'Phát / Dừng Tab 2 (Phím Space)',
+    tab2_play_midi_title: 'Phát thử nốt MIDI theo nhạc cụ (Tương tác vạch vàng)',
+    tab2_midi_inst_title: 'Chọn nhạc cụ General MIDI phát thử',
+    tab2_edit_midi_title: 'Chế độ chỉnh sửa nốt MIDI (Bút chì, Tẩy, Di chuyển & Co giãn)',
+    tab2_tool_pencil_title: 'Bút chì: Vẽ thêm nốt MIDI (Kéo thả, bám theo lưới nhịp)',
+    tab2_tool_eraser_title: 'Tẩy: Bấm hoặc quét vào nốt MIDI để xóa',
+    tab2_tool_move_title: 'Chọn & Di chuyển / Co giãn nốt MIDI (Kéo để dời, kéo rìa trái/phải để co giãn)',
+    tab2_trash_midi_title: 'Xóa bộ nhớ MIDI (Bấm lại nút MIDI trên thanh công cụ để tạo lại từ đầu)',
+    tab2_cqt_info_title: 'Hướng dẫn cách hoạt động của ứng dụng: Phân tích 2-Gram & Tạo, Sửa, Xuất MIDI',
+    tab2_midi_empty_hint: 'Đang chuẩn bị dữ liệu MIDI từ CQT & Hợp âm...',
+    tab2_hamburger_title: 'Chuyển Tab (Tab 1: Speech Spectrogram / Tab 2: Chord Analyser)',
+    tab2_current_chord_title: 'Hợp âm hiện tại (Current Chord)',
+    tab2_grid_select_title: 'Lưới phân chia nhịp phách',
+    grid_eighth_bar: '1/8 Bar',
     tab2_empty_desc: 'Bộ phân tích hợp âm trực quan qua <strong>Constant-Q Transform</strong> &amp; <strong>Chromagram 12 nốt</strong> triệt tiêu bồi âm. Giúp bạn nhìn rõ nốt cấu thành hợp âm để vẽ lại MIDI trong DAW.',
     tab2_choose_file_btn: 'Chọn File Audio / Video Nhạc Cụ',
     modal_add_title: 'Thêm câu hoặc đoạn văn bản',
@@ -185,6 +198,19 @@ const I18N_LOCALES = {
     tab2_midi_badge: 'MIDI Piano Roll',
     tab2_midi_no_audio: 'Please select or load an audio track before generating MIDI!',
     tab2_play_title: 'Play / Pause Tab 2 (Space)',
+    tab2_play_midi_title: 'Preview MIDI notes with instrument (Interacts with playhead)',
+    tab2_midi_inst_title: 'Select General MIDI instrument for preview',
+    tab2_edit_midi_title: 'MIDI Edit Mode (Pencil, Eraser, Move & Resize)',
+    tab2_tool_pencil_title: 'Pencil: Draw MIDI notes (Drag to set length, snap to beat grid)',
+    tab2_tool_eraser_title: 'Eraser: Click or drag over MIDI notes to erase',
+    tab2_tool_move_title: 'Select & Move / Resize MIDI notes (Drag body to move, drag edges to resize)',
+    tab2_trash_midi_title: 'Clear MIDI memory (Click the toolbar MIDI button to regenerate from scratch)',
+    tab2_cqt_info_title: 'Application Guide: 2-Gram Analysis & Create, Edit, Export MIDI',
+    tab2_midi_empty_hint: 'Preparing MIDI data from CQT & Chords...',
+    tab2_hamburger_title: 'Switch Tab (Tab 1: Speech Spectrogram / Tab 2: Chord Analyser)',
+    tab2_current_chord_title: 'Current Chord',
+    tab2_grid_select_title: 'Beat division grid',
+    grid_eighth_bar: '1/8 Bar',
     tab2_empty_desc: 'Visual chord analyzer powered by <strong>Constant-Q Transform</strong> &amp; harmonic-suppressed <strong>12-Tone Chromagram</strong>. Inspect constituent notes to reconstruct MIDI in your DAW.',
     tab2_choose_file_btn: 'Choose Audio / Video File',
     modal_add_title: 'Add Lines or Script Text',
@@ -3115,7 +3141,8 @@ class MusicalChordAnalyzer {
       ctx.font = '12px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('Đang chuẩn bị dữ liệu MIDI từ CQT & Hợp âm...', (gutterW + w) / 2, h / 2);
+      const emptyHint = (typeof t === 'function' ? t('tab2_midi_empty_hint') : 'Preparing MIDI data from CQT & Chords...');
+      ctx.fillText(emptyHint, (gutterW + w) / 2, h / 2);
     }
 
     // Yellow Playhead
@@ -4553,36 +4580,42 @@ class SpectroSubApp {
       btnOpenAddCues.title = t('modal_add_title');
     }
 
-    // Tab 2 Toolbar elements
+    // Tab 2 Toolbar elements & Controls
     const btnTab2Rewind = document.getElementById('btn-tab2-rewind');
     if (btnTab2Rewind) btnTab2Rewind.title = t('tab2_rewind_title');
 
     const btnTab2Play = document.getElementById('btn-tab2-play');
     if (btnTab2Play) btnTab2Play.title = t('tab2_play_title');
-    const btnTab2MidiEl = document.getElementById('btn-tab2-midi');
-    if (btnTab2MidiEl) btnTab2MidiEl.title = t('tab2_midi_btn_title');
-
-    const btnTab2ExportMidiEl = document.getElementById('btn-tab2-export-midi');
-    if (btnTab2ExportMidiEl) btnTab2ExportMidiEl.title = t('tab2_midi_export_title');
 
     const btnTab2Loop = document.getElementById('btn-tab2-loop');
     if (btnTab2Loop) btnTab2Loop.title = t('loop_tab2_title');
 
+    const btnTab2MidiEl = document.getElementById('btn-tab2-midi');
+    if (btnTab2MidiEl) btnTab2MidiEl.title = t('tab2_midi_btn_title');
+
+    const btnTab2Hamburger = document.getElementById('btn-tab2-hamburger');
+    if (btnTab2Hamburger) btnTab2Hamburger.title = t('tab2_hamburger_title');
+
+    const detectedChordBadge = document.querySelector('.detected-chord-badge');
+    if (detectedChordBadge) detectedChordBadge.title = t('tab2_current_chord_title');
+
     const btnTab2Load = document.getElementById('btn-tab2-load');
-    if (btnTab2Load) {
-      btnTab2Load.title = t('load_btn_title');
-    }
+    if (btnTab2Load) btnTab2Load.title = t('load_btn_title');
 
     const inputTab2Bpm = document.getElementById('input-tab2-bpm');
     const bpmGroup = inputTab2Bpm ? inputTab2Bpm.closest('.latency-control-group') : null;
     if (bpmGroup) bpmGroup.title = t('bpm_title');
 
     const selBarGrid = document.getElementById('select-tab2-bar-grid');
-    if (selBarGrid && selBarGrid.options) {
-      if (selBarGrid.options[0]) selBarGrid.options[0].textContent = t('grid_1_bar');
-      if (selBarGrid.options[1]) selBarGrid.options[1].textContent = t('grid_half_bar');
-      if (selBarGrid.options[2]) selBarGrid.options[2].textContent = t('grid_quarter_bar');
-      if (selBarGrid.options[3]) selBarGrid.options[3].textContent = t('grid_off');
+    if (selBarGrid) {
+      selBarGrid.title = t('tab2_grid_select_title');
+      if (selBarGrid.options) {
+        if (selBarGrid.options[0]) selBarGrid.options[0].textContent = t('grid_1_bar');
+        if (selBarGrid.options[1]) selBarGrid.options[1].textContent = t('grid_half_bar');
+        if (selBarGrid.options[2]) selBarGrid.options[2].textContent = t('grid_quarter_bar');
+        if (selBarGrid.options[3]) selBarGrid.options[3].textContent = t('grid_eighth_bar');
+        if (selBarGrid.options[4]) selBarGrid.options[4].textContent = t('grid_off');
+      }
     }
 
     const btnTab2LoadSample1 = document.getElementById('btn-tab2-load-sample1');
@@ -4595,6 +4628,186 @@ class SpectroSubApp {
     if (btnTab2LoadLocal) {
       const span = btnTab2LoadLocal.querySelector('span');
       if (span) span.textContent = t('load_local_tab2');
+    }
+
+    // Tab 2 MIDI Action & Subtool Buttons
+    const btnTab2EditMidiEl = document.getElementById('btn-tab2-edit-midi');
+    if (btnTab2EditMidiEl) btnTab2EditMidiEl.title = t('tab2_edit_midi_title');
+
+    const btnTab2PlayMidiEl = document.getElementById('btn-tab2-play-midi');
+    if (btnTab2PlayMidiEl) btnTab2PlayMidiEl.title = t('tab2_play_midi_title');
+
+    const btnTab2MidiInstEl = document.getElementById('btn-tab2-midi-inst');
+    if (btnTab2MidiInstEl) btnTab2MidiInstEl.title = t('tab2_midi_inst_title');
+
+    const btnTab2ExportMidiEl = document.getElementById('btn-tab2-export-midi');
+    if (btnTab2ExportMidiEl) btnTab2ExportMidiEl.title = t('tab2_midi_export_title');
+
+    const btnTab2ToolPencilEl = document.getElementById('btn-tab2-tool-pencil');
+    if (btnTab2ToolPencilEl) btnTab2ToolPencilEl.title = t('tab2_tool_pencil_title');
+
+    const btnTab2ToolEraserEl = document.getElementById('btn-tab2-tool-eraser');
+    if (btnTab2ToolEraserEl) btnTab2ToolEraserEl.title = t('tab2_tool_eraser_title');
+
+    const btnTab2ToolMoveEl = document.getElementById('btn-tab2-tool-move');
+    if (btnTab2ToolMoveEl) btnTab2ToolMoveEl.title = t('tab2_tool_move_title');
+
+    const btnTab2TrashMidiEl = document.getElementById('btn-tab2-trash-midi');
+    if (btnTab2TrashMidiEl) btnTab2TrashMidiEl.title = t('tab2_trash_midi_title');
+
+    const btnTab2CqtInfoEl = document.getElementById('btn-tab2-cqt-info');
+    if (btnTab2CqtInfoEl) btnTab2CqtInfoEl.title = t('tab2_cqt_info_title');
+
+    const btnTab2SelectFile = document.getElementById('btn-tab2-select-file');
+    if (btnTab2SelectFile) {
+      const span = btnTab2SelectFile.querySelector('span');
+      if (span) span.textContent = t('tab2_choose_file_btn');
+    }
+
+    const tab2EmptyDesc = document.querySelector('#tab2-dropzone p');
+    if (tab2EmptyDesc) tab2EmptyDesc.innerHTML = t('tab2_empty_desc');
+
+    const tab2MidiBadge = document.getElementById('tab2-midi-badge-text');
+    if (tab2MidiBadge) tab2MidiBadge.textContent = t('tab2_midi_badge');
+
+    const tab2PaneSplitter = document.getElementById('tab2-pane-splitter');
+    if (tab2PaneSplitter) {
+      tab2PaneSplitter.title = CURRENT_LANG === 'EN' ? 'Drag to adjust height between CQT and MIDI' : 'Kéo để điều chỉnh độ cao giữa CQT và MIDI';
+    }
+    const tab2MidiSplitter = document.getElementById('tab2-midi-splitter');
+    if (tab2MidiSplitter) {
+      tab2MidiSplitter.title = CURRENT_LANG === 'EN' ? 'Drag to adjust height between MIDI and Chromagram' : 'Kéo để điều chỉnh độ cao giữa MIDI và Chromagram';
+    }
+    const tab2Splitter = document.getElementById('tab2-splitter');
+    if (tab2Splitter) {
+      tab2Splitter.title = CURRENT_LANG === 'EN' ? 'Drag to adjust height between CQT and Chromagram' : 'Kéo để điều chỉnh độ cao giữa CQT và Chromagram';
+    }
+
+    // Localize Tab 2 Guide Modal (#modal-tab2-cqt-info)
+    const modalTab2Info = document.getElementById('modal-tab2-cqt-info');
+    if (modalTab2Info) {
+      const titleEl = modalTab2Info.querySelector('.modal-title');
+      const bodyEl = modalTab2Info.querySelector('.modal-body');
+      const closeBtn = modalTab2Info.querySelector('.modal-footer .modal-close-btn');
+      if (CURRENT_LANG === 'EN') {
+        if (titleEl) titleEl.textContent = 'Application Guide & MIDI Transcription Workflow';
+        if (closeBtn) closeBtn.textContent = 'Understood';
+        if (bodyEl) {
+          bodyEl.innerHTML = `
+        <!-- IMPORTANT WARNING: AT THE TOP -->
+        <div style="background: rgba(239, 68, 68, 0.12); border: 1.5px solid #ef4444; border-radius: 8px; padding: 10px 14px;">
+          <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: #f87171; font-size: 13.5px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            IMPORTANT NOTE: BEST USED WITH SOLO INSTRUMENTS OR STEMS
+          </div>
+          <p style="margin: 6px 0 0 0; color: #fecaca; font-size: 12.5px;">
+            The application is optimized for single-instrument audio (<strong>Solo Instrument</strong>) or isolated <strong>Stem</strong> tracks:
+          </p>
+          <ul style="margin: 6px 0 0 16px; color: #fca5a5; font-size: 12.5px; list-style-type: disc;">
+            <li><strong>Recommended:</strong> Solo Piano (Grand / Electric Piano), Solo Guitar / Fingerstyle, Solo Cello / Violin / Harp, or instrument stems separated with AI (Demucs, Spleeter, RipX...).</li>
+            <li><strong>Not suitable for Full Mix (With Drums &amp; Vocals):</strong> Drum transients (Kick, Snare, Hi-hat) create broadband shockwaves that whitewash the frequency spectrum; overlapping vocals and multiple instruments create excessive noise and incorrect chord detection.</li>
+          </ul>
+        </div>
+
+        <!-- Section 1: 2-Gram Audio Analysis -->
+        <div style="border-left: 3px solid #38bdf8; padding-left: 10px;">
+          <strong style="color: #38bdf8; font-size: 13.5px;">1. 2-Gram Audio Analysis Mechanism</strong>
+          <p style="margin-top: 4px; color: var(--text-secondary);">
+            The application runs two spectrograms in tandem for maximum musical accuracy:
+          </p>
+          <ul style="margin: 6px 0 0 16px; color: #cbd5e1; list-style-type: disc;">
+            <li><strong>Dynamic CQT Spectrogram (Top tier):</strong> Uses the <em>Constant-Q Transform (CQT)</em> algorithm to align the vertical axis strictly by <strong>semitones</strong> matching piano keys from low to high. Glow intensity reflects energy and strike velocity.</li>
+            <li><strong>Chromagram (12 Pitch Classes - Bottom tier):</strong> Folds octaves into 12 root pitch classes (C, C#, D...), suppressing natural harmonics to automatically detect and display <strong>exact chords</strong> on the top beat bar.</li>
+          </ul>
+        </div>
+
+        <!-- Section 2: MIDI Transcription, Editing & Export -->
+        <div style="border-left: 3px solid #10b981; padding-left: 10px;">
+          <strong style="color: #10b981; font-size: 13.5px;">2. Create, Edit &amp; Export MIDI (.mid)</strong>
+          <p style="margin-top: 4px; color: var(--text-secondary);">
+            Automatic Music Transcription (AMT) and editing workflow:
+          </p>
+          <ul style="margin: 6px 0 0 16px; color: #cbd5e1; list-style-type: disc;">
+            <li><strong>Smart MIDI Transcription:</strong> Click the music note button. The algorithm combines CQT energy with verified chord labels as a harmonic filter to eliminate spectral leakage, transcribing notes directly into the <strong>MIDI Piano Roll</strong> tier. Click again to toggle visibility without losing edits.</li>
+            <li><strong>Audition with General MIDI:</strong> Choose an instrument (Grand Piano, Electric Piano, Guitar, Strings, etc.) and click <strong>Play MIDI</strong> to preview on your browser.</li>
+            <li><strong>Flexible MIDI Editing (Edit button):</strong>
+              <div style="margin-top: 4px; display: flex; flex-direction: column; gap: 3px;">
+                <span>✏️ <strong>Pencil:</strong> Drag to draw notes with a <em>ghost preview</em>, automatically snapping to the beat grid (1, 1/2, 1/4, 1/8 bar).</span>
+                <span>🧹 <strong>Eraser:</strong> Click or drag over notes to erase.</span>
+                <span>✥ <strong>Move &amp; Resize:</strong> Drag note body to move pitch/time; hover over left/right edges for double-arrow <code>&lt;-&gt;</code> to resize note duration.</span>
+              </div>
+            </li>
+            <li><strong>Save .mid File:</strong> Click <strong>Download MIDI</strong> to export a standard <code>.mid</code> file (including all edits) into any professional DAW (FL Studio, Ableton Live, Logic Pro, Cubase...).</li>
+            <li><strong>Trash (Clear MIDI memory):</strong> Clears the transcribed MIDI notes to regenerate from scratch whenever needed.</li>
+          </ul>
+        </div>`;
+        }
+      } else {
+        if (titleEl) titleEl.textContent = 'Hướng Dẫn Hoạt Động & Quy Trình Tạo / Sửa MIDI';
+        if (closeBtn) closeBtn.textContent = 'Đã hiểu';
+        if (bodyEl) {
+          bodyEl.innerHTML = `
+        <!-- CẢNH BÁO QUAN TRỌNG: ĐẶT LÊN ĐẦU TIÊN -->
+        <div style="background: rgba(239, 68, 68, 0.12); border: 1.5px solid #ef4444; border-radius: 8px; padding: 10px 14px;">
+          <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: #f87171; font-size: 13.5px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            LƯU Ý QUAN TRỌNG: CHỈ NÊN DÙNG AUDIO ĐƠN NHẠC CỤ (SOLO / STEMS)
+          </div>
+          <p style="margin: 6px 0 0 0; color: #fecaca; font-size: 12.5px;">
+            Ứng dụng được thiết kế tối ưu và chính xác nhất cho âm thanh <strong>đơn nhạc cụ (Solo Instrument)</strong> hoặc các track <strong>Stems</strong> đã được tách riêng:
+          </p>
+          <ul style="margin: 6px 0 0 16px; color: #fca5a5; font-size: 12.5px; list-style-type: disc;">
+            <li><strong>Rất thích hợp:</strong> Piano độc tấu (Grand Piano, Electric Piano), Guitar solo / Fingerstyle, Solo Cello / Violin / Đàn tranh, hoặc track nhạc cụ đã bóc tách bằng AI (Demucs, Spleeter, RipX...).</li>
+            <li><strong>Không thích hợp với bài hát Full Mix (Có Trống &amp; Hát):</strong> Tiếng trống (Kick, Snare, Hi-hat) tạo xung kích băng rộng làm trắng đục dải tần; giọng hát và nhiều nhạc cụ cùng đè lên nhau sẽ sinh ra nhiều nốt rác và làm sai lệch hợp âm.</li>
+          </ul>
+        </div>
+
+        <!-- Phần 1: Phân tích hợp âm bằng 2 Gram -->
+        <div style="border-left: 3px solid #38bdf8; padding-left: 10px;">
+          <strong style="color: #38bdf8; font-size: 13.5px;">1. Cơ chế phân tích âm thanh bằng 2 Gram</strong>
+          <p style="margin-top: 4px; color: var(--text-secondary);">
+            Ứng dụng vận hành với 2 biểu đồ quang phổ song hành để nhận diện hòa âm chính xác:
+          </p>
+          <ul style="margin: 6px 0 0 16px; color: #cbd5e1; list-style-type: disc;">
+            <li><strong>Dynamic CQT Spectrogram (Trục trên):</strong> Sử dụng thuật toán <em>Constant-Q Transform (CQT)</em> căn chỉnh trục tung chuẩn xác theo từng <strong>nửa cung (Semitone)</strong> từ trầm lên bổng tương ứng với các phím đàn Piano. Màu sắc vệt sáng phản ánh năng lượng và lực đánh (Velocity).</li>
+            <li><strong>Chromagram (12 Pitch Classes - Trục dưới):</strong> Gom các quãng tám về 12 nốt gốc (C, C#, D...), triệt tiêu bồi âm tự nhiên để tự động phân tích và hiển thị <strong>hợp âm chuẩn xác</strong> ở thanh nhịp trên cùng.</li>
+          </ul>
+        </div>
+
+        <!-- Phần 2: Tạo MIDI, Chỉnh sửa & Lưu file .mid -->
+        <div style="border-left: 3px solid #10b981; padding-left: 10px;">
+          <strong style="color: #10b981; font-size: 13.5px;">2. Tạo, Chỉnh sửa &amp; Xuất file MIDI (.mid)</strong>
+          <p style="margin-top: 4px; color: var(--text-secondary);">
+            Quy trình bóc tách và biên tập MIDI (Automatic Music Transcription):
+          </p>
+          <ul style="margin: 6px 0 0 16px; color: #cbd5e1; list-style-type: disc;">
+            <li><strong>Tạo MIDI thông minh:</strong> Nhấn nút biểu tượng nốt nhạc trên thanh công cụ. Thuật toán kết hợp năng lượng sáng từ CQT với nhãn hợp âm đã xác nhận từ Chromagram làm mặt nạ lọc để loại bỏ nốt rò rỉ, dựng chính xác các nốt đang chơi lên dải <strong>MIDI Piano Roll</strong>. Bấm lại nút này để ẩn/hiện mà không làm mất dữ liệu.</li>
+            <li><strong>Nghe thử nhạc cụ General MIDI:</strong> Chọn nhạc cụ phát thử (Grand Piano, Electric Piano, Guitar, Strings, v.v.) và nhấn nút <strong>Play MIDI</strong> để nghe trực tiếp bản ghi MIDI trên trình duyệt.</li>
+            <li><strong>Chỉnh sửa MIDI linh hoạt (Nút Edit):</strong>
+              <div style="margin-top: 4px; display: flex; flex-direction: column; gap: 3px;">
+                <span>✏️ <strong>Bút chì:</strong> Kéo rê chuột để vẽ nốt mới với <em>vệt mờ xem trước</em> (ghost note) tự động snap theo lưới nhịp (1, 1/2, 1/4, 1/8 bar).</span>
+                <span>🧹 <strong>Tẩy:</strong> Click hoặc quét qua nốt để xóa nhanh nốt thừa.</span>
+                <span>✥ <strong>Di chuyển &amp; Co giãn:</strong> Kéo thân nốt để dời cao độ / thời gian; rê chuột vào mép trái/phải hiển thị mũi tên <code>&lt;-&gt;</code> để co giãn trường độ nốt.</span>
+              </div>
+            </li>
+            <li><strong>Lưu file .mid:</strong> Nhấn nút <strong>Tải MIDI</strong> để xuất file <code>.mid</code> chuẩn (bao gồm mọi thay đổi sau khi sửa) để nhập vào bất kỳ phần mềm DAW chuyên nghiệp nào (FL Studio, Ableton Live, Logic Pro, Cubase...).</li>
+            <li><strong>Thùng rác (Xóa bộ nhớ MIDI):</strong> Nút thùng rác ở góc dưới dải MIDI giúp xóa toàn bộ nốt đã tạo để bấm tạo lại từ đầu nếu muốn.</li>
+          </ul>
+        </div>`;
+        }
+      }
+    }
+
+    if (this.chordAnalyzerTab2) {
+      this.chordAnalyzerTab2.render();
     }
 
     // Modal: Add Cues
@@ -6097,7 +6310,7 @@ class SpectroSubApp {
     if (btnTab2Midi) {
       btnTab2Midi.addEventListener('click', () => {
         if (!this.chordAnalyzerTab2.data) {
-          alert(I18N_LOCALES[this.currentLang]?.tab2_midi_no_audio || 'Vui lòng chọn hoặc nạp bài nhạc trước khi tạo MIDI!');
+          alert(t('tab2_midi_no_audio'));
           return;
         }
 
