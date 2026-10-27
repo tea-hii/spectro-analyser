@@ -1592,6 +1592,32 @@ input, textarea, button, select {
   transform: scale(1.05);
 }
 
+/* Tab 2 CQT Information Button below Tier Text */
+.tab2-info-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(24, 24, 27, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: var(--accent-cyan);
+  opacity: 0.8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  pointer-events: auto;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+}
+
+.tab2-info-btn:hover {
+  opacity: 1;
+  background: rgba(39, 39, 42, 0.95);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.4);
+  transform: scale(1.1);
+}
+
 .midi-inst-select {
   height: 22px;
   padding: 0 4px;

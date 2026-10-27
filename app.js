@@ -5373,6 +5373,16 @@ class SpectroSubApp {
       btnCuesGuide.addEventListener('click', () => { modalCuesGuide.style.display = 'flex'; });
     }
 
+    // Tab 2 CQT & Solo Instrument Guide modal
+    const btnTab2CqtInfo = document.getElementById('btn-tab2-cqt-info');
+    const modalTab2CqtInfo = document.getElementById('modal-tab2-cqt-info');
+    if (btnTab2CqtInfo && modalTab2CqtInfo) {
+      btnTab2CqtInfo.addEventListener('click', (e) => {
+        e.stopPropagation();
+        modalTab2CqtInfo.style.display = 'flex';
+      });
+    }
+
     // Add Cues modal
     const btnOpenAddCues = document.getElementById('btn-open-add-cues');
     const modalAddCues = document.getElementById('modal-add-cues');
