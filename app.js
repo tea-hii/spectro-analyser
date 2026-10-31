@@ -1665,11 +1665,17 @@ class SpectrogramCanvasRenderer {
     const hasCues = (this.cues && this.cues.length > 0);
 
     if (!hasAudio && !hasCues) {
-      ctx.fillStyle = '#64748b';
-      ctx.font = '13px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('Chưa tải file âm thanh Tab 1. Bấm "Tải File" để nạp file từ máy hoặc Ví dụ 1.', w / 2, h / 2);
-      return;
+      if (this.showMusicalGrid) {
+        if (!this.audio.durationMs || this.audio.durationMs <= 0) {
+          this.audio.durationMs = 30000;
+        }
+      } else {
+        ctx.fillStyle = '#64748b';
+        ctx.font = '13px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Chưa tải file âm thanh Tab 1. Bấm "Tải File" để nạp file từ máy hoặc Ví dụ 1.', w / 2, h / 2);
+        return;
+      }
     }
 
     if (!hasAudio && hasCues) {
@@ -2327,47 +2333,48 @@ class SpectrogramCanvasRenderer {
         if (isFullBar) {
           const barNum = Math.floor(i / 8) + 1;
           ctx.strokeStyle = '#facc15';
-          ctx.lineWidth = 1.5;
+          ctx.lineWidth = 1.8;
           ctx.beginPath();
-          ctx.moveTo(gx, topY + height - 12);
+          ctx.moveTo(gx, topY + height - 14);
           ctx.lineTo(gx, topY + height);
           ctx.stroke();
 
+          // High-contrast bar number badge on ruler
           ctx.fillStyle = '#fde047';
-          ctx.font = 'bold 9px "JetBrains Mono", monospace';
+          ctx.font = 'bold 10px "JetBrains Mono", monospace';
           ctx.textAlign = 'center';
           ctx.fillText('Bar ' + barNum, gx, topY + 11);
         } else if (isHalfBar) {
           ctx.strokeStyle = '#38bdf8';
-          ctx.lineWidth = 1.2;
+          ctx.lineWidth = 1.3;
           ctx.beginPath();
-          ctx.moveTo(gx, topY + height - 8);
+          ctx.moveTo(gx, topY + height - 9);
           ctx.lineTo(gx, topY + height);
           ctx.stroke();
 
-          if (pxPerEighth * 4 >= 30) {
+          if (pxPerEighth * 4 >= 28) {
             ctx.fillStyle = '#7dd3fc';
-            ctx.font = '8px "JetBrains Mono", monospace';
+            ctx.font = 'bold 8px "JetBrains Mono", monospace';
             ctx.textAlign = 'center';
             ctx.fillText('3', gx, topY + 12);
           }
         } else if (isQuarterBar) {
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
           ctx.lineWidth = 1.0;
           ctx.beginPath();
           ctx.moveTo(gx, topY + height - 6);
           ctx.lineTo(gx, topY + height);
           ctx.stroke();
 
-          if (pxPerEighth * 2 >= 24) {
+          if (pxPerEighth * 2 >= 22) {
             const beatInBar = (mod8 / 2) + 1;
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
             ctx.font = '8px "JetBrains Mono", monospace';
             ctx.textAlign = 'center';
             ctx.fillText(String(beatInBar), gx, topY + 12);
           }
         } else if (isEighthBar && pxPerEighth >= 5) {
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.30)';
           ctx.lineWidth = 0.8;
           ctx.beginPath();
           ctx.moveTo(gx, topY + height - 4);
@@ -2377,35 +2384,39 @@ class SpectrogramCanvasRenderer {
       } else {
         // --- ON AUDIO / SPECTROGRAM CANVAS ---
         if (isFullBar) {
-          ctx.strokeStyle = 'rgba(250, 204, 21, 0.50)';
-          ctx.lineWidth = 1.5;
+          // 1 Bar: Bright solid Amber line
+          ctx.strokeStyle = 'rgba(250, 204, 21, 0.85)';
+          ctx.lineWidth = 1.8;
           ctx.setLineDash([]);
           ctx.beginPath();
           ctx.moveTo(gx, topY);
           ctx.lineTo(gx, topY + height);
           ctx.stroke();
         } else if (isHalfBar) {
-          ctx.strokeStyle = 'rgba(56, 189, 248, 0.38)';
-          ctx.lineWidth = 1.2;
-          ctx.setLineDash([4, 3]);
+          // 1/2 Bar: Distinct Cyan line
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.70)';
+          ctx.lineWidth = 1.4;
+          ctx.setLineDash([6, 3]);
           ctx.beginPath();
           ctx.moveTo(gx, topY);
           ctx.lineTo(gx, topY + height);
           ctx.stroke();
           ctx.setLineDash([]);
         } else if (isQuarterBar) {
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.20)';
-          ctx.lineWidth = 1.0;
-          ctx.setLineDash([3, 3]);
+          // 1/4 Bar: Crisp White line
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+          ctx.lineWidth = 1.1;
+          ctx.setLineDash([4, 3]);
           ctx.beginPath();
           ctx.moveTo(gx, topY);
           ctx.lineTo(gx, topY + height);
           ctx.stroke();
           ctx.setLineDash([]);
         } else if (isEighthBar && pxPerEighth >= 5) {
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.09)';
-          ctx.lineWidth = 0.8;
-          ctx.setLineDash([2, 4]);
+          // 1/8 Bar: Subtle dashed line
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+          ctx.lineWidth = 0.9;
+          ctx.setLineDash([2, 3]);
           ctx.beginPath();
           ctx.moveTo(gx, topY);
           ctx.lineTo(gx, topY + height);
@@ -2419,21 +2430,22 @@ class SpectrogramCanvasRenderer {
     const originX = this.timeToX(offsetMs);
     if (isRuler) {
       if (originX >= x - 25 && originX <= x + width + 25) {
-        const handleW = 22;
-        const handleH = 18;
+        const handleW = 24;
+        const handleH = 20;
         const handleX = originX - handleW / 2;
         const handleY = topY + 2;
 
-        ctx.shadowColor = this.isDraggingGridOffset ? 'rgba(56, 189, 248, 0.9)' : 'rgba(56, 189, 248, 0.4)';
-        ctx.shadowBlur = this.isDraggingGridOffset ? 8 : 4;
+        ctx.shadowColor = this.isDraggingGridOffset ? 'rgba(56, 189, 248, 0.95)' : 'rgba(56, 189, 248, 0.6)';
+        ctx.shadowBlur = this.isDraggingGridOffset ? 10 : 5;
 
-        ctx.fillStyle = this.isDraggingGridOffset ? '#0369a1' : '#0b1329';
+        // Sleek DAW handle pill
+        ctx.fillStyle = this.isDraggingGridOffset ? '#0284c7' : '#0369a1';
         ctx.strokeStyle = '#38bdf8';
         ctx.lineWidth = 1.5;
 
         if (ctx.roundRect) {
           ctx.beginPath();
-          ctx.roundRect(handleX, handleY, handleW, handleH, 3);
+          ctx.roundRect(handleX, handleY, handleW, handleH, 4);
           ctx.fill();
           ctx.stroke();
         } else {
@@ -2442,43 +2454,43 @@ class SpectrogramCanvasRenderer {
         }
         ctx.shadowBlur = 0;
 
-        // 3 horizontal grab lines (icon 3 dòng kẻ)
+        // 3 horizontal grab lines (icon 3 dòng kẻ ☰)
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1.6;
+        ctx.lineWidth = 1.8;
         ctx.lineCap = 'round';
 
         const lineLeft = handleX + 4;
         const lineRight = handleX + handleW - 4;
 
         ctx.beginPath();
-        ctx.moveTo(lineLeft, handleY + 4.5);
-        ctx.lineTo(lineRight, handleY + 4.5);
-        ctx.moveTo(lineLeft, handleY + 9);
-        ctx.lineTo(lineRight, handleY + 9);
-        ctx.moveTo(lineLeft, handleY + 13.5);
-        ctx.lineTo(lineRight, handleY + 13.5);
+        ctx.moveTo(lineLeft, handleY + 5);
+        ctx.lineTo(lineRight, handleY + 5);
+        ctx.moveTo(lineLeft, handleY + 10);
+        ctx.lineTo(lineRight, handleY + 10);
+        ctx.moveTo(lineLeft, handleY + 15);
+        ctx.lineTo(lineRight, handleY + 15);
         ctx.stroke();
 
         // Downward pointer arrow at bottom of handle
         ctx.fillStyle = '#38bdf8';
         ctx.beginPath();
-        ctx.moveTo(originX - 3.5, handleY + handleH);
-        ctx.lineTo(originX + 3.5, handleY + handleH);
-        ctx.lineTo(originX, handleY + handleH + 4);
+        ctx.moveTo(originX - 4, handleY + handleH);
+        ctx.lineTo(originX + 4, handleY + handleH);
+        ctx.lineTo(originX, handleY + handleH + 4.5);
         ctx.closePath();
         ctx.fill();
 
-        // If currently dragging, show tooltip with current offset in ms / sec
+        // Tooltip displaying current offset in seconds while dragging or hovering
         if (this.isDraggingGridOffset) {
           const offsetText = (offsetMs >= 0 ? '+' : '') + (offsetMs / 1000).toFixed(3) + 's';
           ctx.font = 'bold 9px "JetBrains Mono", monospace';
           const tw = ctx.measureText(offsetText).width;
           const tipW = tw + 8;
-          const tipH = 14;
+          const tipH = 15;
           const tipX = Math.max(2, Math.min(width - tipW - 2, originX - tipW / 2));
           const tipY = handleY + handleH + 6;
 
-          ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
           ctx.strokeStyle = '#38bdf8';
           ctx.lineWidth = 1;
           if (ctx.roundRect) {
@@ -2493,15 +2505,15 @@ class SpectrogramCanvasRenderer {
 
           ctx.fillStyle = '#38bdf8';
           ctx.textAlign = 'center';
-          ctx.fillText(offsetText, tipX + tipW / 2, tipY + 10);
+          ctx.fillText(offsetText, tipX + tipW / 2, tipY + 11);
         }
       }
     } else {
-      // Guide line at origin across audio
+      // Guide line at origin across full audio height
       if (originX >= x && originX <= x + width) {
-        ctx.strokeStyle = this.isDraggingGridOffset ? 'rgba(56, 189, 248, 0.85)' : 'rgba(56, 189, 248, 0.55)';
-        ctx.lineWidth = 1.8;
-        ctx.setLineDash([4, 2]);
+        ctx.strokeStyle = this.isDraggingGridOffset ? 'rgba(56, 189, 248, 0.95)' : 'rgba(56, 189, 248, 0.70)';
+        ctx.lineWidth = 2.0;
+        ctx.setLineDash([5, 2]);
         ctx.beginPath();
         ctx.moveTo(originX, topY);
         ctx.lineTo(originX, topY + height);
@@ -6241,10 +6253,16 @@ class SpectroSubApp {
     if (btnMusicalGrid) {
       if (this.rendererTab1 && this.rendererTab1.showMusicalGrid) {
         btnMusicalGrid.classList.add('musical-grid-active');
-        if (bpmGroup) bpmGroup.style.display = 'inline-flex';
+        if (bpmGroup) {
+          bpmGroup.classList.add('active');
+          bpmGroup.style.display = 'inline-flex';
+        }
       } else {
         btnMusicalGrid.classList.remove('musical-grid-active');
-        if (bpmGroup) bpmGroup.style.display = 'none';
+        if (bpmGroup) {
+          bpmGroup.classList.remove('active');
+          bpmGroup.style.display = 'none';
+        }
       }
 
       btnMusicalGrid.addEventListener('click', () => {
@@ -6253,6 +6271,7 @@ class SpectroSubApp {
         const isActive = this.rendererTab1.showMusicalGrid;
         btnMusicalGrid.classList.toggle('musical-grid-active', isActive);
         if (bpmGroup) {
+          bpmGroup.classList.toggle('active', isActive);
           bpmGroup.style.display = isActive ? 'inline-flex' : 'none';
         }
         try {
