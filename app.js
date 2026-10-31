@@ -78,6 +78,8 @@ const I18N_LOCALES = {
     clock_editing_time: 'Chế độ [SỬA THỜI GIAN - Vàng]: Ám vàng nhạt vùng phổ/sóng & hiện vạch xanh [start] - đỏ [stop] để kéo chỉnh mốc (Click để đổi chế độ)',
     clock_editing_words: 'Chế độ [SỬA TỪNG TỪ - Tím]: Ám tím nhạt & kéo các vạch tím đậm để chỉnh vị trí từng từ (Click để đổi chế độ)',
     bpm_title: 'Cài đặt BPM & Lưới nhịp phách (Bar / Measure): Chia vạch nhịp trực quan trên phổ âm CQT và Chromagram',
+    tab1_musical_grid_title: 'Bật/Tắt Lưới nhịp phách & BPM (1, 1/2, 1/4, 1/8 Bar)',
+    tab1_bpm_title: 'Cài đặt BPM & Lưới nhịp phách: Nhập để đổi tốc độ (Mặc định 90 BPM)',
     grid_1_bar: '1 Bar',
     grid_half_bar: '1/2 Bar',
     grid_quarter_bar: '1/4 Bar',
@@ -208,6 +210,8 @@ const I18N_LOCALES = {
     clock_editing_time: 'Mode [EDIT LINE TIMING - Yellow]: Highlight waveform/spectrogram & show green [start] - red [stop] boundaries to drag (Click to change mode)',
     clock_editing_words: 'Mode [EDIT WORDS - Purple]: Purple highlight & drag purple word handles to align karaoke timing (Click to change mode)',
     bpm_title: 'BPM & Measure Grid Settings: Visual bar/beat lines across CQT and Chromagram',
+    tab1_musical_grid_title: 'Toggle Musical Beat Grid & BPM (1, 1/2, 1/4, 1/8 Bar)',
+    tab1_bpm_title: 'BPM & Measure Grid Settings: Enter to change tempo (Default 90 BPM)',
     grid_1_bar: '1 Bar',
     grid_half_bar: '1/2 Bar',
     grid_quarter_bar: '1/4 Bar',
@@ -1561,6 +1565,26 @@ class SpectrogramCanvasRenderer {
     this.selectionStartMs = 0;
     this.selectionEndMs = 2100;
 
+    this.showMusicalGrid = false;
+    this.bpm = 90;
+    this.musicalGridOffsetMs = 0;
+    this.isDraggingGridOffset = false;
+
+    const savedTab1GridActive = localStorage.getItem('tab1_musical_grid_active');
+    if (savedTab1GridActive !== null) {
+      this.showMusicalGrid = (savedTab1GridActive === 'true');
+    }
+    const savedTab1Bpm = localStorage.getItem('tab1_musical_grid_bpm');
+    if (savedTab1Bpm !== null) {
+      const parsedBpm = parseFloat(savedTab1Bpm);
+      if (!isNaN(parsedBpm) && parsedBpm > 0) this.bpm = parsedBpm;
+    }
+    const savedTab1Offset = localStorage.getItem('tab1_musical_grid_offset_ms');
+    if (savedTab1Offset !== null) {
+      const parsedOffset = parseFloat(savedTab1Offset);
+      if (!isNaN(parsedOffset)) this.musicalGridOffsetMs = parsedOffset;
+    }
+
     this.rulerHeight = 28;
     this.minimapHeight = 24;
     this.subOverlayHeight = 28;
@@ -1762,8 +1786,18 @@ class SpectrogramCanvasRenderer {
     const selectionH = h - rulerH - miniH;
     this.drawSelectionWindow(ctx, 0, rulerH, w, selectionH);
 
+    // Musical Beat Grid across audio canvas
+    if (this.showMusicalGrid) {
+      this.drawMusicalGrid(ctx, 0, contentY, w, contentH, false);
+    }
+
     // Time ruler on top
     this.drawTimeRuler(ctx, 0, 0, w, rulerH);
+
+    // Musical Beat Grid on ruler + 3-line grab handle
+    if (this.showMusicalGrid) {
+      this.drawMusicalGrid(ctx, 0, 0, w, rulerH, true);
+    }
 
     // Positions for Start, Stop, and Playhead lines
     const startX = this.timeToX(this.selectionStartMs);
@@ -2257,6 +2291,228 @@ class SpectrogramCanvasRenderer {
     }
   }
 
+  drawMusicalGrid(ctx, x, topY, width, height, isRuler = false) {
+    if (!this.showMusicalGrid || !this.bpm || this.bpm <= 0) return;
+
+    const beatMs = 60000.0 / this.bpm;
+    const barMs = beatMs * 4.0; // 4/4 meter
+    const eighthBarMs = barMs / 8.0; // 1/8 bar (eighth note)
+    const msPerPx = this.msPerPixel;
+    const pxPerEighth = eighthBarMs / msPerPx;
+    const offsetMs = this.musicalGridOffsetMs || 0;
+
+    const vStartMs = this.xToTime(x);
+    const vEndMs = this.xToTime(x + width);
+
+    // Calculate integer indices of 1/8 bars in view
+    const iMin = Math.floor((vStartMs - offsetMs) / eighthBarMs) - 1;
+    const iMax = Math.ceil((vEndMs - offsetMs) / eighthBarMs) + 1;
+
+    ctx.save();
+
+    // 1. Draw grid division lines (1, 1/2, 1/4, 1/8 bar)
+    for (let i = iMin; i <= iMax; i++) {
+      const t = offsetMs + i * eighthBarMs;
+      const gx = this.timeToX(t);
+      if (gx < x - 20 || gx > x + width + 20) continue;
+
+      const mod8 = ((i % 8) + 8) % 8;
+      const isFullBar = (mod8 === 0);
+      const isHalfBar = (mod8 === 4);
+      const isQuarterBar = (mod8 === 2 || mod8 === 6);
+      const isEighthBar = (mod8 % 2 !== 0);
+
+      if (isRuler) {
+        // --- ON TIME RULER ---
+        if (isFullBar) {
+          const barNum = Math.floor(i / 8) + 1;
+          ctx.strokeStyle = '#facc15';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(gx, topY + height - 12);
+          ctx.lineTo(gx, topY + height);
+          ctx.stroke();
+
+          ctx.fillStyle = '#fde047';
+          ctx.font = 'bold 9px "JetBrains Mono", monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText('Bar ' + barNum, gx, topY + 11);
+        } else if (isHalfBar) {
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(gx, topY + height - 8);
+          ctx.lineTo(gx, topY + height);
+          ctx.stroke();
+
+          if (pxPerEighth * 4 >= 30) {
+            ctx.fillStyle = '#7dd3fc';
+            ctx.font = '8px "JetBrains Mono", monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('3', gx, topY + 12);
+          }
+        } else if (isQuarterBar) {
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+          ctx.lineWidth = 1.0;
+          ctx.beginPath();
+          ctx.moveTo(gx, topY + height - 6);
+          ctx.lineTo(gx, topY + height);
+          ctx.stroke();
+
+          if (pxPerEighth * 2 >= 24) {
+            const beatInBar = (mod8 / 2) + 1;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+            ctx.font = '8px "JetBrains Mono", monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(String(beatInBar), gx, topY + 12);
+          }
+        } else if (isEighthBar && pxPerEighth >= 5) {
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.moveTo(gx, topY + height - 4);
+          ctx.lineTo(gx, topY + height);
+          ctx.stroke();
+        }
+      } else {
+        // --- ON AUDIO / SPECTROGRAM CANVAS ---
+        if (isFullBar) {
+          ctx.strokeStyle = 'rgba(250, 204, 21, 0.50)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([]);
+          ctx.beginPath();
+          ctx.moveTo(gx, topY);
+          ctx.lineTo(gx, topY + height);
+          ctx.stroke();
+        } else if (isHalfBar) {
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.38)';
+          ctx.lineWidth = 1.2;
+          ctx.setLineDash([4, 3]);
+          ctx.beginPath();
+          ctx.moveTo(gx, topY);
+          ctx.lineTo(gx, topY + height);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        } else if (isQuarterBar) {
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.20)';
+          ctx.lineWidth = 1.0;
+          ctx.setLineDash([3, 3]);
+          ctx.beginPath();
+          ctx.moveTo(gx, topY);
+          ctx.lineTo(gx, topY + height);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        } else if (isEighthBar && pxPerEighth >= 5) {
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.09)';
+          ctx.lineWidth = 0.8;
+          ctx.setLineDash([2, 4]);
+          ctx.beginPath();
+          ctx.moveTo(gx, topY);
+          ctx.lineTo(gx, topY + height);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
+    }
+
+    // 2. Draw 3-Line Grab Handle & Origin Guide at offsetMs (Bar 1 Origin)
+    const originX = this.timeToX(offsetMs);
+    if (isRuler) {
+      if (originX >= x - 25 && originX <= x + width + 25) {
+        const handleW = 22;
+        const handleH = 18;
+        const handleX = originX - handleW / 2;
+        const handleY = topY + 2;
+
+        ctx.shadowColor = this.isDraggingGridOffset ? 'rgba(56, 189, 248, 0.9)' : 'rgba(56, 189, 248, 0.4)';
+        ctx.shadowBlur = this.isDraggingGridOffset ? 8 : 4;
+
+        ctx.fillStyle = this.isDraggingGridOffset ? '#0369a1' : '#0b1329';
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 1.5;
+
+        if (ctx.roundRect) {
+          ctx.beginPath();
+          ctx.roundRect(handleX, handleY, handleW, handleH, 3);
+          ctx.fill();
+          ctx.stroke();
+        } else {
+          ctx.fillRect(handleX, handleY, handleW, handleH);
+          ctx.strokeRect(handleX, handleY, handleW, handleH);
+        }
+        ctx.shadowBlur = 0;
+
+        // 3 horizontal grab lines (icon 3 dòng kẻ)
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.6;
+        ctx.lineCap = 'round';
+
+        const lineLeft = handleX + 4;
+        const lineRight = handleX + handleW - 4;
+
+        ctx.beginPath();
+        ctx.moveTo(lineLeft, handleY + 4.5);
+        ctx.lineTo(lineRight, handleY + 4.5);
+        ctx.moveTo(lineLeft, handleY + 9);
+        ctx.lineTo(lineRight, handleY + 9);
+        ctx.moveTo(lineLeft, handleY + 13.5);
+        ctx.lineTo(lineRight, handleY + 13.5);
+        ctx.stroke();
+
+        // Downward pointer arrow at bottom of handle
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath();
+        ctx.moveTo(originX - 3.5, handleY + handleH);
+        ctx.lineTo(originX + 3.5, handleY + handleH);
+        ctx.lineTo(originX, handleY + handleH + 4);
+        ctx.closePath();
+        ctx.fill();
+
+        // If currently dragging, show tooltip with current offset in ms / sec
+        if (this.isDraggingGridOffset) {
+          const offsetText = (offsetMs >= 0 ? '+' : '') + (offsetMs / 1000).toFixed(3) + 's';
+          ctx.font = 'bold 9px "JetBrains Mono", monospace';
+          const tw = ctx.measureText(offsetText).width;
+          const tipW = tw + 8;
+          const tipH = 14;
+          const tipX = Math.max(2, Math.min(width - tipW - 2, originX - tipW / 2));
+          const tipY = handleY + handleH + 6;
+
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 1;
+          if (ctx.roundRect) {
+            ctx.beginPath();
+            ctx.roundRect(tipX, tipY, tipW, tipH, 3);
+            ctx.fill();
+            ctx.stroke();
+          } else {
+            ctx.fillRect(tipX, tipY, tipW, tipH);
+            ctx.strokeRect(tipX, tipY, tipW, tipH);
+          }
+
+          ctx.fillStyle = '#38bdf8';
+          ctx.textAlign = 'center';
+          ctx.fillText(offsetText, tipX + tipW / 2, tipY + 10);
+        }
+      }
+    } else {
+      // Guide line at origin across audio
+      if (originX >= x && originX <= x + width) {
+        ctx.strokeStyle = this.isDraggingGridOffset ? 'rgba(56, 189, 248, 0.85)' : 'rgba(56, 189, 248, 0.55)';
+        ctx.lineWidth = 1.8;
+        ctx.setLineDash([4, 2]);
+        ctx.beginPath();
+        ctx.moveTo(originX, topY);
+        ctx.lineTo(originX, topY + height);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    ctx.restore();
+  }
+
   drawMinimap(ctx, x, y, width, height) {
     // 1. Dark sleek track background (no waveform mirror)
     ctx.fillStyle = '#080d1a';
@@ -2305,6 +2561,7 @@ class SpectrogramCanvasRenderer {
     let isDragging = false, dragTarget = 'PAN', dragStartX = 0, dragStartScrollMs = 0;
     let dragWordInfo = null;
     let dragCueEdgeInfo = null;
+    let dragStartGridOffsetMs = 0;
 
     // Mobile Pinch-to-zoom tracking for Tab 1
     let isPinching = false;
@@ -2356,10 +2613,25 @@ class SpectrogramCanvasRenderer {
 
     const updateCursor = (mouseX, mouseY) => {
       if (isDragging) {
+        if (dragTarget === 'MUSICAL_GRID_OFFSET') {
+          c.style.cursor = 'grabbing';
+          return;
+        }
         if (['WORD', 'START', 'END', 'PLAYHEAD', 'CUE_START', 'CUE_END'].includes(dragTarget)) {
           c.style.cursor = 'ew-resize';
         }
         return;
+      }
+
+      if (this.showMusicalGrid) {
+        const originX = this.timeToX(this.musicalGridOffsetMs || 0);
+        const rectH = c.getBoundingClientRect().height;
+        const isNearHandle = (Math.abs(mouseX - originX) <= 14 && mouseY <= this.rulerHeight + 6);
+        const isNearGuideLine = (Math.abs(mouseX - originX) <= 6 && mouseY > this.rulerHeight && mouseY <= rectH - this.minimapHeight);
+        if (isNearHandle || isNearGuideLine) {
+          c.style.cursor = 'grab';
+          return;
+        }
       }
 
       if (findWordHandleAt(mouseX, mouseY) || findYellowCueEdgeAt(mouseX, mouseY)) {
@@ -2481,6 +2753,20 @@ class SpectrogramCanvasRenderer {
         return;
       }
 
+      if (this.showMusicalGrid) {
+        const originX = this.timeToX(this.musicalGridOffsetMs || 0);
+        const isNearHandle = (Math.abs(dragStartX - originX) <= 14 && dragStartY <= this.rulerHeight + 6);
+        const isNearGuideLine = (Math.abs(dragStartX - originX) <= 6 && dragStartY > this.rulerHeight && dragStartY <= rectH - scrollbarHitHeight);
+        if (isNearHandle || isNearGuideLine) {
+          dragTarget = 'MUSICAL_GRID_OFFSET';
+          this.isDraggingGridOffset = true;
+          dragStartGridOffsetMs = this.musicalGridOffsetMs || 0;
+          c.style.cursor = 'grabbing';
+          this.render();
+          return;
+        }
+      }
+
       const wordHit = findWordHandleAt(dragStartX, dragStartY);
       if (wordHit) {
         dragTarget = 'WORD';
@@ -2549,7 +2835,14 @@ class SpectrogramCanvasRenderer {
       const curX = getX(e);
       const curTime = this.xToTime(curX);
 
-      if (dragTarget === 'WORD' && dragWordInfo) {
+      if (dragTarget === 'MUSICAL_GRID_OFFSET') {
+        const deltaX = curX - dragStartX;
+        const deltaMs = deltaX * this.msPerPixel;
+        this.musicalGridOffsetMs = Math.round(dragStartGridOffsetMs + deltaMs);
+        c.style.cursor = 'grabbing';
+        this.render();
+        return;
+      } else if (dragTarget === 'WORD' && dragWordInfo) {
         dragWordInfo.cue.setWordStartMs(dragWordInfo.wordIdx, curTime);
         c.style.cursor = 'ew-resize';
         if (this.onCuesUpdate) this.onCuesUpdate();
@@ -2609,6 +2902,12 @@ class SpectrogramCanvasRenderer {
         if (Math.abs(curX - dragStartX) < 5) {
           this.audio.seek(this.xToTime(curX));
         }
+      }
+      if (dragTarget === 'MUSICAL_GRID_OFFSET') {
+        this.isDraggingGridOffset = false;
+        try {
+          localStorage.setItem('tab1_musical_grid_offset_ms', String(this.musicalGridOffsetMs));
+        } catch (_) {}
       }
       isDragging = false;
       this.isDraggingScrollbar = false;
@@ -4811,10 +5110,15 @@ class SpectroSubApp {
     const selectSpeed = document.getElementById('select-speed');
     if (selectSpeed) selectSpeed.title = t('speed_title');
 
-    const latencyGroupTab1 = document.querySelector('#tab-pane-1 .latency-control-group');
+    const latencyGroupTab1 = document.getElementById('input-latency-offset')?.closest('.latency-control-group');
     if (latencyGroupTab1) latencyGroupTab1.title = t('latency_title_tab1');
-    const latencyLabelTab1 = document.querySelector('#tab-pane-1 .latency-label span');
+    const latencyLabelTab1 = latencyGroupTab1?.querySelector('.latency-label span');
     if (latencyLabelTab1) latencyLabelTab1.textContent = t('latency_label');
+
+    const btnMusicalGrid = document.getElementById('btn-tab1-musical-grid');
+    if (btnMusicalGrid) btnMusicalGrid.title = t('tab1_musical_grid_title');
+    const bpmGroupTab1 = document.getElementById('tab1-bpm-group');
+    if (bpmGroupTab1) bpmGroupTab1.title = t('tab1_bpm_title');
 
     const latencyGroupTab2 = document.querySelector('#tab-pane-2 .latency-control-group');
     if (latencyGroupTab2) latencyGroupTab2.title = t('latency_title_tab2');
@@ -5927,6 +6231,53 @@ class SpectroSubApp {
         this.rendererTab1.viewMode = modes[nextIdx];
         this.syncViewModeUI();
       });
+    }
+
+    // Tab 1 Musical Beat Grid & BPM Toggle
+    const btnMusicalGrid = document.getElementById('btn-tab1-musical-grid');
+    const bpmGroup = document.getElementById('tab1-bpm-group');
+    const inputBpm = document.getElementById('input-tab1-bpm');
+
+    if (btnMusicalGrid) {
+      if (this.rendererTab1 && this.rendererTab1.showMusicalGrid) {
+        btnMusicalGrid.classList.add('musical-grid-active');
+        if (bpmGroup) bpmGroup.style.display = 'inline-flex';
+      } else {
+        btnMusicalGrid.classList.remove('musical-grid-active');
+        if (bpmGroup) bpmGroup.style.display = 'none';
+      }
+
+      btnMusicalGrid.addEventListener('click', () => {
+        if (!this.rendererTab1) return;
+        this.rendererTab1.showMusicalGrid = !this.rendererTab1.showMusicalGrid;
+        const isActive = this.rendererTab1.showMusicalGrid;
+        btnMusicalGrid.classList.toggle('musical-grid-active', isActive);
+        if (bpmGroup) {
+          bpmGroup.style.display = isActive ? 'inline-flex' : 'none';
+        }
+        try {
+          localStorage.setItem('tab1_musical_grid_active', String(isActive));
+        } catch (_) {}
+        this.rendererTab1.render();
+      });
+    }
+
+    if (inputBpm) {
+      inputBpm.value = (this.rendererTab1 && this.rendererTab1.bpm) ? this.rendererTab1.bpm : 90;
+
+      const onBpmChange = () => {
+        if (!this.rendererTab1) return;
+        const val = parseFloat(inputBpm.value);
+        if (!isNaN(val) && val > 0) {
+          this.rendererTab1.bpm = val;
+          try {
+            localStorage.setItem('tab1_musical_grid_bpm', String(val));
+          } catch (_) {}
+          this.rendererTab1.render();
+        }
+      };
+      inputBpm.addEventListener('input', onBpmChange);
+      inputBpm.addEventListener('change', onBpmChange);
     }
 
     // Audio Latency Offset Input (Bù trễ âm thanh thủ công ms)
