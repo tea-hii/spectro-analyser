@@ -80,6 +80,10 @@ const I18N_LOCALES = {
     bpm_title: 'Cài đặt BPM & Lưới nhịp phách (Bar / Measure): Chia vạch nhịp trực quan trên phổ âm CQT và Chromagram',
     tab1_musical_grid_title: 'Bật/Tắt Lưới nhịp phách & BPM (1, 1/2, 1/4, 1/8 Bar)',
     tab1_bpm_title: 'Cài đặt BPM & Lưới nhịp phách: Nhập để đổi tốc độ (Mặc định 90 BPM)',
+    tab1_drag_title: 'Thả file Audio hoặc Phụ đề vào đây',
+    tab1_drag_subtitle: 'Hỗ trợ MP3, WAV, ASS, SRT, JSON...',
+    tab2_drag_title: 'Thả file Audio / Video vào đây',
+    tab2_drag_subtitle: 'Tự động phân tích Constant-Q & Hợp âm (Tab 2)',
     grid_1_bar: '1 Bar',
     grid_half_bar: '1/2 Bar',
     grid_quarter_bar: '1/4 Bar',
@@ -212,6 +216,10 @@ const I18N_LOCALES = {
     bpm_title: 'BPM & Measure Grid Settings: Visual bar/beat lines across CQT and Chromagram',
     tab1_musical_grid_title: 'Toggle Musical Beat Grid & BPM (1, 1/2, 1/4, 1/8 Bar)',
     tab1_bpm_title: 'BPM & Measure Grid Settings: Enter to change tempo (Default 90 BPM)',
+    tab1_drag_title: 'Drop Audio or Subtitle file here',
+    tab1_drag_subtitle: 'Supports MP3, WAV, ASS, SRT, JSON...',
+    tab2_drag_title: 'Drop Audio / Video file here',
+    tab2_drag_subtitle: 'Automatically analyze Constant-Q & Chords (Tab 2)',
     grid_1_bar: '1 Bar',
     grid_half_bar: '1/2 Bar',
     grid_quarter_bar: '1/4 Bar',
@@ -6661,13 +6669,30 @@ class SpectroSubApp {
     }
 
     // Drag and Drop on Spectrogram Canvas Panel (Audio or Subtitle)
+    const tab1DragOverlay = document.getElementById('tab1-drag-overlay');
+    let tab1DragCounter = 0;
     if (canvasPanel) {
+      canvasPanel.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        tab1DragCounter++;
+        if (tab1DragOverlay) tab1DragOverlay.style.display = 'flex';
+      });
+      canvasPanel.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        tab1DragCounter--;
+        if (tab1DragCounter <= 0) {
+          tab1DragCounter = 0;
+          if (tab1DragOverlay) tab1DragOverlay.style.display = 'none';
+        }
+      });
       canvasPanel.addEventListener('dragover', (e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
       });
       canvasPanel.addEventListener('drop', (e) => {
         e.preventDefault();
+        tab1DragCounter = 0;
+        if (tab1DragOverlay) tab1DragOverlay.style.display = 'none';
         if (e.dataTransfer.files && e.dataTransfer.files[0]) {
           const file = e.dataTransfer.files[0];
           const ext = (file.name.split('.').pop() || '').toLowerCase();
@@ -7179,17 +7204,60 @@ class SpectroSubApp {
       });
     }
 
-    // Tab 2 Drag and Drop
-    const dropzone = document.getElementById('tab2-dropzone');
-    if (dropzone) {
-      dropzone.addEventListener('dragover', (e) => { e.preventDefault(); });
-      dropzone.addEventListener('drop', (e) => {
+    // Tab 2 Drag and Drop (Entire Workspace / Viewports / Canvases)
+    const tab2Container = document.querySelector('#tab-pane-2 .chord-analyzer-container') || document.getElementById('tab-pane-2');
+    const tab2DragOverlay = document.getElementById('tab2-drag-overlay');
+    let tab2DragCounter = 0;
+
+    if (tab2Container) {
+      tab2Container.addEventListener('dragenter', (e) => {
         e.preventDefault();
+        tab2DragCounter++;
+        if (tab2DragOverlay) tab2DragOverlay.style.display = 'flex';
+      });
+      tab2Container.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        tab2DragCounter--;
+        if (tab2DragCounter <= 0) {
+          tab2DragCounter = 0;
+          if (tab2DragOverlay) tab2DragOverlay.style.display = 'none';
+        }
+      });
+      tab2Container.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      });
+      tab2Container.addEventListener('drop', (e) => {
+        e.preventDefault();
+        tab2DragCounter = 0;
+        if (tab2DragOverlay) tab2DragOverlay.style.display = 'none';
         if (e.dataTransfer.files && e.dataTransfer.files[0]) {
           this.loadTab2AudioFile(e.dataTransfer.files[0]);
         }
       });
     }
+
+    // Keep compatibility with tab2-dropzone if present
+    const dropzone = document.getElementById('tab2-dropzone');
+    if (dropzone) {
+      dropzone.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+      dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        tab2DragCounter = 0;
+        if (tab2DragOverlay) tab2DragOverlay.style.display = 'none';
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+          this.loadTab2AudioFile(e.dataTransfer.files[0]);
+        }
+      });
+    }
+
+    // Prevent default browser file open navigation when dropping outside designated zones
+    window.addEventListener('dragover', (e) => {
+      e.preventDefault();
+    });
+    window.addEventListener('drop', (e) => {
+      e.preventDefault();
+    });
 
     // Support vertical mouse wheel scrolling to scroll horizontal top toolbars on desktop
     const setupToolbarWheelScroll = () => {

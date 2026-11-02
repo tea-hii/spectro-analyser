@@ -41,7 +41,7 @@
     } catch (_) {}
   </script>
 
-  <link rel="stylesheet" href="./style.css?v=20261031_02">
+  <link rel="stylesheet" href="./style.css?v=20261102_01">
 </head>
 
 <body>
@@ -286,6 +286,15 @@
           <section id="canvas-panel" class="canvas-panel" style="height: 52%;">
             <canvas id="spectrogram-canvas"></canvas>
 
+            <!-- Drag & Drop Visual Overlay for Tab 1 -->
+            <div id="tab1-drag-overlay" class="drag-drop-overlay" style="display: none;">
+              <div class="drag-drop-badge">
+                <div style="font-size: 38px; margin-bottom: 8px;">🗣️</div>
+                <div style="font-size: 15px; font-weight: 700; color: #38bdf8;" data-i18n="tab1_drag_title">Thả file Audio hoặc Phụ đề vào đây</div>
+                <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;" data-i18n="tab1_drag_subtitle">Hỗ trợ MP3, WAV, ASS, SRT, JSON...</div>
+              </div>
+            </div>
+
             <button id="btn-freq-legend" class="freq-legend-btn" title="Xem chú giải dải tần số ngữ âm (Formants &amp; Liaisons)">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="12" y1="10" x2="12" y2="19"/>
@@ -493,6 +502,15 @@
 
           <!-- Stacked 2-Tier Graph Viewports -->
           <div class="chord-stacked-viewports" style="flex: 1; position: relative; display: flex; flex-direction: column;">
+            <!-- Drag & Drop Visual Overlay for Tab 2 -->
+            <div id="tab2-drag-overlay" class="drag-drop-overlay" style="display: none;">
+              <div class="drag-drop-badge">
+                <div style="font-size: 38px; margin-bottom: 8px;">🎹</div>
+                <div style="font-size: 15px; font-weight: 700; color: #38bdf8;" data-i18n="tab2_drag_title">Thả file Audio / Video vào đây</div>
+                <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;" data-i18n="tab2_drag_subtitle">Tự động phân tích Constant-Q &amp; Hợp âm cho Tab 2</div>
+              </div>
+            </div>
+
             <div id="tab2-empty-overlay" class="tab2-empty-placeholder" style="display: none;">
               <div id="tab2-dropzone" class="dropzone-box">
                 <div style="font-size: 40px;">🎹</div>
@@ -958,6 +976,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261031_02"></script>
+  <script src="./app.js?v=20261102_01"></script>
 </body>
 </html>

@@ -1740,6 +1740,37 @@ input, textarea, button, select {
   transform: translateY(-2px);
 }
 
+/* Drag and Drop Visual Highlight Overlays */
+.drag-drop-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(8, 13, 26, 0.86);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  border: 2px dashed #38bdf8;
+  border-radius: 8px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.drag-drop-badge {
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7), 0 0 24px rgba(56, 189, 248, 0.3);
+  border-radius: 14px;
+  padding: 24px 36px;
+  text-align: center;
+  user-select: none;
+  animation: modalIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* Mobile Long-Press Tooltip Popover Toast */
 .mobile-tooltip-toast {
   position: fixed;
